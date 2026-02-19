@@ -6,6 +6,7 @@ import {
 } from '@/components/ui/card';
 import { SurveyProgress } from './SurveyProgress';
 import { shouldSkipMemberStep } from '@/types/onboarding.types';
+import { StepLivingArrangement } from './steps/StepLivingArrangement';
 
 // ── Step metadata ─────────────────────────────────────────────────────
 
@@ -83,7 +84,7 @@ export function OnboardingSurvey() {
 
             Placeholders below — replaced as steps are implemented.
           */}
-          {currentStep === 1 && <StepPlaceholder step={1} />}
+          {currentStep === 1 && <StepLivingArrangement />}
           {currentStep === 2 && <StepPlaceholder step={2} />}
           {currentStep === 3 && <StepPlaceholder step={3} />}
           {currentStep === 4 && <StepPlaceholder step={4} />}

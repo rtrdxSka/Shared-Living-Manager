@@ -290,6 +290,32 @@ export function shouldSkipMemberStep(
   return arrangement === 'alone';
 }
 
+/** Min/max/fixed constraints for totalMembers based on arrangement */
+export interface MemberCountConstraints {
+  min: number;
+  max: number;
+  /** If set, the value is locked and the stepper should be disabled */
+  fixed?: number;
+}
+
+export function getMemberCountConstraints(
+  arrangement: LivingArrangement | ''
+): MemberCountConstraints {
+  switch (arrangement) {
+    case 'alone':
+      return { min: 1, max: 1, fixed: 1 };
+    case 'couple':
+      return { min: 2, max: 2, fixed: 2 };
+    case 'multi_family':
+      return { min: 3, max: 20 };
+    case 'family':
+    case 'roommates':
+      return { min: 2, max: 20 };
+    default:
+      return { min: 1, max: 20 };
+  }
+}
+
 /** Which split methods are available per arrangement */
 export function getAvailableSplitMethods(
   arrangement: LivingArrangement | ''
