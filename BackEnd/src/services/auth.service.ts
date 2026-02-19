@@ -1,0 +1,175 @@
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { User } from '../models/user.model';
+import {
+  IRegisterInput,
+  ILoginInput,
+  IAuthResponse,
+  IAuthTokens,
+  IUserResponse,
+  IJwtPayload,
+  IUser,
+} from '../types/user.types';
+import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/error';
+
+class AuthService {
+  // ── Register ──────────────────────────────────────────────────────
+  async register(input: IRegisterInput): Promise<IAuthResponse> {
+    const { email, password, firstName, lastName } = input;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      throw ConflictError('A user with this email already exists');
+    }
+
+    // Create user (password hashing handled by pre-save hook)
+    const user = await User.create({
+      email,
+      password,
+      firstName,
+      lastName,
+    });
+
+    // Generate tokens
+    const tokens = await this.generateAndStoreTokens(user);
+
+    return {
+      user: this.formatUserResponse(user),
+      tokens,
+    };
+  }
+
+  // ── Login ─────────────────────────────────────────────────────────
+  async login(input: ILoginInput): Promise<IAuthResponse> {
+    const { email, password } = input;
+
+    // Find user with password field included
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      throw UnauthorizedError('Invalid email or password');
+    }
+
+    // Verify password
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      throw UnauthorizedError('Invalid email or password');
+    }
+
+    // Generate tokens
+    const tokens = await this.generateAndStoreTokens(user);
+
+    return {
+      user: this.formatUserResponse(user),
+      tokens,
+    };
+  }
+
+  // ── Refresh Token ─────────────────────────────────────────────────
+  async refreshToken(refreshToken: string): Promise<IAuthTokens> {
+    // Verify the refresh token
+    const secret = this.getRefreshSecret();
+    let decoded: IJwtPayload;
+
+    try {
+      decoded = jwt.verify(refreshToken, secret) as IJwtPayload;
+    } catch {
+      throw UnauthorizedError('Invalid or expired refresh token');
+    }
+
+    // Find user with stored refresh token
+    const user = await User.findById(decoded.userId).select('+refreshToken');
+    if (!user || !user.refreshToken) {
+      throw UnauthorizedError('Invalid refresh token');
+    }
+
+    // Compare provided refresh token with stored hash
+    const isTokenValid = await bcrypt.compare(refreshToken, user.refreshToken);
+    if (!isTokenValid) {
+      // Potential token theft: invalidate all refresh tokens for this user
+      user.refreshToken = undefined;
+      await user.save();
+      throw UnauthorizedError('Invalid refresh token — session invalidated');
+    }
+
+    // Token rotation: generate new pair, invalidate old
+    const tokens = await this.generateAndStoreTokens(user);
+    return tokens;
+  }
+
+  // ── Logout ────────────────────────────────────────────────────────
+  async logout(userId: string): Promise<void> {
+    await User.findByIdAndUpdate(userId, {
+      $unset: { refreshToken: 1 },
+    });
+  }
+
+  // ── Get Current User ──────────────────────────────────────────────
+  async getMe(userId: string): Promise<IUserResponse> {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw NotFoundError('User not found');
+    }
+
+    return this.formatUserResponse(user);
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────
+
+  private async generateAndStoreTokens(user: IUser): Promise<IAuthTokens> {
+    const payload: IJwtPayload = {
+      userId: user._id.toString(),
+      email: user.email,
+    };
+
+    const accessToken = jwt.sign(payload, this.getAccessSecret(), {
+      expiresIn: '15m',
+    });
+
+    const refreshToken = jwt.sign(payload, this.getRefreshSecret(), {
+      expiresIn: '7d',
+    });
+
+    // Store hashed refresh token in DB
+    const saltRounds = 10;
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, saltRounds);
+    user.refreshToken = hashedRefreshToken;
+    await user.save();
+
+    return { accessToken, refreshToken };
+  }
+
+  private formatUserResponse(user: IUser): IUserResponse {
+    return {
+      _id: user._id.toString(),
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phoneNumber: user.phoneNumber,
+      avatarUrl: user.avatarUrl,
+      households: user.households.map((id) => id.toString()),
+      activeHousehold: user.activeHousehold?.toString(),
+      preferences: user.preferences,
+      isEmailVerified: user.isEmailVerified,
+      createdAt: user.createdAt,
+    };
+  }
+
+  private getAccessSecret(): string {
+    const secret = process.env.JWT_ACCESS_SECRET;
+    if (!secret) {
+      throw new Error('JWT_ACCESS_SECRET is not defined in environment variables');
+    }
+    return secret;
+  }
+
+  private getRefreshSecret(): string {
+    const secret = process.env.JWT_REFRESH_SECRET;
+    if (!secret) {
+      throw new Error('JWT_REFRESH_SECRET is not defined in environment variables');
+    }
+    return secret;
+  }
+}
+
+export const authService = new AuthService();
