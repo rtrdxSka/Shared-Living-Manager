@@ -5,9 +5,11 @@ import {
   CardHeader,
 } from '@/components/ui/card';
 import { SurveyProgress } from './SurveyProgress';
-import { shouldSkipMemberStep } from '@/types/onboarding.types';
 import { StepLivingArrangement } from './steps/StepLivingArrangement';
 import { StepHouseholdStructure } from './steps/StepHouseholdStructure';
+import { StepFinancialPreferences } from './steps/StepFinancialPreferences';
+import { StepTaskPreferences } from './steps/StepTaskPreferences';
+import { StepReview } from './steps/StepReview';
 
 // ── Step metadata ─────────────────────────────────────────────────────
 
@@ -18,7 +20,7 @@ const STEP_META: Record<number, { title: string; description: string }> = {
   },
   2: {
     title: 'Household Members',
-    description: 'Describe who you live with',
+    description: 'Set up your profile and describe your household',
   },
   3: {
     title: 'Financial Preferences',
@@ -34,24 +36,15 @@ const STEP_META: Record<number, { title: string; description: string }> = {
   },
 };
 
-// ── Effective steps helper ────────────────────────────────────────────
+// ── All steps are always active ──────────────────────────────────────
 
-function getEffectiveSteps(arrangement: string): number[] {
-  const steps = [1, 2, 3, 4, 5];
-  if (shouldSkipMemberStep(arrangement as never)) {
-    return steps.filter((s) => s !== 2);
-  }
-  return steps;
-}
+const EFFECTIVE_STEPS = [1, 2, 3, 4, 5];
 
 // ── Wizard container ──────────────────────────────────────────────────
 
 export function OnboardingSurvey() {
-  const { currentStep, surveyState } = useOnboarding();
+  const { currentStep } = useOnboarding();
 
-  const effectiveSteps = getEffectiveSteps(
-    surveyState.step1.livingArrangement
-  );
   const meta = STEP_META[currentStep];
 
   return (
@@ -60,7 +53,7 @@ export function OnboardingSurvey() {
       <div className="mb-8">
         <SurveyProgress
           currentStep={currentStep}
-          effectiveSteps={effectiveSteps}
+          effectiveSteps={EFFECTIVE_STEPS}
         />
       </div>
 
@@ -76,38 +69,13 @@ export function OnboardingSurvey() {
         </CardHeader>
 
         <CardContent className="px-6 pb-6 pt-4 sm:px-8">
-          {/*
-            Each step is a self-contained form component that:
-            - Renders its own fields
-            - Validates via react-hook-form + zod on submit
-            - Renders Back / Continue buttons
-            - Calls updateStepData() + nextStep() on valid submit
-
-            Placeholders below — replaced as steps are implemented.
-          */}
           {currentStep === 1 && <StepLivingArrangement />}
           {currentStep === 2 && <StepHouseholdStructure />}
-          {currentStep === 3 && <StepPlaceholder step={3} />}
-          {currentStep === 4 && <StepPlaceholder step={4} />}
-          {currentStep === 5 && <StepPlaceholder step={5} />}
+          {currentStep === 3 && <StepFinancialPreferences />}
+          {currentStep === 4 && <StepTaskPreferences />}
+          {currentStep === 5 && <StepReview />}
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-// ── Temporary placeholder (removed as real steps are built) ───────────
-
-function StepPlaceholder({ step }: { step: number }) {
-  const meta = STEP_META[step];
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-lg font-bold text-muted-foreground">
-        {step}
-      </div>
-      <p className="text-sm text-muted-foreground">
-        {meta.title} — component pending
-      </p>
     </div>
   );
 }
