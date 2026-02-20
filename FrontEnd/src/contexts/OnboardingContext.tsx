@@ -4,11 +4,9 @@ import {
   type OnboardingSurveyState,
 } from './onboarding.context';
 import {
-  shouldSkipMemberStep,
   shouldShowSplitMethod,
   shouldShowDistributionMethod,
   type OnboardingSurveyData,
-  type LivingArrangement,
 } from '@/types/onboarding.types';
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -25,6 +23,12 @@ const initialStep1: OnboardingSurveyState['step1'] = {
 };
 
 const initialStep2: OnboardingSurveyState['step2'] = {
+  creatorProfile: {
+    nickname: '',
+    ageGroup: 'adult',
+    participatesInFinances: true,
+    participatesInTasks: true,
+  },
   memberStructure: [],
 };
 
@@ -77,16 +81,9 @@ function clearStorage(): void {
 
 // ── Step navigation helpers ───────────────────────────────────────────
 
-/**
- * Returns the ordered list of effective step numbers,
- * excluding Step 2 when arrangement is 'alone'.
- */
-function getEffectiveSteps(arrangement: LivingArrangement | ''): number[] {
-  const steps = [1, 2, 3, 4, 5];
-  if (shouldSkipMemberStep(arrangement)) {
-    return steps.filter((s) => s !== 2);
-  }
-  return steps;
+/** Step 2 always shows (creator profile). All 5 steps are always active. */
+function getEffectiveSteps(): number[] {
+  return [1, 2, 3, 4, 5];
 }
 
 // ── Provider component ────────────────────────────────────────────────
@@ -107,13 +104,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Derived values
-  const isStep2Skipped = shouldSkipMemberStep(
-    surveyState.step1.livingArrangement
-  );
-  const effectiveSteps = getEffectiveSteps(
-    surveyState.step1.livingArrangement
-  );
+  const effectiveSteps = getEffectiveSteps();
   const totalSteps = effectiveSteps.length;
+  const isAlone = surveyState.step1.livingArrangement === 'alone';
 
   // ── Persist to localStorage on state change ─────────────────────────
 
@@ -181,31 +174,28 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   const nextStep = useCallback(() => {
     setCurrentStep((prev) => {
-      const steps = getEffectiveSteps(surveyState.step1.livingArrangement);
+      const steps = getEffectiveSteps();
       const currentIndex = steps.indexOf(prev);
       if (currentIndex === -1 || currentIndex >= steps.length - 1) return prev;
       return steps[currentIndex + 1];
     });
-  }, [surveyState.step1.livingArrangement]);
+  }, []);
 
   const prevStep = useCallback(() => {
     setCurrentStep((prev) => {
-      const steps = getEffectiveSteps(surveyState.step1.livingArrangement);
+      const steps = getEffectiveSteps();
       const currentIndex = steps.indexOf(prev);
       if (currentIndex <= 0) return prev;
       return steps[currentIndex - 1];
     });
-  }, [surveyState.step1.livingArrangement]);
+  }, []);
 
-  const goToStep = useCallback(
-    (step: number) => {
-      const steps = getEffectiveSteps(surveyState.step1.livingArrangement);
-      if (steps.includes(step)) {
-        setCurrentStep(step);
-      }
-    },
-    [surveyState.step1.livingArrangement]
-  );
+  const goToStep = useCallback((step: number) => {
+    const steps = getEffectiveSteps();
+    if (steps.includes(step)) {
+      setCurrentStep(step);
+    }
+  }, []);
 
   // ── Payload assembly ────────────────────────────────────────────────
 
@@ -214,6 +204,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
     // Verify required fields are filled
     if (!step1.livingArrangement || !step1.householdName) return null;
+    if (!step2.creatorProfile.nickname) return null;
     if (!step4.taskManagementEnabled) return null;
     if (step3.trackedExpenseTypes.length === 0) return null;
 
@@ -237,7 +228,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         : {}),
 
       // Step 2
-      memberStructure: isStep2Skipped ? [] : step2.memberStructure,
+      creatorProfile: step2.creatorProfile,
+      memberStructure: isAlone ? [] : step2.memberStructure,
 
       // Step 3
       ...(needsSplit && step3.expenseSplitMethod
@@ -254,7 +246,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     };
 
     return payload;
-  }, [surveyState, isStep2Skipped]);
+  }, [surveyState, isAlone]);
 
   // ── Reset ───────────────────────────────────────────────────────────
 
@@ -272,7 +264,6 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         currentStep,
         totalSteps,
         surveyState,
-        isStep2Skipped,
         updateStepData,
         nextStep,
         prevStep,

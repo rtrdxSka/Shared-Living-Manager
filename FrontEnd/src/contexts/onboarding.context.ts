@@ -22,14 +22,11 @@ export interface OnboardingContextValue {
   /** Current active step (1–5) */
   currentStep: number;
 
-  /** Total number of effective steps (4 or 5 depending on skip logic) */
+  /** Total number of steps (always 5) */
   totalSteps: number;
 
   /** Per-step data */
   surveyState: OnboardingSurveyState;
-
-  /** Whether Step 2 (Household Structure) is skipped */
-  isStep2Skipped: boolean;
 
   /** Update a single step's data and persist to localStorage */
   updateStepData: <K extends keyof OnboardingSurveyState>(
@@ -37,10 +34,10 @@ export interface OnboardingContextValue {
     data: OnboardingSurveyState[K]
   ) => void;
 
-  /** Navigate to next effective step (skips Step 2 for 'alone') */
+  /** Navigate to next step */
   nextStep: () => void;
 
-  /** Navigate to previous effective step */
+  /** Navigate to previous step */
   prevStep: () => void;
 
   /** Jump to a specific step (used by Review "Edit" buttons) */
