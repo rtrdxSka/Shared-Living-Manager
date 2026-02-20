@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Users } from 'lucide-react';
+import { User, Users } from 'lucide-react';
 
 import { useOnboarding } from '@/hooks/useOnboarding';
 import {
@@ -46,6 +46,8 @@ export function StepHouseholdStructure() {
   const arrangement = surveyState.step1.livingArrangement;
   const totalMembers = surveyState.step1.totalMembers;
   const expectedCount = totalMembers - 1;
+  const isAlone = arrangement === 'alone';
+  const isMultiFamily = arrangement === 'multi_family';
 
   const schema = createStepHouseholdStructureSchema(arrangement, totalMembers);
 
@@ -59,6 +61,17 @@ export function StepHouseholdStructure() {
   } = useForm<StepHouseholdStructureData>({
     resolver: zodResolver(schema),
     defaultValues: {
+      creatorProfile: {
+        nickname: surveyState.step2.creatorProfile.nickname || '',
+        ageGroup: surveyState.step2.creatorProfile.ageGroup || 'adult',
+        participatesInFinances:
+          surveyState.step2.creatorProfile.participatesInFinances ?? true,
+        participatesInTasks:
+          surveyState.step2.creatorProfile.participatesInTasks ?? true,
+        ...(isMultiFamily
+          ? { familyGroup: surveyState.step2.creatorProfile.familyGroup || '' }
+          : {}),
+      },
       memberStructure:
         surveyState.step2.memberStructure.length === expectedCount
           ? surveyState.step2.memberStructure
@@ -87,11 +100,12 @@ export function StepHouseholdStructure() {
   }, [members, setValue]);
 
   const onSubmit = (data: StepHouseholdStructureData) => {
-    updateStepData('step2', { memberStructure: data.memberStructure });
+    updateStepData('step2', {
+      creatorProfile: data.creatorProfile,
+      memberStructure: data.memberStructure,
+    });
     nextStep();
   };
-
-  const isMultiFamily = arrangement === 'multi_family';
 
   // Filter relationship options per arrangement
   const defaultRelationships = getDefaultRelationships(arrangement);
@@ -102,212 +116,345 @@ export function StepHouseholdStructure() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Info banner */}
-      <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
-        <Users className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Describe the{' '}
-          <span className="font-medium text-foreground">
-            {expectedCount} other {expectedCount === 1 ? 'person' : 'people'}
-          </span>{' '}
-          in your household. You can use nicknames.
-        </p>
-      </div>
+      {/* ── Creator profile ────────────────────────────────────────── */}
+      <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <User className="h-4 w-4 text-primary" />
+          <p className="text-sm font-semibold text-foreground">Your profile</p>
+        </div>
 
-      {/* Member cards */}
-      <div className="space-y-4">
-        {fields.map((field, index) => {
-          const memberErrors = errors.memberStructure?.[index];
-          const isChild = members[index]?.ageGroup === 'child';
-
-          return (
-            <div
-              key={field.id}
-              className="rounded-xl border border-border/60 p-4 sm:p-5"
-            >
-              <p className="mb-4 text-sm font-semibold text-foreground">
-                Member {index + 1}
+        <div className="space-y-4">
+          {/* Nickname */}
+          <div className="space-y-2">
+            <Label htmlFor="creator-nickname">Nickname</Label>
+            <Input
+              id="creator-nickname"
+              placeholder="How should others see you?"
+              className={cn(
+                errors.creatorProfile?.nickname && 'border-destructive'
+              )}
+              {...register('creatorProfile.nickname')}
+            />
+            {errors.creatorProfile?.nickname && (
+              <p className="text-sm text-destructive">
+                {errors.creatorProfile.nickname.message}
               </p>
+            )}
+          </div>
 
-              <div className="space-y-4">
-                {/* Nickname + Relationship */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor={`member-${index}-nickname`}>
-                      Nickname
-                    </Label>
-                    <Input
-                      id={`member-${index}-nickname`}
-                      placeholder="e.g. Ivan"
-                      className={cn(
-                        memberErrors?.nickname && 'border-destructive'
-                      )}
-                      {...register(`memberStructure.${index}.nickname`)}
-                    />
-                    {memberErrors?.nickname && (
-                      <p className="text-sm text-destructive">
-                        {memberErrors.nickname.message}
-                      </p>
+          {/* Age group + Family group row */}
+          <div
+            className={cn(
+              'grid grid-cols-1 gap-4',
+              isMultiFamily && 'sm:grid-cols-2'
+            )}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="creator-ageGroup">Age group</Label>
+              <Controller
+                name="creatorProfile.ageGroup"
+                control={control}
+                render={({ field }) => (
+                  <select
+                    id="creator-ageGroup"
+                    className={cn(
+                      'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                      errors.creatorProfile?.ageGroup && 'border-destructive'
                     )}
-                  </div>
+                    value={field.value}
+                    onChange={field.onChange}
+                  >
+                    {AGE_GROUP_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              />
+              {errors.creatorProfile?.ageGroup && (
+                <p className="text-sm text-destructive">
+                  {errors.creatorProfile.ageGroup.message}
+                </p>
+              )}
+            </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor={`member-${index}-relationship`}>
-                      Relationship
-                    </Label>
-                    <Controller
-                      name={`memberStructure.${index}.relationship`}
-                      control={control}
-                      render={({ field: selectField }) => (
-                        <select
-                          id={`member-${index}-relationship`}
-                          className={cn(
-                            'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                            memberErrors?.relationship && 'border-destructive'
-                          )}
-                          value={selectField.value}
-                          onChange={selectField.onChange}
-                        >
-                          {relationshipOptions.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    />
-                    {memberErrors?.relationship && (
-                      <p className="text-sm text-destructive">
-                        {memberErrors.relationship.message}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Age Group + Family Group (conditional) */}
-                <div
+            {isMultiFamily && (
+              <div className="space-y-2">
+                <Label htmlFor="creator-familyGroup">Family group</Label>
+                <Input
+                  id="creator-familyGroup"
+                  placeholder="e.g. Family A"
                   className={cn(
-                    'grid grid-cols-1 gap-4',
-                    isMultiFamily && 'sm:grid-cols-2'
+                    errors.creatorProfile?.familyGroup && 'border-destructive'
                   )}
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor={`member-${index}-ageGroup`}>
-                      Age group
-                    </Label>
-                    <Controller
-                      name={`memberStructure.${index}.ageGroup`}
-                      control={control}
-                      render={({ field: selectField }) => (
-                        <select
-                          id={`member-${index}-ageGroup`}
-                          className={cn(
-                            'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                            memberErrors?.ageGroup && 'border-destructive'
-                          )}
-                          value={selectField.value}
-                          onChange={selectField.onChange}
-                        >
-                          {AGE_GROUP_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    />
-                    {memberErrors?.ageGroup && (
-                      <p className="text-sm text-destructive">
-                        {memberErrors.ageGroup.message}
-                      </p>
-                    )}
-                  </div>
-
-                  {isMultiFamily && (
-                    <div className="space-y-2">
-                      <Label htmlFor={`member-${index}-familyGroup`}>
-                        Family group
-                      </Label>
-                      <Input
-                        id={`member-${index}-familyGroup`}
-                        placeholder="e.g. Family A"
-                        className={cn(
-                          memberErrors?.familyGroup && 'border-destructive'
-                        )}
-                        {...register(`memberStructure.${index}.familyGroup`)}
-                      />
-                      {memberErrors?.familyGroup && (
-                        <p className="text-sm text-destructive">
-                          {memberErrors.familyGroup.message}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Participation toggles */}
-                <div className="flex flex-wrap gap-x-6 gap-y-3 pt-1">
-                  <Controller
-                    name={`memberStructure.${index}.participatesInFinances`}
-                    control={control}
-                    render={({ field: switchField }) => (
-                      <div className="flex items-center gap-2.5">
-                        <Switch
-                          id={`member-${index}-finances`}
-                          checked={switchField.value}
-                          onCheckedChange={switchField.onChange}
-                          disabled={isChild}
-                        />
-                        <Label
-                          htmlFor={`member-${index}-finances`}
-                          className={cn(
-                            'text-sm font-normal',
-                            isChild && 'text-muted-foreground'
-                          )}
-                        >
-                          Participates in finances
-                        </Label>
-                      </div>
-                    )}
-                  />
-
-                  <Controller
-                    name={`memberStructure.${index}.participatesInTasks`}
-                    control={control}
-                    render={({ field: switchField }) => (
-                      <div className="flex items-center gap-2.5">
-                        <Switch
-                          id={`member-${index}-tasks`}
-                          checked={switchField.value}
-                          onCheckedChange={switchField.onChange}
-                        />
-                        <Label
-                          htmlFor={`member-${index}-tasks`}
-                          className="text-sm font-normal"
-                        >
-                          Participates in tasks
-                        </Label>
-                      </div>
-                    )}
-                  />
-                </div>
-
-                {isChild && (
-                  <p className="text-xs text-muted-foreground">
-                    Children cannot participate in finances
+                  {...register('creatorProfile.familyGroup')}
+                />
+                {errors.creatorProfile?.familyGroup && (
+                  <p className="text-sm text-destructive">
+                    {errors.creatorProfile.familyGroup.message}
                   </p>
                 )}
               </div>
-            </div>
-          );
-        })}
+            )}
+          </div>
+          {/* Participation toggles */}
+          <div className="flex flex-wrap gap-x-6 gap-y-3 pt-1">
+            <Controller
+              name="creatorProfile.participatesInFinances"
+              control={control}
+              render={({ field: switchField }) => (
+                <div className="flex items-center gap-2.5">
+                  <Switch
+                    id="creator-finances"
+                    checked={switchField.value}
+                    onCheckedChange={switchField.onChange}
+                  />
+                  <Label
+                    htmlFor="creator-finances"
+                    className="text-sm font-normal"
+                  >
+                    Participates in finances
+                  </Label>
+                </div>
+              )}
+            />
+
+            <Controller
+              name="creatorProfile.participatesInTasks"
+              control={control}
+              render={({ field: switchField }) => (
+                <div className="flex items-center gap-2.5">
+                  <Switch
+                    id="creator-tasks"
+                    checked={switchField.value}
+                    onCheckedChange={switchField.onChange}
+                  />
+                  <Label
+                    htmlFor="creator-tasks"
+                    className="text-sm font-normal"
+                  >
+                    Participates in tasks
+                  </Label>
+                </div>
+              )}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Array-level error */}
-      {errors.memberStructure?.message && (
-        <p className="text-sm text-destructive">
-          {errors.memberStructure.message}
-        </p>
+      {/* ── Other members ──────────────────────────────────────────── */}
+      {!isAlone && (
+        <>
+          <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
+            <Users className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Now describe the{' '}
+              <span className="font-medium text-foreground">
+                {expectedCount} other{' '}
+                {expectedCount === 1 ? 'person' : 'people'}
+              </span>{' '}
+              in your household.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {fields.map((field, index) => {
+              const memberErrors = errors.memberStructure?.[index];
+              const isChild = members[index]?.ageGroup === 'child';
+
+              return (
+                <div
+                  key={field.id}
+                  className="rounded-xl border border-border/60 p-4 sm:p-5"
+                >
+                  <p className="mb-4 text-sm font-semibold text-foreground">
+                    Member {index + 1}
+                  </p>
+
+                  <div className="space-y-4">
+                    {/* Row 1: Nickname + Relationship */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`member-${index}-nickname`}>
+                          Nickname
+                        </Label>
+                        <Input
+                          id={`member-${index}-nickname`}
+                          placeholder="e.g. Ivan"
+                          className={cn(
+                            memberErrors?.nickname && 'border-destructive'
+                          )}
+                          {...register(`memberStructure.${index}.nickname`)}
+                        />
+                        {memberErrors?.nickname && (
+                          <p className="text-sm text-destructive">
+                            {memberErrors.nickname.message}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`member-${index}-relationship`}>
+                          Relationship
+                        </Label>
+                        <Controller
+                          name={`memberStructure.${index}.relationship`}
+                          control={control}
+                          render={({ field: selectField }) => (
+                            <select
+                              id={`member-${index}-relationship`}
+                              className={cn(
+                                'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                memberErrors?.relationship &&
+                                  'border-destructive'
+                              )}
+                              value={selectField.value}
+                              onChange={selectField.onChange}
+                            >
+                              {relationshipOptions.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        />
+                        {memberErrors?.relationship && (
+                          <p className="text-sm text-destructive">
+                            {memberErrors.relationship.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Row 2: Age Group + Family Group */}
+                    <div
+                      className={cn(
+                        'grid grid-cols-1 gap-4',
+                        isMultiFamily && 'sm:grid-cols-2'
+                      )}
+                    >
+                      <div className="space-y-2">
+                        <Label htmlFor={`member-${index}-ageGroup`}>
+                          Age group
+                        </Label>
+                        <Controller
+                          name={`memberStructure.${index}.ageGroup`}
+                          control={control}
+                          render={({ field: selectField }) => (
+                            <select
+                              id={`member-${index}-ageGroup`}
+                              className={cn(
+                                'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                memberErrors?.ageGroup && 'border-destructive'
+                              )}
+                              value={selectField.value}
+                              onChange={selectField.onChange}
+                            >
+                              {AGE_GROUP_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        />
+                        {memberErrors?.ageGroup && (
+                          <p className="text-sm text-destructive">
+                            {memberErrors.ageGroup.message}
+                          </p>
+                        )}
+                      </div>
+
+                      {isMultiFamily && (
+                        <div className="space-y-2">
+                          <Label htmlFor={`member-${index}-familyGroup`}>
+                            Family group
+                          </Label>
+                          <Input
+                            id={`member-${index}-familyGroup`}
+                            placeholder="e.g. Family A"
+                            className={cn(
+                              memberErrors?.familyGroup && 'border-destructive'
+                            )}
+                            {...register(
+                              `memberStructure.${index}.familyGroup`
+                            )}
+                          />
+                          {memberErrors?.familyGroup && (
+                            <p className="text-sm text-destructive">
+                              {memberErrors.familyGroup.message}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Row 3: Participation toggles */}
+                    <div className="flex flex-wrap gap-x-6 gap-y-3 pt-1">
+                      <Controller
+                        name={`memberStructure.${index}.participatesInFinances`}
+                        control={control}
+                        render={({ field: switchField }) => (
+                          <div className="flex items-center gap-2.5">
+                            <Switch
+                              id={`member-${index}-finances`}
+                              checked={switchField.value}
+                              onCheckedChange={switchField.onChange}
+                              disabled={isChild}
+                            />
+                            <Label
+                              htmlFor={`member-${index}-finances`}
+                              className={cn(
+                                'text-sm font-normal',
+                                isChild && 'text-muted-foreground'
+                              )}
+                            >
+                              Participates in finances
+                            </Label>
+                          </div>
+                        )}
+                      />
+
+                      <Controller
+                        name={`memberStructure.${index}.participatesInTasks`}
+                        control={control}
+                        render={({ field: switchField }) => (
+                          <div className="flex items-center gap-2.5">
+                            <Switch
+                              id={`member-${index}-tasks`}
+                              checked={switchField.value}
+                              onCheckedChange={switchField.onChange}
+                            />
+                            <Label
+                              htmlFor={`member-${index}-tasks`}
+                              className="text-sm font-normal"
+                            >
+                              Participates in tasks
+                            </Label>
+                          </div>
+                        )}
+                      />
+                    </div>
+
+                    {isChild && (
+                      <p className="text-xs text-muted-foreground">
+                        Children cannot participate in finances
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {errors.memberStructure?.message && (
+            <p className="text-sm text-destructive">
+              {errors.memberStructure.message}
+            </p>
+          )}
+        </>
       )}
 
       <SurveyNavigation showBack onBack={prevStep} />
