@@ -100,6 +100,15 @@ export type Currency = (typeof CURRENCIES)[number];
 
 // ── Data structures ───────────────────────────────────────────────────
 
+/** The household creator's own profile within the household */
+export interface CreatorProfile {
+  nickname: string;
+  ageGroup: AgeGroup;
+  participatesInFinances: boolean;
+  participatesInTasks: boolean;
+  familyGroup?: string;
+}
+
 export interface MemberStructureEntry {
   nickname: string;
   relationship: Relationship;
@@ -117,8 +126,9 @@ export interface OnboardingSurveyData {
   livingArrangement: LivingArrangement;
   livingArrangementOther?: string;
 
-  // Step 2: Household Structure (empty array for 'alone')
-  memberStructure: MemberStructureEntry[];
+  // Step 2: Household Structure
+  creatorProfile: CreatorProfile;
+  memberStructure: MemberStructureEntry[]; // empty for 'alone'
 
   // Step 3: Financial Preferences
   expenseSplitMethod?: ExpenseSplitMethod;
@@ -140,6 +150,7 @@ export interface StepLivingArrangement {
 }
 
 export interface StepHouseholdStructure {
+  creatorProfile: CreatorProfile;
   memberStructure: MemberStructureEntry[];
 }
 
