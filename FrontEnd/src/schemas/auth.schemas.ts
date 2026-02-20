@@ -22,11 +22,7 @@ export const registerSchema = z
       .min(2, { message: 'Last name must be at least 2 characters' })
       .max(50, { message: 'Last name cannot exceed 50 characters' }),
     email: z
-      .string()
-      .min(1, { message: 'Email is required' })
-      .pipe(
-        z.email({ message: 'Please enter a valid email address' })
-      ),
+      .email({ message: 'Please enter a valid email address' }),
     password: z
       .string()
       .min(8, { message: 'Password must be at least 8 characters' })
