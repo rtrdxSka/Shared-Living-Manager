@@ -102,6 +102,24 @@ export type StepLivingArrangementData = z.infer<
   typeof stepLivingArrangementSchema
 >;
 
+// ── Creator profile ───────────────────────────────────────────────────
+
+export const creatorProfileSchema = z.object({
+  nickname: z
+    .string()
+    .trim()
+    .min(1, { message: 'Nickname is required' })
+    .max(30, { message: 'Nickname cannot exceed 30 characters' }),
+
+  ageGroup: z.enum(AGE_GROUPS, {
+    message: 'Please select an age group',
+  }),
+
+  participatesInFinances: z.boolean(),
+  participatesInTasks: z.boolean(),
+  familyGroup: z.string().max(50).optional(),
+});
+
 // ── Member structure entry ────────────────────────────────────────────
 
 export const memberStructureEntrySchema = z.object({
@@ -125,29 +143,27 @@ export const memberStructureEntrySchema = z.object({
 });
 
 // ── Step 2: Household Structure ───────────────────────────────────────
-//
-// Validated with context from Step 1 (livingArrangement, totalMembers).
-// This schema validates the member array in isolation.
-// Cross-step validation (correct count, familyGroup requirement) is
-// handled by createStepHouseholdStructureSchema().
 
 export const baseStepHouseholdStructureSchema = z.object({
+  creatorProfile: creatorProfileSchema,
   memberStructure: z.array(memberStructureEntrySchema),
 });
 
 /**
  * Creates a contextual schema for Step 2 based on Step 1 data.
+ * - Validates creator profile (familyGroup required for multi_family)
  * - Enforces correct member count (totalMembers - 1)
  * - Requires familyGroup when arrangement is 'multi_family'
- * - Auto-sets participatesInFinances to false for children
+ * - Children cannot participate in finances
  */
 export function createStepHouseholdStructureSchema(
   livingArrangement: string,
   totalMembers: number
 ) {
-  // If step is skipped, allow empty array
+  // If step is skipped (alone), minimal validation
   if (shouldSkipMemberStep(livingArrangement as never)) {
     return z.object({
+      creatorProfile: creatorProfileSchema,
       memberStructure: z.array(memberStructureEntrySchema).length(0),
     });
   }
@@ -156,6 +172,7 @@ export function createStepHouseholdStructureSchema(
 
   return z
     .object({
+      creatorProfile: creatorProfileSchema,
       memberStructure: z
         .array(memberStructureEntrySchema)
         .length(expectedCount, {
@@ -163,6 +180,19 @@ export function createStepHouseholdStructureSchema(
         }),
     })
     .superRefine((data, ctx) => {
+      // Require creator familyGroup for multi_family
+      if (
+        livingArrangement === 'multi_family' &&
+        (!data.creatorProfile.familyGroup ||
+          data.creatorProfile.familyGroup.trim().length === 0)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Family group is required for multi-family households',
+          path: ['creatorProfile', 'familyGroup'],
+        });
+      }
+
       data.memberStructure.forEach((member, index) => {
         // Require familyGroup for multi_family
         if (
@@ -170,7 +200,7 @@ export function createStepHouseholdStructureSchema(
           (!member.familyGroup || member.familyGroup.trim().length === 0)
         ) {
           ctx.addIssue({
-            code: "custom",
+            code: 'custom',
             message: 'Family group is required for multi-family households',
             path: ['memberStructure', index, 'familyGroup'],
           });
@@ -182,7 +212,7 @@ export function createStepHouseholdStructureSchema(
           member.participatesInFinances === true
         ) {
           ctx.addIssue({
-            code: "custom",
+            code: 'custom',
             message: 'Children cannot participate in finances',
             path: ['memberStructure', index, 'participatesInFinances'],
           });
@@ -200,8 +230,7 @@ export type StepHouseholdStructureData = z.infer<
 export const baseStepFinancialPreferencesSchema = z.object({
   expenseSplitMethod: z
     .enum(EXPENSE_SPLIT_METHODS)
-    .or(z.literal(''))
-    .default(''),
+    .or(z.literal('')),
 
   trackedExpenseTypes: z
     .array(z.enum(EXPENSE_TYPES))
@@ -269,8 +298,7 @@ export const baseStepTaskPreferencesSchema = z.object({
 
   taskDistributionMethod: z
     .enum(TASK_DISTRIBUTION_METHODS)
-    .or(z.literal(''))
-    .default(''),
+    .or(z.literal('')),
 });
 
 /**
@@ -287,8 +315,7 @@ export function createStepTaskPreferencesSchema(livingArrangement: string) {
 
       taskDistributionMethod: z
         .enum(TASK_DISTRIBUTION_METHODS)
-        .or(z.literal(''))
-        .default(''),
+        .or(z.literal('')),
     })
     .superRefine((data, ctx) => {
       const needsDistribution = shouldShowDistributionMethod(
@@ -344,6 +371,7 @@ export const onboardingSurveySchema = z
     livingArrangementOther: z.string().max(100).optional(),
 
     // Step 2
+    creatorProfile: creatorProfileSchema,
     memberStructure: z.array(memberStructureEntrySchema),
 
     // Step 3
@@ -452,10 +480,21 @@ export const onboardingSurveySchema = z
 
     // Validate familyGroup for multi_family
     if (livingArrangement === 'multi_family') {
+      if (
+        !data.creatorProfile.familyGroup ||
+        data.creatorProfile.familyGroup.trim().length === 0
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Family group is required for multi-family households',
+          path: ['creatorProfile', 'familyGroup'],
+        });
+      }
+
       data.memberStructure.forEach((member, index) => {
         if (!member.familyGroup || member.familyGroup.trim().length === 0) {
           ctx.addIssue({
-            code: "custom",
+            code: 'custom',
             message: 'Family group is required for multi-family households',
             path: ['memberStructure', index, 'familyGroup'],
           });
