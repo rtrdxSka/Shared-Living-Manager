@@ -7,6 +7,7 @@ import {
 import { SurveyProgress } from './SurveyProgress';
 import { shouldSkipMemberStep } from '@/types/onboarding.types';
 import { StepLivingArrangement } from './steps/StepLivingArrangement';
+import { StepHouseholdStructure } from './steps/StepHouseholdStructure';
 
 // ── Step metadata ─────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ export function OnboardingSurvey() {
             Placeholders below — replaced as steps are implemented.
           */}
           {currentStep === 1 && <StepLivingArrangement />}
-          {currentStep === 2 && <StepPlaceholder step={2} />}
+          {currentStep === 2 && <StepHouseholdStructure />}
           {currentStep === 3 && <StepPlaceholder step={3} />}
           {currentStep === 4 && <StepPlaceholder step={4} />}
           {currentStep === 5 && <StepPlaceholder step={5} />}
