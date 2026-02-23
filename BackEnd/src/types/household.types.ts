@@ -1,0 +1,223 @@
+import { Document, Types } from 'mongoose';
+
+// ── Living Arrangement ─────────────────────────────────────────────────
+
+export const LIVING_ARRANGEMENTS = [
+  'alone',
+  'couple',
+  'family',
+  'roommates',
+  'multi_family',
+  'other',
+] as const;
+
+export type LivingArrangement = (typeof LIVING_ARRANGEMENTS)[number];
+
+// ── Relationship ──────────────────────────────────────────────────────
+
+export const RELATIONSHIPS = [
+  'partner',
+  'parent',
+  'child',
+  'sibling',
+  'friend',
+  'roommate',
+  'relative',
+  'other',
+] as const;
+
+export type Relationship = (typeof RELATIONSHIPS)[number];
+
+// ── Age Group ─────────────────────────────────────────────────────────
+
+export const AGE_GROUPS = ['child', 'teenager', 'adult', 'senior'] as const;
+
+export type AgeGroup = (typeof AGE_GROUPS)[number];
+
+// ── Expense Split Method ──────────────────────────────────────────────
+
+export const EXPENSE_SPLIT_METHODS = [
+  'equal',
+  'income_based',
+  'usage_based',
+  'shapley',
+  'custom',
+] as const;
+
+export type ExpenseSplitMethod = (typeof EXPENSE_SPLIT_METHODS)[number];
+
+// ── Expense Type ──────────────────────────────────────────────────────
+
+export const EXPENSE_TYPES = [
+  'rent',
+  'utilities',
+  'internet',
+  'groceries',
+  'cleaning',
+  'subscriptions',
+  'other',
+] as const;
+
+export type ExpenseType = (typeof EXPENSE_TYPES)[number];
+
+// ── Task Management Level ─────────────────────────────────────────────
+
+export const TASK_MANAGEMENT_LEVELS = [
+  'full',
+  'basic',
+  'disabled',
+] as const;
+
+export type TaskManagementLevel = (typeof TASK_MANAGEMENT_LEVELS)[number];
+
+// ── Task Distribution Method ──────────────────────────────────────────
+
+export const TASK_DISTRIBUTION_METHODS = [
+  'rotation',
+  'fixed',
+  'ai',
+  'voluntary',
+] as const;
+
+export type TaskDistributionMethod = (typeof TASK_DISTRIBUTION_METHODS)[number];
+
+// ── UI Mode ───────────────────────────────────────────────────────────
+
+export const UI_MODES = [
+  'solo',
+  'couple',
+  'family',
+  'roommates',
+  'multi_family',
+] as const;
+
+export type UIMode = (typeof UI_MODES)[number];
+
+// ── Currency ──────────────────────────────────────────────────────────
+
+export const CURRENCIES = ['BGN', 'EUR', 'USD', 'GBP'] as const;
+
+export type Currency = (typeof CURRENCIES)[number];
+
+// ── Household Role ────────────────────────────────────────────────────
+
+export const HOUSEHOLD_ROLES = ['owner', 'admin', 'member'] as const;
+
+export type HouseholdRole = (typeof HOUSEHOLD_ROLES)[number];
+
+// ── Subdocument Interfaces ────────────────────────────────────────────
+
+export interface IHouseholdMember {
+  userId?: Types.ObjectId;
+  nickname: string;
+  relationship?: Relationship;
+  ageGroup: AgeGroup;
+  role: HouseholdRole;
+  participatesInFinances: boolean;
+  participatesInTasks: boolean;
+  familyGroup?: string;
+  isCreator: boolean;
+  joinedAt: Date;
+}
+
+export interface IHouseholdSettings {
+  expenseSplitMethod?: ExpenseSplitMethod;
+  trackedExpenseTypes: ExpenseType[];
+  currency: Currency;
+  taskManagementEnabled: TaskManagementLevel;
+  taskDistributionMethod?: TaskDistributionMethod;
+}
+
+// ── Household Document ────────────────────────────────────────────────
+
+export interface IHousehold extends Document {
+  _id: Types.ObjectId;
+  name: string;
+  livingArrangement: LivingArrangement;
+  livingArrangementOther?: string;
+  totalMembers: number;
+  uiMode: UIMode;
+  members: IHouseholdMember[];
+  settings: IHouseholdSettings;
+  createdBy: Types.ObjectId;
+  inviteCode: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ── Service Input DTO ─────────────────────────────────────────────────
+
+export interface ICreatorProfileInput {
+  nickname: string;
+  ageGroup: AgeGroup;
+  participatesInFinances: boolean;
+  participatesInTasks: boolean;
+  familyGroup?: string;
+}
+
+export interface IMemberStructureInput {
+  nickname: string;
+  relationship: Relationship;
+  ageGroup: AgeGroup;
+  participatesInFinances: boolean;
+  participatesInTasks: boolean;
+  familyGroup?: string;
+}
+
+export interface ICreateHouseholdInput {
+  householdName: string;
+  totalMembers: number;
+  livingArrangement: LivingArrangement;
+  livingArrangementOther?: string;
+  creatorProfile: ICreatorProfileInput;
+  memberStructure: IMemberStructureInput[];
+  expenseSplitMethod?: ExpenseSplitMethod;
+  trackedExpenseTypes: ExpenseType[];
+  currency: Currency;
+  taskManagementEnabled: TaskManagementLevel;
+  taskDistributionMethod?: TaskDistributionMethod;
+}
+
+// ── API Response DTO ──────────────────────────────────────────────────
+
+export interface IHouseholdMemberResponse {
+  _id: string;
+  userId?: string;
+  nickname: string;
+  relationship?: Relationship;
+  ageGroup: AgeGroup;
+  role: HouseholdRole;
+  participatesInFinances: boolean;
+  participatesInTasks: boolean;
+  familyGroup?: string;
+  isCreator: boolean;
+  joinedAt: string;
+}
+
+export interface IHouseholdResponse {
+  _id: string;
+  name: string;
+  livingArrangement: LivingArrangement;
+  livingArrangementOther?: string;
+  totalMembers: number;
+  uiMode: UIMode;
+  members: IHouseholdMemberResponse[];
+  settings: IHouseholdSettings;
+  createdBy: string;
+  inviteCode: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Helper Functions ──────────────────────────────────────────────────
+
+export function determineUIMode(
+  arrangement: LivingArrangement,
+  totalMembers: number
+): UIMode {
+  if (arrangement === 'alone' || totalMembers === 1) return 'solo';
+  if (arrangement === 'couple' || totalMembers === 2) return 'couple';
+  if (arrangement === 'multi_family') return 'multi_family';
+  if (arrangement === 'family') return 'family';
+  return 'roommates';
+}
