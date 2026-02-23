@@ -2,7 +2,9 @@ import { Pencil } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { householdApi } from '@/api/household.api';
 import {
   LIVING_ARRANGEMENT_OPTIONS,
   RELATIONSHIP_OPTIONS,
@@ -30,6 +32,7 @@ function findLabel<T extends string>(
 // ── Component ─────────────────────────────────────────────────────────
 
 export function StepReview() {
+  const { refreshUser } = useAuth();
   const {
     surveyState,
     isSubmitting,
@@ -56,12 +59,8 @@ export function StepReview() {
 
     setIsSubmitting(true);
     try {
-      // TODO: Replace with actual API call
-      // await householdApi.create(payload);
-      console.log('Survey payload:', payload);
-
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      await householdApi.create(payload);
+      await refreshUser();
       resetSurvey();
       navigate('/dashboard', { replace: true });
     } catch (error) {
