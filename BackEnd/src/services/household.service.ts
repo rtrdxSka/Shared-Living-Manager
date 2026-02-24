@@ -2,13 +2,14 @@ import { User } from '../models/user.model';
 import { Household } from '../models/household.model';
 import {
   ICreateHouseholdInput,
+  IJoinHouseholdInput,
   IHouseholdResponse,
   IHouseholdMemberResponse,
   IHouseholdMember,
   IHousehold,
   determineUIMode,
 } from '../types/household.types';
-import { NotFoundError } from '../utils/error';
+import { NotFoundError, BadRequestError, ConflictError } from '../utils/error';
 
 class HouseholdService {
   // ── Create from Onboarding ──────────────────────────────────────────
@@ -42,6 +43,8 @@ class HouseholdService {
       creatorMember.familyGroup = input.creatorProfile.familyGroup;
     }
 
+    creatorMember.email = user.email;
+
     // 4. Build placeholder members (no userId — join later via invite)
     const placeholderMembers = input.memberStructure.map((member) => {
       const entry: Partial<IHouseholdMember> = {
@@ -58,6 +61,8 @@ class HouseholdService {
       if (member.familyGroup) {
         entry.familyGroup = member.familyGroup;
       }
+
+      entry.email = member.email;
 
       return entry;
     });
@@ -87,6 +92,58 @@ class HouseholdService {
     // 7. Update user: link household
     user.households.push(household._id);
     user.activeHousehold = household._id;
+    await user.save();
+
+    return this.formatHouseholdResponse(household);
+  }
+
+  // ── Join Household ────────────────────────────────────────────────────
+
+  async joinHousehold(
+    userId: string,
+    userEmail: string,
+    input: IJoinHouseholdInput
+  ): Promise<IHouseholdResponse> {
+    // 1. Find household by invite code
+    const household = await Household.findOne({ inviteCode: input.inviteCode });
+    if (!household) {
+      throw NotFoundError('Invalid invite code');
+    }
+
+    // 2. Verify user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      throw NotFoundError('User not found');
+    }
+
+    // 3. Check user isn't already a member
+    const existingMember = household.members.find(
+      (m) => m.userId?.toString() === userId
+    );
+    if (existingMember) {
+      throw ConflictError('You are already a member of this household');
+    }
+
+    // 4. Find placeholder slot matching user's email (case-insensitive, no userId)
+    const placeholder = household.members.find(
+      (m) => !m.userId && m.email?.toLowerCase() === userEmail.toLowerCase()
+    );
+    if (!placeholder) {
+      throw BadRequestError(
+        'Your email is not pre-registered in this household. Contact the household admin to add you.'
+      );
+    }
+
+    // 5. Link user to placeholder slot
+    placeholder.userId = user._id;
+    placeholder.joinedAt = new Date();
+    await household.save();
+
+    // 6. Update user: link household
+    user.households.push(household._id);
+    if (!user.activeHousehold) {
+      user.activeHousehold = household._id;
+    }
     await user.save();
 
     return this.formatHouseholdResponse(household);
@@ -124,6 +181,7 @@ class HouseholdService {
       participatesInFinances: member.participatesInFinances,
       participatesInTasks: member.participatesInTasks,
       ...(member.familyGroup && { familyGroup: member.familyGroup }),
+      ...(member.email && { email: member.email }),
       isCreator: member.isCreator,
       joinedAt: member.joinedAt.toISOString(),
     };

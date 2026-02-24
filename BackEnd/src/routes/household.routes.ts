@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { householdController } from '../controllers/household.controller';
-import { createHouseholdValidation } from '../validators/household.validator';
+import { createHouseholdValidation, joinHouseholdValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware } from '../middleware/auth';
 
@@ -13,6 +13,15 @@ router.post(
   createHouseholdValidation,
   handleValidationErrors,
   householdController.create.bind(householdController)
+);
+
+// POST /api/households/join — Join household via invite code
+router.post(
+  '/join',
+  authMiddleware,
+  joinHouseholdValidation,
+  handleValidationErrors,
+  householdController.join.bind(householdController)
 );
 
 export default router;
