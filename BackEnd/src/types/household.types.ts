@@ -116,6 +116,7 @@ export interface IHouseholdMember {
   participatesInFinances: boolean;
   participatesInTasks: boolean;
   familyGroup?: string;
+  email?: string;
   isCreator: boolean;
   joinedAt: Date;
 }
@@ -162,6 +163,7 @@ export interface IMemberStructureInput {
   participatesInFinances: boolean;
   participatesInTasks: boolean;
   familyGroup?: string;
+  email: string;
 }
 
 export interface ICreateHouseholdInput {
@@ -178,6 +180,12 @@ export interface ICreateHouseholdInput {
   taskDistributionMethod?: TaskDistributionMethod;
 }
 
+// ── Join Household Input ─────────────────────────────────────────────
+
+export interface IJoinHouseholdInput {
+  inviteCode: string;
+}
+
 // ── API Response DTO ──────────────────────────────────────────────────
 
 export interface IHouseholdMemberResponse {
@@ -190,6 +198,7 @@ export interface IHouseholdMemberResponse {
   participatesInFinances: boolean;
   participatesInTasks: boolean;
   familyGroup?: string;
+  email?: string;
   isCreator: boolean;
   joinedAt: string;
 }

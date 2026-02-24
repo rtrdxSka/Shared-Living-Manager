@@ -68,6 +68,13 @@ const memberSchema = new Schema(
       maxlength: [50, 'Family group name cannot exceed 50 characters'],
       default: undefined,
     },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      maxlength: [254, 'Email cannot exceed 254 characters'],
+      default: undefined,
+    },
     isCreator: {
       type: Boolean,
       required: true,
@@ -205,7 +212,7 @@ householdSchema.index({ 'members.userId': 1 });
 
 householdSchema.pre('save', function () {
   if (!this.inviteCode) {
-    this.inviteCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+    this.inviteCode = crypto.randomUUID();
   }
 });
 

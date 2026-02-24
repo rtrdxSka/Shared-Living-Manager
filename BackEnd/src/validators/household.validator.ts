@@ -93,6 +93,14 @@ export const createHouseholdValidation: ValidationChain[] = [
     .isLength({ max: 50 })
     .withMessage('Family group cannot exceed 50 characters'),
 
+  body('memberStructure.*.email')
+    .trim()
+    .toLowerCase()
+    .isEmail()
+    .withMessage('A valid email address is required')
+    .isLength({ max: 254 })
+    .withMessage('Email cannot exceed 254 characters'),
+
   // ── Step 3: Financial Preferences ─────────────────────────────────────
 
   body('expenseSplitMethod')
@@ -231,4 +239,57 @@ export const createHouseholdValidation: ValidationChain[] = [
     }
     return true;
   }),
+
+  body('memberStructure').custom((members: Array<{ nickname: string }>, { req }) => {
+    const creatorNickname = (req.body.creatorProfile as { nickname: string })?.nickname;
+    const allNicknames = [
+      creatorNickname,
+      ...members.map((m) => m.nickname),
+    ]
+      .filter(Boolean)
+      .map((n) => n.trim().toLowerCase());
+
+    const seen = new Set<string>();
+    for (const nick of allNicknames) {
+      if (seen.has(nick)) {
+        throw new Error('All nicknames must be unique within the household');
+      }
+      seen.add(nick);
+    }
+
+    return true;
+  }),
+
+  body('memberStructure').custom((members: Array<{ email: string }>, { req }) => {
+    const creatorEmail = (req as { user?: { email: string } }).user?.email?.trim().toLowerCase();
+    const emails = members
+      .map((m) => m.email)
+      .filter(Boolean)
+      .map((e) => e.trim().toLowerCase());
+
+    const seen = new Set<string>();
+    if (creatorEmail) {
+      seen.add(creatorEmail);
+    }
+
+    for (const email of emails) {
+      if (seen.has(email)) {
+        throw new Error('Each member must have a unique email address');
+      }
+      seen.add(email);
+    }
+
+    return true;
+  }),
+];
+
+// ── Join Household Validation ─────────────────────────────────────────
+
+export const joinHouseholdValidation: ValidationChain[] = [
+  body('inviteCode')
+    .trim()
+    .notEmpty()
+    .withMessage('Invite code is required')
+    .isUUID()
+    .withMessage('Invalid invite code format'),
 ];
