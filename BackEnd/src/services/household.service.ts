@@ -9,7 +9,7 @@ import {
   IHousehold,
   determineUIMode,
 } from '../types/household.types';
-import { NotFoundError, BadRequestError, ConflictError } from '../utils/error';
+import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../utils/error';
 
 class HouseholdService {
   // ── Create from Onboarding ──────────────────────────────────────────
@@ -145,6 +145,25 @@ class HouseholdService {
       user.activeHousehold = household._id;
     }
     await user.save();
+
+    return this.formatHouseholdResponse(household);
+  }
+
+  // ── Get by ID ────────────────────────────────────────────────────────
+
+  async getById(householdId: string, userId: string): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) {
+      throw NotFoundError('Household not found');
+    }
+
+    // Verify the requesting user is a member
+    const isMember = household.members.some(
+      (m) => m.userId?.toString() === userId
+    );
+    if (!isMember) {
+      throw ForbiddenError('You are not a member of this household');
+    }
 
     return this.formatHouseholdResponse(household);
   }

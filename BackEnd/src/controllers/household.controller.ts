@@ -60,6 +60,33 @@ class HouseholdController {
       next(error);
     }
   }
+  // GET /api/households/:id
+  async getById(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
+
+      const householdId = req.params.id as string;
+
+      const household = await householdService.getById(
+        householdId,
+        req.user.userId
+      );
+
+      res.status(200).json({
+        status: 'success',
+        data: { household },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const householdController = new HouseholdController();

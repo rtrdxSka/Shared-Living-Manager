@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { householdController } from '../controllers/household.controller';
-import { createHouseholdValidation, joinHouseholdValidation } from '../validators/household.validator';
+import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware } from '../middleware/auth';
 
@@ -22,6 +22,15 @@ router.post(
   joinHouseholdValidation,
   handleValidationErrors,
   householdController.join.bind(householdController)
+);
+
+// GET /api/households/:id — Get household by ID
+router.get(
+  '/:id',
+  authMiddleware,
+  getHouseholdByIdValidation,
+  handleValidationErrors,
+  householdController.getById.bind(householdController)
 );
 
 export default router;
