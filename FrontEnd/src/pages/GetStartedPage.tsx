@@ -1,4 +1,8 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
   Card,
   CardContent,
@@ -7,10 +11,15 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, UserPlus, ArrowLeft, Info } from 'lucide-react';
+import { Plus, UserPlus, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { OnboardingSurvey } from '@/components/onboarding/OnboardingSurvey';
+import { FormField } from '@/contexts/FormField';
+import { householdApi } from '@/api/household.api';
+import { joinHouseholdSchema, type JoinHouseholdFormData } from '@/schemas/household.schemas';
+import type { ApiErrorResponse } from '@/types/auth.types';
 
 type GetStartedView = 'choice' | 'create' | 'join';
 
@@ -36,7 +45,7 @@ export default function GetStartedPage() {
         )}
 
         {view === 'join' && (
-          <JoinPlaceholder onBack={() => setView('choice')} />
+          <JoinView onBack={() => setView('choice')} />
         )}
       </div>
     </div>
@@ -130,9 +139,41 @@ function CreateView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ── Join placeholder ──────────────────────────────────────────────────
+// ── Join household view ───────────────────────────────────────────────
 
-function JoinPlaceholder({ onBack }: { onBack: () => void }) {
+function JoinView({ onBack }: { onBack: () => void }) {
+  const { refreshUser } = useAuth();
+  const navigate = useNavigate();
+  const [serverError, setServerError] = useState('');
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<JoinHouseholdFormData>({
+    resolver: zodResolver(joinHouseholdSchema),
+    defaultValues: { inviteCode: '' },
+  });
+
+  const onSubmit = async (data: JoinHouseholdFormData) => {
+    setServerError('');
+
+    try {
+      await householdApi.join({ inviteCode: data.inviteCode });
+      await refreshUser();
+      navigate('/dashboard', { replace: true });
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const apiError = error.response?.data as ApiErrorResponse | undefined;
+        setServerError(
+          apiError?.message || 'An error occurred while joining. Please try again.'
+        );
+      } else {
+        setServerError('An unexpected error occurred. Please try again.');
+      }
+    }
+  };
+
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center">
       <Button
@@ -155,20 +196,44 @@ function JoinPlaceholder({ onBack }: { onBack: () => void }) {
               Join a Household
             </CardTitle>
             <CardDescription className="text-base">
-              Enter your invite code
+              Enter the invite code shared by your household admin
             </CardDescription>
           </div>
         </CardHeader>
 
-        <CardContent className="flex flex-col items-center gap-6 px-6 pb-8 pt-4 sm:px-8">
-          <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4 text-left">
-            <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              The join flow will be implemented after the backend invitation
-              system is complete.
-            </p>
-          </div>
-        </CardContent>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <CardContent className="space-y-5 px-6 pb-8 pt-4 sm:px-8">
+            {serverError && (
+              <Alert variant="destructive" className="rounded-xl">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{serverError}</AlertDescription>
+              </Alert>
+            )}
+
+            <FormField
+              label="Invite Code"
+              type="text"
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              error={errors.inviteCode}
+              {...register('inviteCode')}
+            />
+
+            <Button
+              type="submit"
+              className="h-11 w-full rounded-xl text-base shadow-sm"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                'Join Household'
+              )}
+            </Button>
+          </CardContent>
+        </form>
       </Card>
     </div>
   );

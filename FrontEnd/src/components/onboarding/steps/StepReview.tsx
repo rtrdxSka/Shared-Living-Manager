@@ -59,10 +59,10 @@ export function StepReview() {
 
     setIsSubmitting(true);
     try {
-      await householdApi.create(payload);
+      const household = await householdApi.create(payload);
       await refreshUser();
       resetSurvey();
-      navigate('/dashboard', { replace: true });
+      navigate('/dashboard', { replace: true, state: { createdHousehold: household } });
     } catch (error) {
       console.error('Failed to create household:', error);
     } finally {
