@@ -1,4 +1,4 @@
-import { body, ValidationChain } from 'express-validator';
+import { body, param, ValidationChain } from 'express-validator';
 import {
   LIVING_ARRANGEMENTS,
   RELATIONSHIPS,
@@ -281,6 +281,14 @@ export const createHouseholdValidation: ValidationChain[] = [
 
     return true;
   }),
+];
+
+// ── Get Household by ID Validation ────────────────────────────────────
+
+export const getHouseholdByIdValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
 ];
 
 // ── Join Household Validation ─────────────────────────────────────────
