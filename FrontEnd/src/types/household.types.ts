@@ -55,6 +55,10 @@ export interface HouseholdResponse {
   updatedAt: string;
 }
 
-// ── Input type (re-export from onboarding) ────────────────────────────
+// ── Input types ──────────────────────────────────────────────────────
 
 export type CreateHouseholdInput = OnboardingSurveyData;
+
+export interface JoinHouseholdInput {
+  inviteCode: string;
+}
