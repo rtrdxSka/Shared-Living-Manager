@@ -122,6 +122,9 @@ export function StepReview() {
                 className="rounded-lg bg-muted/30 px-3 py-2.5 text-sm"
               >
                 <p className="font-medium">{member.nickname}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {member.email}
+                </p>
                 <p className="mt-0.5 text-muted-foreground">
                   {findLabel(RELATIONSHIP_OPTIONS, member.relationship)}
                   {' · '}

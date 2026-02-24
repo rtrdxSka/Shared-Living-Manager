@@ -3,6 +3,7 @@ import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Users } from 'lucide-react';
 
+import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import {
   createStepHouseholdStructureSchema,
@@ -34,6 +35,7 @@ function createEmptyMember(
     ageGroup: getDefaultAgeGroup(arrangement),
     participatesInFinances: true,
     participatesInTasks: true,
+    email: '',
     ...(arrangement === 'multi_family' ? { familyGroup: '' } : {}),
   };
 }
@@ -41,6 +43,7 @@ function createEmptyMember(
 // ── Component ─────────────────────────────────────────────────────────
 
 export function StepHouseholdStructure() {
+  const { user } = useAuth();
   const { surveyState, updateStepData, nextStep, prevStep } = useOnboarding();
 
   const arrangement = surveyState.step1.livingArrangement;
@@ -49,7 +52,7 @@ export function StepHouseholdStructure() {
   const isAlone = arrangement === 'alone';
   const isMultiFamily = arrangement === 'multi_family';
 
-  const schema = createStepHouseholdStructureSchema(arrangement, totalMembers);
+  const schema = createStepHouseholdStructureSchema(arrangement, totalMembers, user?.email);
 
   const {
     register,
@@ -326,6 +329,25 @@ export function StepHouseholdStructure() {
                           </p>
                         )}
                       </div>
+                    </div>
+
+                    {/* Email */}
+                    <div className="space-y-2">
+                      <Label htmlFor={`member-${index}-email`}>Email</Label>
+                      <Input
+                        id={`member-${index}-email`}
+                        type="email"
+                        placeholder="e.g. member@example.com"
+                        className={cn(
+                          memberErrors?.email && 'border-destructive'
+                        )}
+                        {...register(`memberStructure.${index}.email`)}
+                      />
+                      {memberErrors?.email && (
+                        <p className="text-sm text-destructive">
+                          {memberErrors.email.message}
+                        </p>
+                      )}
                     </div>
 
                     {/* Row 2: Age Group + Family Group */}
