@@ -140,6 +140,12 @@ export const memberStructureEntrySchema = z.object({
   participatesInFinances: z.boolean(),
   participatesInTasks: z.boolean(),
   familyGroup: z.string().max(50).optional(),
+
+  email: z
+    .email({ message: 'Please provide a valid email address' })
+    .trim()
+    .min(1, { message: 'Email is required' })
+    .max(254),
 });
 
 // ── Step 2: Household Structure ───────────────────────────────────────
@@ -155,10 +161,13 @@ export const baseStepHouseholdStructureSchema = z.object({
  * - Enforces correct member count (totalMembers - 1)
  * - Requires familyGroup when arrangement is 'multi_family'
  * - Children cannot participate in finances
+ * - Ensures nicknames are unique (creator + members)
+ * - Ensures emails are unique (members + creator account email)
  */
 export function createStepHouseholdStructureSchema(
   livingArrangement: string,
-  totalMembers: number
+  totalMembers: number,
+  creatorEmail?: string
 ) {
   // If step is skipped (alone), minimal validation
   if (shouldSkipMemberStep(livingArrangement as never)) {
@@ -218,6 +227,48 @@ export function createStepHouseholdStructureSchema(
           });
         }
       });
+
+      // Nickname uniqueness (case-insensitive, creator + members)
+      const allNicknames = [
+        data.creatorProfile.nickname,
+        ...data.memberStructure.map((m) => m.nickname),
+      ].map((n) => n.trim().toLowerCase());
+
+      const seenNicknames = new Set<string>();
+      // Check creator nickname (index -1 maps to creatorProfile)
+      if (seenNicknames.has(allNicknames[0])) {
+        // Creator is always first, won't duplicate with itself
+      }
+      seenNicknames.add(allNicknames[0]);
+
+      for (let i = 0; i < data.memberStructure.length; i++) {
+        const nick = allNicknames[i + 1];
+        if (nick && seenNicknames.has(nick)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Nicknames must be unique within the household',
+            path: ['memberStructure', i, 'nickname'],
+          });
+        }
+        if (nick) seenNicknames.add(nick);
+      }
+
+      // Email uniqueness (case-insensitive, members + creator account email)
+      const seenEmails = new Set<string>();
+      if (creatorEmail) {
+        seenEmails.add(creatorEmail.trim().toLowerCase());
+      }
+      for (let i = 0; i < data.memberStructure.length; i++) {
+        const email = data.memberStructure[i].email?.trim().toLowerCase();
+        if (email && seenEmails.has(email)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Each member must have a unique email address',
+            path: ['memberStructure', i, 'email'],
+          });
+        }
+        if (email) seenEmails.add(email);
+      }
     });
 }
 
@@ -500,6 +551,41 @@ export const onboardingSurveySchema = z
           });
         }
       });
+    }
+
+    // Nickname uniqueness (case-insensitive, creator + members)
+    const allNicknames = [
+      data.creatorProfile.nickname,
+      ...data.memberStructure.map((m) => m.nickname),
+    ].map((n) => n.trim().toLowerCase());
+
+    const seenNicknames = new Set<string>();
+    seenNicknames.add(allNicknames[0]);
+
+    for (let i = 0; i < data.memberStructure.length; i++) {
+      const nick = allNicknames[i + 1];
+      if (nick && seenNicknames.has(nick)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Nicknames must be unique within the household',
+          path: ['memberStructure', i, 'nickname'],
+        });
+      }
+      if (nick) seenNicknames.add(nick);
+    }
+
+    // Email uniqueness (case-insensitive, members only)
+    const seenEmails = new Set<string>();
+    for (let i = 0; i < data.memberStructure.length; i++) {
+      const email = data.memberStructure[i].email?.trim().toLowerCase();
+      if (email && seenEmails.has(email)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Each member must have a unique email address',
+          path: ['memberStructure', i, 'email'],
+        });
+      }
+      if (email) seenEmails.add(email);
     }
   });
 

@@ -116,6 +116,7 @@ export interface MemberStructureEntry {
   participatesInFinances: boolean;
   participatesInTasks: boolean;
   familyGroup?: string;
+  email: string;
 }
 
 /** Full survey payload — submitted to backend on completion */

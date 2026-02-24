@@ -27,6 +27,7 @@ export interface HouseholdMemberResponse {
   participatesInFinances: boolean;
   participatesInTasks: boolean;
   familyGroup?: string;
+  email?: string;
   isCreator: boolean;
   joinedAt: string;
 }
