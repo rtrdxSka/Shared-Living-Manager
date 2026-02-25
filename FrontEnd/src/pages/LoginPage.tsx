@@ -88,14 +88,24 @@ export default function LoginPage() {
               {...register('email')}
             />
 
-            <FormField
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              autoComplete="current-password"
-              error={errors.password}
-              {...register('password')}
-            />
+            <div className="space-y-2">
+              <FormField
+                label="Password"
+                type="password"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                error={errors.password}
+                {...register('password')}
+              />
+              <div className="text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
           </CardContent>
 
           <CardFooter className="flex flex-col gap-6 px-6 pb-8 pt-2 sm:px-8">
