@@ -5,6 +5,7 @@ import type {
   AuthResponse,
   User,
   ApiSuccessResponse,
+  ApiMessageResponse,
 } from '@/types/auth.types';
 
 
@@ -34,5 +35,36 @@ export const authApi = {
       '/auth/me'
     );
     return data.data.user;
+  },
+
+  async verifyEmail(token: string): Promise<string> {
+    const { data } = await api.post<ApiMessageResponse>(
+      '/auth/verify-email',
+      { token }
+    );
+    return data.message;
+  },
+
+  async resendVerification(): Promise<string> {
+    const { data } = await api.post<ApiMessageResponse>(
+      '/auth/resend-verification'
+    );
+    return data.message;
+  },
+
+  async forgotPassword(email: string): Promise<string> {
+    const { data } = await api.post<ApiMessageResponse>(
+      '/auth/forgot-password',
+      { email }
+    );
+    return data.message;
+  },
+
+  async resetPassword(token: string, password: string): Promise<string> {
+    const { data } = await api.post<ApiMessageResponse>(
+      '/auth/reset-password',
+      { token, password }
+    );
+    return data.message;
   },
 };

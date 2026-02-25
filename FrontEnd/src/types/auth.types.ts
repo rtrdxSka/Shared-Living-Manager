@@ -58,3 +58,19 @@ export interface ApiErrorResponse {
   message: string;
   errors?: { field: string; message: string }[];
 }
+
+export interface ApiMessageResponse {
+  status: 'success';
+  message: string;
+}
+
+export interface UpdateProfileInput {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
