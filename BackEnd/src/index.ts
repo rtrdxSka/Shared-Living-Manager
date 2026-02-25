@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { connectDatabase } from './config/database';
 import authRoutes from './routes/auth.routes';
 import householdRoutes from './routes/household.routes';
+import userRoutes from './routes/user.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 // Load environment variables
@@ -65,6 +66,7 @@ const apiLimiter = rateLimit({
 // ── API routes ────────────────────────────────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/households', apiLimiter, householdRoutes);
+app.use('/api/users', apiLimiter, userRoutes);
 
 // ── Centralized error handler (must be last) ──────────────────────────
 app.use(errorHandler);
