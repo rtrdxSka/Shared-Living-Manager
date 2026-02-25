@@ -29,6 +29,10 @@ export interface IUser extends Document {
   activeHousehold?: Types.ObjectId;
   preferences: IUserPreferences;
   isEmailVerified: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
   refreshToken?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -73,6 +77,19 @@ export interface IAuthTokens {
 export interface IAuthResponse {
   user: IUserResponse;
   tokens: IAuthTokens;
+}
+
+// ── Profile DTOs ─────────────────────────────────────────────────────
+
+export interface IUpdateProfileInput {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+export interface IChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
 }
 
 // ── JWT Payload ───────────────────────────────────────────────────────
