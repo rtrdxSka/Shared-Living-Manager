@@ -56,9 +56,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const currentUser = await authApi.getMe();
+    setUser(currentUser);
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, isAuthenticated: !!user, register, login, logout }}
+      value={{ user, isLoading, isAuthenticated: !!user, register, login, logout, refreshUser }}
     >
       {children}
     </AuthContext.Provider>

@@ -120,6 +120,83 @@ class AuthController {
       next(error);
     }
   }
+  // POST /api/auth/verify-email
+  async verifyEmail(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      await authService.verifyEmail(req.body.token);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Email verified successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // POST /api/auth/resend-verification
+  async resendVerification(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
+
+      await authService.resendVerificationEmail(req.user.userId);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Verification email sent',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // POST /api/auth/forgot-password
+  async forgotPassword(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      await authService.forgotPassword(req.body.email);
+
+      // Always return same response regardless of email existence
+      res.status(200).json({
+        status: 'success',
+        message: 'If an account with that email exists, a password reset link has been sent',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // POST /api/auth/reset-password
+  async resetPassword(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      await authService.resetPassword(req.body.token, req.body.password);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Password reset successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const authController = new AuthController();

@@ -22,11 +22,7 @@ export const registerSchema = z
       .min(2, { message: 'Last name must be at least 2 characters' })
       .max(50, { message: 'Last name cannot exceed 50 characters' }),
     email: z
-      .string()
-      .min(1, { message: 'Email is required' })
-      .pipe(
-        z.email({ message: 'Please enter a valid email address' })
-      ),
+      .email({ message: 'Please enter a valid email address' }),
     password: z
       .string()
       .min(8, { message: 'Password must be at least 8 characters' })
@@ -43,3 +39,30 @@ export const registerSchema = z
   });
 
 export type RegisterFormData = z.infer<typeof registerSchema>;
+
+// ── Forgot password schema ───────────────────────────────────────────
+export const forgotPasswordSchema = z.object({
+  email: z.string().email({ message: 'Please enter a valid email address' }),
+});
+
+export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
+
+// ── Reset password schema ────────────────────────────────────────────
+export const resetPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, { message: 'Password must be at least 8 characters' })
+      .regex(/[A-Z]/, { message: 'Password must contain at least one uppercase letter' })
+      .regex(/[a-z]/, { message: 'Password must contain at least one lowercase letter' })
+      .regex(/[0-9]/, { message: 'Password must contain at least one number' }),
+    confirmPassword: z
+      .string()
+      .min(1, { message: 'Please confirm your password' }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;

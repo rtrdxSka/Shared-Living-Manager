@@ -100,6 +100,15 @@ export type Currency = (typeof CURRENCIES)[number];
 
 // ── Data structures ───────────────────────────────────────────────────
 
+/** The household creator's own profile within the household */
+export interface CreatorProfile {
+  nickname: string;
+  ageGroup: AgeGroup;
+  participatesInFinances: boolean;
+  participatesInTasks: boolean;
+  familyGroup?: string;
+}
+
 export interface MemberStructureEntry {
   nickname: string;
   relationship: Relationship;
@@ -107,6 +116,7 @@ export interface MemberStructureEntry {
   participatesInFinances: boolean;
   participatesInTasks: boolean;
   familyGroup?: string;
+  email: string;
 }
 
 /** Full survey payload — submitted to backend on completion */
@@ -117,8 +127,9 @@ export interface OnboardingSurveyData {
   livingArrangement: LivingArrangement;
   livingArrangementOther?: string;
 
-  // Step 2: Household Structure (empty array for 'alone')
-  memberStructure: MemberStructureEntry[];
+  // Step 2: Household Structure
+  creatorProfile: CreatorProfile;
+  memberStructure: MemberStructureEntry[]; // empty for 'alone'
 
   // Step 3: Financial Preferences
   expenseSplitMethod?: ExpenseSplitMethod;
@@ -140,6 +151,7 @@ export interface StepLivingArrangement {
 }
 
 export interface StepHouseholdStructure {
+  creatorProfile: CreatorProfile;
   memberStructure: MemberStructureEntry[];
 }
 
@@ -288,6 +300,32 @@ export function shouldSkipMemberStep(
   arrangement: LivingArrangement | ''
 ): boolean {
   return arrangement === 'alone';
+}
+
+/** Min/max/fixed constraints for totalMembers based on arrangement */
+export interface MemberCountConstraints {
+  min: number;
+  max: number;
+  /** If set, the value is locked and the stepper should be disabled */
+  fixed?: number;
+}
+
+export function getMemberCountConstraints(
+  arrangement: LivingArrangement | ''
+): MemberCountConstraints {
+  switch (arrangement) {
+    case 'alone':
+      return { min: 1, max: 1, fixed: 1 };
+    case 'couple':
+      return { min: 2, max: 2, fixed: 2 };
+    case 'multi_family':
+      return { min: 3, max: 20 };
+    case 'family':
+    case 'roommates':
+      return { min: 2, max: 20 };
+    default:
+      return { min: 1, max: 20 };
+  }
 }
 
 /** Which split methods are available per arrangement */

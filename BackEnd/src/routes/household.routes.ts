@@ -1,0 +1,36 @@
+import { Router } from 'express';
+import { householdController } from '../controllers/household.controller';
+import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation } from '../validators/household.validator';
+import { handleValidationErrors } from '../middleware/validate';
+import { authMiddleware } from '../middleware/auth';
+
+const router = Router();
+
+// POST /api/households — Create household from onboarding survey
+router.post(
+  '/',
+  authMiddleware,
+  createHouseholdValidation,
+  handleValidationErrors,
+  householdController.create.bind(householdController)
+);
+
+// POST /api/households/join — Join household via invite code
+router.post(
+  '/join',
+  authMiddleware,
+  joinHouseholdValidation,
+  handleValidationErrors,
+  householdController.join.bind(householdController)
+);
+
+// GET /api/households/:id — Get household by ID
+router.get(
+  '/:id',
+  authMiddleware,
+  getHouseholdByIdValidation,
+  handleValidationErrors,
+  householdController.getById.bind(householdController)
+);
+
+export default router;

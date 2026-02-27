@@ -12,7 +12,7 @@ const userSchema = new Schema<IUser>(
       lowercase: true,
       trim: true,
       match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        /^\w+([.+%-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,})+$/,
         'Please provide a valid email address',
       ],
     },
@@ -83,6 +83,22 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
+    emailVerificationToken: {
+      type: String,
+      select: false,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      select: false,
+    },
+    passwordResetToken: {
+      type: String,
+      select: false,
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false,
+    },
     refreshToken: {
       type: String,
       select: false,
@@ -94,6 +110,10 @@ const userSchema = new Schema<IUser>(
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.password;
         delete ret.refreshToken;
+        delete ret.emailVerificationToken;
+        delete ret.emailVerificationExpires;
+        delete ret.passwordResetToken;
+        delete ret.passwordResetExpires;
         delete ret.__v;
         return ret;
       },

@@ -10,7 +10,9 @@ import {
   IJwtPayload,
   IUser,
 } from '../types/user.types';
-import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/error';
+import { BadRequestError, ConflictError, NotFoundError, UnauthorizedError } from '../utils/error';
+import { generateToken, hashToken } from '../utils/token';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 
 class AuthService {
   // ── Register ──────────────────────────────────────────────────────
@@ -30,6 +32,15 @@ class AuthService {
       firstName,
       lastName,
     });
+
+    // Generate and store email verification token
+    const verificationToken = generateToken();
+    user.emailVerificationToken = hashToken(verificationToken);
+    user.emailVerificationExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    await user.save();
+
+    // Fire-and-forget: registration succeeds even if email fails
+    sendVerificationEmail(email, firstName, verificationToken).catch(() => {});
 
     // Generate tokens
     const tokens = await this.generateAndStoreTokens(user);
@@ -102,6 +113,85 @@ class AuthService {
     await User.findByIdAndUpdate(userId, {
       $unset: { refreshToken: 1 },
     });
+  }
+
+  // ── Verify Email ────────────────────────────────────────────────────
+  async verifyEmail(token: string): Promise<void> {
+    const hashedToken = hashToken(token);
+
+    const user = await User.findOne({
+      emailVerificationToken: hashedToken,
+    }).select('+emailVerificationToken +emailVerificationExpires');
+
+    if (!user) {
+      throw BadRequestError('Invalid or expired verification token');
+    }
+
+    if (user.isEmailVerified) {
+      return;
+    }
+
+    if (!user.emailVerificationExpires || user.emailVerificationExpires < new Date()) {
+      throw BadRequestError('Invalid or expired verification token');
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+  }
+
+  // ── Resend Verification Email ──────────────────────────────────────
+  async resendVerificationEmail(userId: string): Promise<void> {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw NotFoundError('User not found');
+    }
+
+    if (user.isEmailVerified) {
+      throw BadRequestError('Email is already verified');
+    }
+
+    const verificationToken = generateToken();
+    user.emailVerificationToken = hashToken(verificationToken);
+    user.emailVerificationExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await user.save();
+
+    await sendVerificationEmail(user.email, user.firstName, verificationToken);
+  }
+
+  // ── Forgot Password ───────────────────────────────────────────────
+  async forgotPassword(email: string): Promise<void> {
+    const user = await User.findOne({ email });
+
+    // Silently return if not found to prevent email enumeration
+    if (!user) return;
+
+    const resetToken = generateToken();
+    user.passwordResetToken = hashToken(resetToken);
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    await sendPasswordResetEmail(user.email, user.firstName, resetToken);
+  }
+
+  // ── Reset Password ────────────────────────────────────────────────
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const hashedToken = hashToken(token);
+
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    }).select('+passwordResetToken +passwordResetExpires +refreshToken');
+
+    if (!user) {
+      throw BadRequestError('Invalid or expired reset token');
+    }
+
+    user.password = newPassword; // pre-save hook hashes
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    user.refreshToken = undefined; // force re-login on all sessions
+    await user.save();
   }
 
   // ── Get Current User ──────────────────────────────────────────────

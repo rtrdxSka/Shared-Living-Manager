@@ -78,6 +78,9 @@ export default function Navbar() {
                 <Button asChild variant="ghost" size="sm" className="h-9 rounded-xl">
                   <Link to={dashboardLink}>Dashboard</Link>
                 </Button>
+                <Button asChild variant="ghost" size="sm" className="h-9 rounded-xl">
+                  <Link to="/profile">Profile</Link>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -159,6 +162,15 @@ export default function Navbar() {
                       >
                         <Link to={dashboardLink} onClick={handleMobileLink}>
                           Dashboard
+                        </Link>
+                      </Button>
+                      <Button
+                        asChild
+                        variant="ghost"
+                        className="h-11 justify-start rounded-xl"
+                      >
+                        <Link to="/profile" onClick={handleMobileLink}>
+                          Profile
                         </Link>
                       </Button>
                       <Button

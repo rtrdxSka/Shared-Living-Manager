@@ -1,12 +1,30 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authController } from '../controllers/auth.controller';
-import { loginValidation, refreshTokenValidation, registerValidation } from '../validators/auth.validator';
+import {
+  loginValidation,
+  refreshTokenValidation,
+  registerValidation,
+  verifyEmailValidation,
+  forgotPasswordValidation,
+  resetPasswordValidation,
+} from '../validators/auth.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware } from '../middleware/auth';
 
-
-
 const router = Router();
+
+// Dedicated rate limiter for forgot password (3 req / 15 min)
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: {
+    status: 'error',
+    message: 'Too many password reset requests, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Public routes
 router.post(
@@ -30,9 +48,37 @@ router.post(
   authController.refresh.bind(authController)
 );
 
+router.post(
+  '/verify-email',
+  verifyEmailValidation,
+  handleValidationErrors,
+  authController.verifyEmail.bind(authController)
+);
+
+router.post(
+  '/forgot-password',
+  forgotPasswordLimiter,
+  forgotPasswordValidation,
+  handleValidationErrors,
+  authController.forgotPassword.bind(authController)
+);
+
+router.post(
+  '/reset-password',
+  resetPasswordValidation,
+  handleValidationErrors,
+  authController.resetPassword.bind(authController)
+);
+
 // Protected routes
 router.post('/logout', authMiddleware, authController.logout.bind(authController));
 
 router.get('/me', authMiddleware, authController.getMe.bind(authController));
+
+router.post(
+  '/resend-verification',
+  authMiddleware,
+  authController.resendVerification.bind(authController)
+);
 
 export default router;

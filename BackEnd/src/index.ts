@@ -5,6 +5,8 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { connectDatabase } from './config/database';
 import authRoutes from './routes/auth.routes';
+import householdRoutes from './routes/household.routes';
+import userRoutes from './routes/user.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 // Load environment variables
@@ -49,8 +51,22 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// ── Rate limiting (general API) ───────────────────────────────────────
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window per IP
+  message: {
+    status: 'error',
+    message: 'Too many requests, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // ── API routes ────────────────────────────────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/households', apiLimiter, householdRoutes);
+app.use('/api/users', apiLimiter, userRoutes);
 
 // ── Centralized error handler (must be last) ──────────────────────────
 app.use(errorHandler);

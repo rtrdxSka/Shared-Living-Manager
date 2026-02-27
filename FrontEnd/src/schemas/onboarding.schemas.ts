@@ -22,34 +22,103 @@ export const stepLivingArrangementSchema = z
     householdName: z
       .string()
       .trim()
-      .min(2, 'Household name must be at least 2 characters')
-      .max(50, 'Household name cannot exceed 50 characters'),
+      .min(2, { message: 'Household name must be at least 2 characters' })
+      .max(50, { message: 'Household name cannot exceed 50 characters' }),
 
     totalMembers: z
       .number({ message: 'Number of members is required' })
-      .int('Must be a whole number')
-      .min(1, 'Must have at least 1 member')
-      .max(20, 'Cannot exceed 20 members'),
+      .int({ message: 'Must be a whole number' })
+      .min(1, { message: 'Must have at least 1 member' })
+      .max(20, { message: 'Cannot exceed 20 members' }),
 
     livingArrangement: z.enum(LIVING_ARRANGEMENTS, {
       message: 'Please select a living arrangement',
     }),
 
-    livingArrangementOther: z.string().max(100).default(''),
+    livingArrangementOther: z.string().max(100),
   })
-  .refine(
-    (data) =>
-      data.livingArrangement !== 'other' ||
-      data.livingArrangementOther.trim().length > 0,
-    {
-      message: 'Please describe your living arrangement',
-      path: ['livingArrangementOther'],
+  .superRefine((data, ctx) => {
+    // 'Other' requires a description
+    if (
+      data.livingArrangement === 'other' &&
+      data.livingArrangementOther.trim().length === 0
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Please describe your living arrangement',
+        path: ['livingArrangementOther'],
+      });
     }
-  );
+
+    // totalMembers must be consistent with livingArrangement
+    const { livingArrangement, totalMembers } = data;
+
+    switch (livingArrangement) {
+      case 'alone':
+        if (totalMembers !== 1) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Living alone means exactly 1 member',
+            path: ['totalMembers'],
+          });
+        }
+        break;
+
+      case 'couple':
+        if (totalMembers !== 2) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'A couple household must have exactly 2 members',
+            path: ['totalMembers'],
+          });
+        }
+        break;
+
+      case 'family':
+      case 'roommates':
+        if (totalMembers < 2) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Must have at least 2 members for this arrangement',
+            path: ['totalMembers'],
+          });
+        }
+        break;
+
+      case 'multi_family':
+        if (totalMembers < 3) {
+          ctx.addIssue({
+            code: 'custom',
+            message:
+              'Multiple families require at least 3 members',
+            path: ['totalMembers'],
+          });
+        }
+        break;
+    }
+  });
 
 export type StepLivingArrangementData = z.infer<
   typeof stepLivingArrangementSchema
 >;
+
+// ── Creator profile ───────────────────────────────────────────────────
+
+export const creatorProfileSchema = z.object({
+  nickname: z
+    .string()
+    .trim()
+    .min(1, { message: 'Nickname is required' })
+    .max(30, { message: 'Nickname cannot exceed 30 characters' }),
+
+  ageGroup: z.enum(AGE_GROUPS, {
+    message: 'Please select an age group',
+  }),
+
+  participatesInFinances: z.boolean(),
+  participatesInTasks: z.boolean(),
+  familyGroup: z.string().max(50).optional(),
+});
 
 // ── Member structure entry ────────────────────────────────────────────
 
@@ -57,8 +126,8 @@ export const memberStructureEntrySchema = z.object({
   nickname: z
     .string()
     .trim()
-    .min(1, 'Nickname is required')
-    .max(30, 'Nickname cannot exceed 30 characters'),
+    .min(1, { message: 'Nickname is required' })
+    .max(30, { message: 'Nickname cannot exceed 30 characters' }),
 
   relationship: z.enum(RELATIONSHIPS, {
     message: 'Please select a relationship',
@@ -71,32 +140,39 @@ export const memberStructureEntrySchema = z.object({
   participatesInFinances: z.boolean(),
   participatesInTasks: z.boolean(),
   familyGroup: z.string().max(50).optional(),
+
+  email: z
+    .email({ message: 'Please provide a valid email address' })
+    .trim()
+    .min(1, { message: 'Email is required' })
+    .max(254),
 });
 
 // ── Step 2: Household Structure ───────────────────────────────────────
-//
-// Validated with context from Step 1 (livingArrangement, totalMembers).
-// This schema validates the member array in isolation.
-// Cross-step validation (correct count, familyGroup requirement) is
-// handled by createStepHouseholdStructureSchema().
 
 export const baseStepHouseholdStructureSchema = z.object({
+  creatorProfile: creatorProfileSchema,
   memberStructure: z.array(memberStructureEntrySchema),
 });
 
 /**
  * Creates a contextual schema for Step 2 based on Step 1 data.
+ * - Validates creator profile (familyGroup required for multi_family)
  * - Enforces correct member count (totalMembers - 1)
  * - Requires familyGroup when arrangement is 'multi_family'
- * - Auto-sets participatesInFinances to false for children
+ * - Children cannot participate in finances
+ * - Ensures nicknames are unique (creator + members)
+ * - Ensures emails are unique (members + creator account email)
  */
 export function createStepHouseholdStructureSchema(
   livingArrangement: string,
-  totalMembers: number
+  totalMembers: number,
+  creatorEmail?: string
 ) {
-  // If step is skipped, allow empty array
+  // If step is skipped (alone), minimal validation
   if (shouldSkipMemberStep(livingArrangement as never)) {
     return z.object({
+      creatorProfile: creatorProfileSchema,
       memberStructure: z.array(memberStructureEntrySchema).length(0),
     });
   }
@@ -105,14 +181,27 @@ export function createStepHouseholdStructureSchema(
 
   return z
     .object({
+      creatorProfile: creatorProfileSchema,
       memberStructure: z
         .array(memberStructureEntrySchema)
-        .length(
-          expectedCount,
-          `You need to define exactly ${expectedCount} member${expectedCount !== 1 ? 's' : ''}`
-        ),
+        .length(expectedCount, {
+          message: `You need to define exactly ${expectedCount} member${expectedCount !== 1 ? 's' : ''}`,
+        }),
     })
     .superRefine((data, ctx) => {
+      // Require creator familyGroup for multi_family
+      if (
+        livingArrangement === 'multi_family' &&
+        (!data.creatorProfile.familyGroup ||
+          data.creatorProfile.familyGroup.trim().length === 0)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Family group is required for multi-family households',
+          path: ['creatorProfile', 'familyGroup'],
+        });
+      }
+
       data.memberStructure.forEach((member, index) => {
         // Require familyGroup for multi_family
         if (
@@ -120,7 +209,7 @@ export function createStepHouseholdStructureSchema(
           (!member.familyGroup || member.familyGroup.trim().length === 0)
         ) {
           ctx.addIssue({
-            code: "custom",
+            code: 'custom',
             message: 'Family group is required for multi-family households',
             path: ['memberStructure', index, 'familyGroup'],
           });
@@ -132,12 +221,54 @@ export function createStepHouseholdStructureSchema(
           member.participatesInFinances === true
         ) {
           ctx.addIssue({
-            code: "custom",
+            code: 'custom',
             message: 'Children cannot participate in finances',
             path: ['memberStructure', index, 'participatesInFinances'],
           });
         }
       });
+
+      // Nickname uniqueness (case-insensitive, creator + members)
+      const allNicknames = [
+        data.creatorProfile.nickname,
+        ...data.memberStructure.map((m) => m.nickname),
+      ].map((n) => n.trim().toLowerCase());
+
+      const seenNicknames = new Set<string>();
+      // Check creator nickname (index -1 maps to creatorProfile)
+      if (seenNicknames.has(allNicknames[0])) {
+        // Creator is always first, won't duplicate with itself
+      }
+      seenNicknames.add(allNicknames[0]);
+
+      for (let i = 0; i < data.memberStructure.length; i++) {
+        const nick = allNicknames[i + 1];
+        if (nick && seenNicknames.has(nick)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Nicknames must be unique within the household',
+            path: ['memberStructure', i, 'nickname'],
+          });
+        }
+        if (nick) seenNicknames.add(nick);
+      }
+
+      // Email uniqueness (case-insensitive, members + creator account email)
+      const seenEmails = new Set<string>();
+      if (creatorEmail) {
+        seenEmails.add(creatorEmail.trim().toLowerCase());
+      }
+      for (let i = 0; i < data.memberStructure.length; i++) {
+        const email = data.memberStructure[i].email?.trim().toLowerCase();
+        if (email && seenEmails.has(email)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Each member must have a unique email address',
+            path: ['memberStructure', i, 'email'],
+          });
+        }
+        if (email) seenEmails.add(email);
+      }
     });
 }
 
@@ -150,12 +281,11 @@ export type StepHouseholdStructureData = z.infer<
 export const baseStepFinancialPreferencesSchema = z.object({
   expenseSplitMethod: z
     .enum(EXPENSE_SPLIT_METHODS)
-    .or(z.literal(''))
-    .default(''),
+    .or(z.literal('')),
 
   trackedExpenseTypes: z
     .array(z.enum(EXPENSE_TYPES))
-    .min(1, 'Select at least one expense type'),
+    .min(1, { message: 'Select at least one expense type' }),
 
   currency: z.enum(CURRENCIES, {
     message: 'Please select a currency',
@@ -176,7 +306,7 @@ export function createStepFinancialPreferencesSchema(
       expenseSplitMethod: z.literal('').or(z.enum(EXPENSE_SPLIT_METHODS)),
       trackedExpenseTypes: z
         .array(z.enum(EXPENSE_TYPES))
-        .min(1, 'Select at least one expense type'),
+        .min(1, { message: 'Select at least one expense type' }),
       currency: z.enum(CURRENCIES, {
         message: 'Please select a currency',
       }),
@@ -198,7 +328,7 @@ export function createStepFinancialPreferencesSchema(
 
     trackedExpenseTypes: z
       .array(z.enum(EXPENSE_TYPES))
-      .min(1, 'Select at least one expense type'),
+      .min(1, { message: 'Select at least one expense type' }),
 
     currency: z.enum(CURRENCIES, {
       message: 'Please select a currency',
@@ -219,8 +349,7 @@ export const baseStepTaskPreferencesSchema = z.object({
 
   taskDistributionMethod: z
     .enum(TASK_DISTRIBUTION_METHODS)
-    .or(z.literal(''))
-    .default(''),
+    .or(z.literal('')),
 });
 
 /**
@@ -237,8 +366,7 @@ export function createStepTaskPreferencesSchema(livingArrangement: string) {
 
       taskDistributionMethod: z
         .enum(TASK_DISTRIBUTION_METHODS)
-        .or(z.literal(''))
-        .default(''),
+        .or(z.literal('')),
     })
     .superRefine((data, ctx) => {
       const needsDistribution = shouldShowDistributionMethod(
@@ -283,17 +411,18 @@ export const onboardingSurveySchema = z
     householdName: z
       .string()
       .trim()
-      .min(2, 'Household name must be at least 2 characters')
-      .max(50, 'Household name cannot exceed 50 characters'),
+      .min(2, { message: 'Household name must be at least 2 characters' })
+      .max(50, { message: 'Household name cannot exceed 50 characters' }),
     totalMembers: z
       .number()
       .int()
-      .min(1, 'Must have at least 1 member')
-      .max(20, 'Cannot exceed 20 members'),
+      .min(1, { message: 'Must have at least 1 member' })
+      .max(20, { message: 'Cannot exceed 20 members' }),
     livingArrangement: z.enum(LIVING_ARRANGEMENTS),
     livingArrangementOther: z.string().max(100).optional(),
 
     // Step 2
+    creatorProfile: creatorProfileSchema,
     memberStructure: z.array(memberStructureEntrySchema),
 
     // Step 3
@@ -319,9 +448,52 @@ export const onboardingSurveySchema = z
       });
     }
 
-    // Validate member count
-    const isAlone = data.livingArrangement === 'alone';
-    const expectedMembers = isAlone ? 0 : data.totalMembers - 1;
+    // Validate member count constraints per arrangement
+    const { livingArrangement, totalMembers } = data;
+
+    switch (livingArrangement) {
+      case 'alone':
+        if (totalMembers !== 1) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Living alone means exactly 1 member',
+            path: ['totalMembers'],
+          });
+        }
+        break;
+      case 'couple':
+        if (totalMembers !== 2) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'A couple household must have exactly 2 members',
+            path: ['totalMembers'],
+          });
+        }
+        break;
+      case 'family':
+      case 'roommates':
+        if (totalMembers < 2) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Must have at least 2 members for this arrangement',
+            path: ['totalMembers'],
+          });
+        }
+        break;
+      case 'multi_family':
+        if (totalMembers < 3) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Multiple families require at least 3 members',
+            path: ['totalMembers'],
+          });
+        }
+        break;
+    }
+
+    // Validate member structure count
+    const isAlone = livingArrangement === 'alone';
+    const expectedMembers = isAlone ? 0 : totalMembers - 1;
     if (data.memberStructure.length !== expectedMembers) {
       ctx.addIssue({
         code: "custom",
@@ -332,7 +504,7 @@ export const onboardingSurveySchema = z
 
     // Validate split method requirement
     if (
-      shouldShowSplitMethod(data.livingArrangement) &&
+      shouldShowSplitMethod(livingArrangement) &&
       !data.expenseSplitMethod
     ) {
       ctx.addIssue({
@@ -345,7 +517,7 @@ export const onboardingSurveySchema = z
     // Validate distribution method requirement
     if (
       shouldShowDistributionMethod(
-        data.livingArrangement,
+        livingArrangement,
         data.taskManagementEnabled
       ) &&
       !data.taskDistributionMethod
@@ -358,16 +530,62 @@ export const onboardingSurveySchema = z
     }
 
     // Validate familyGroup for multi_family
-    if (data.livingArrangement === 'multi_family') {
+    if (livingArrangement === 'multi_family') {
+      if (
+        !data.creatorProfile.familyGroup ||
+        data.creatorProfile.familyGroup.trim().length === 0
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Family group is required for multi-family households',
+          path: ['creatorProfile', 'familyGroup'],
+        });
+      }
+
       data.memberStructure.forEach((member, index) => {
         if (!member.familyGroup || member.familyGroup.trim().length === 0) {
           ctx.addIssue({
-            code: "custom",
+            code: 'custom',
             message: 'Family group is required for multi-family households',
             path: ['memberStructure', index, 'familyGroup'],
           });
         }
       });
+    }
+
+    // Nickname uniqueness (case-insensitive, creator + members)
+    const allNicknames = [
+      data.creatorProfile.nickname,
+      ...data.memberStructure.map((m) => m.nickname),
+    ].map((n) => n.trim().toLowerCase());
+
+    const seenNicknames = new Set<string>();
+    seenNicknames.add(allNicknames[0]);
+
+    for (let i = 0; i < data.memberStructure.length; i++) {
+      const nick = allNicknames[i + 1];
+      if (nick && seenNicknames.has(nick)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Nicknames must be unique within the household',
+          path: ['memberStructure', i, 'nickname'],
+        });
+      }
+      if (nick) seenNicknames.add(nick);
+    }
+
+    // Email uniqueness (case-insensitive, members only)
+    const seenEmails = new Set<string>();
+    for (let i = 0; i < data.memberStructure.length; i++) {
+      const email = data.memberStructure[i].email?.trim().toLowerCase();
+      if (email && seenEmails.has(email)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Each member must have a unique email address',
+          path: ['memberStructure', i, 'email'],
+        });
+      }
+      if (email) seenEmails.add(email);
     }
   });
 

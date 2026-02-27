@@ -8,7 +8,7 @@ export const registerValidation: ValidationChain[] = [
   body('email')
     .isEmail()
     .withMessage('Please provide a valid email address')
-    .normalizeEmail(),
+    .normalizeEmail({ gmail_remove_subaddress: false }),
 
   body('password')
     .isLength({ min: 8 })
@@ -38,7 +38,7 @@ export const loginValidation: ValidationChain[] = [
   body('email')
     .isEmail()
     .withMessage('Please provide a valid email address')
-    .normalizeEmail(),
+    .normalizeEmail({ gmail_remove_subaddress: false }),
 
   body('password').notEmpty().withMessage('Password is required'),
 ];
@@ -46,4 +46,36 @@ export const loginValidation: ValidationChain[] = [
 // ── Refresh token validation ──────────────────────────────────────────
 export const refreshTokenValidation: ValidationChain[] = [
   body('refreshToken').notEmpty().withMessage('Refresh token is required'),
+];
+
+// ── Verify email validation ──────────────────────────────────────────
+export const verifyEmailValidation: ValidationChain[] = [
+  body('token')
+    .isString()
+    .isLength({ min: 64, max: 64 })
+    .withMessage('Invalid token format'),
+];
+
+// ── Forgot password validation ───────────────────────────────────────
+export const forgotPasswordValidation: ValidationChain[] = [
+  body('email')
+    .isEmail()
+    .withMessage('Please provide a valid email address')
+    .normalizeEmail({ gmail_remove_subaddress: false }),
+];
+
+// ── Reset password validation ────────────────────────────────────────
+export const resetPasswordValidation: ValidationChain[] = [
+  body('token')
+    .isString()
+    .isLength({ min: 64, max: 64 })
+    .withMessage('Invalid token format'),
+
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters long')
+    .matches(PASSWORD_REGEX)
+    .withMessage(
+      'Password must contain at least one uppercase letter, one lowercase letter, and one digit'
+    ),
 ];
