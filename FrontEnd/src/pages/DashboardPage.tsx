@@ -49,8 +49,14 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (household?.uiMode === 'couple') {
-    return <CoupleDashboard />;
+  if (household?.uiMode === 'couple' && user) {
+    return (
+      <CoupleDashboard
+        household={household}
+        currentUserId={user._id}
+        onHouseholdUpdated={setHousehold}
+      />
+    );
   }
 
   return (

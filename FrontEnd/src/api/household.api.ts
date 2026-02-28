@@ -25,4 +25,12 @@ export const householdApi = {
     );
     return data.data.household;
   },
+
+  async updateMyIncome(householdId: string, monthlyIncome: number): Promise<HouseholdResponse> {
+    const { data } = await api.patch<ApiSuccessResponse<{ household: HouseholdResponse }>>(
+      `/households/${householdId}/members/me/income`,
+      { monthlyIncome }
+    );
+    return data.data.household;
+  },
 };

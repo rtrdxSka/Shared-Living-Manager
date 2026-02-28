@@ -3,6 +3,7 @@ import {
   LIVING_ARRANGEMENTS,
   RELATIONSHIPS,
   AGE_GROUPS,
+  FINANCE_MODES,
   EXPENSE_SPLIT_METHODS,
   EXPENSE_TYPES,
   CURRENCIES,
@@ -11,8 +12,8 @@ import {
   getAvailableSplitMethods,
   getAvailableDistributionMethods,
   shouldSkipMemberStep,
-  shouldShowSplitMethod,
   shouldShowDistributionMethod,
+  type ExpenseSplitMethod,
 } from '@/types/onboarding.types';
 
 // ── Step 1: Living Arrangement ────────────────────────────────────────
@@ -279,6 +280,8 @@ export type StepHouseholdStructureData = z.infer<
 // ── Step 3: Financial Preferences ─────────────────────────────────────
 
 export const baseStepFinancialPreferencesSchema = z.object({
+  financeMode: z.enum(FINANCE_MODES).or(z.literal('')),
+
   expenseSplitMethod: z
     .enum(EXPENSE_SPLIT_METHODS)
     .or(z.literal('')),
@@ -294,46 +297,57 @@ export const baseStepFinancialPreferencesSchema = z.object({
 
 /**
  * Creates a contextual schema for Step 3 based on Step 1 data.
- * - Skips split method validation for 'alone'
- * - Restricts available split methods per arrangement
+ * - Solo mode ('alone'): no finance mode or split method needed
+ * - Non-solo: finance mode required; split method required only when financeMode === 'split'
  */
 export function createStepFinancialPreferencesSchema(
   livingArrangement: string
 ) {
-  if (!shouldShowSplitMethod(livingArrangement as never)) {
-    // Solo mode: split method not needed
+  const trackedExpenseTypes = z
+    .array(z.enum(EXPENSE_TYPES))
+    .min(1, { message: 'Select at least one expense type' });
+  const currency = z.enum(CURRENCIES, { message: 'Please select a currency' });
+
+  if (livingArrangement === 'alone') {
+    // Solo mode: no finance mode or split method needed
     return z.object({
-      expenseSplitMethod: z.literal('').or(z.enum(EXPENSE_SPLIT_METHODS)),
-      trackedExpenseTypes: z
-        .array(z.enum(EXPENSE_TYPES))
-        .min(1, { message: 'Select at least one expense type' }),
-      currency: z.enum(CURRENCIES, {
-        message: 'Please select a currency',
-      }),
+      financeMode: z.enum(FINANCE_MODES).or(z.literal('')).optional(),
+      expenseSplitMethod: z.enum(EXPENSE_SPLIT_METHODS).or(z.literal('')).optional(),
+      trackedExpenseTypes,
+      currency,
     });
   }
 
-  const availableMethods = getAvailableSplitMethods(
-    livingArrangement as never
-  );
+  const availableMethods = getAvailableSplitMethods(livingArrangement as never);
 
-  return z.object({
-    expenseSplitMethod: z
-      .enum(EXPENSE_SPLIT_METHODS, {
-        message: 'Please select a split method',
-      })
-      .refine((val) => availableMethods.includes(val), {
-        message: 'This split method is not available for your arrangement',
+  return z
+    .object({
+      financeMode: z.enum(FINANCE_MODES, {
+        message: 'Please select how you want to manage finances',
       }),
-
-    trackedExpenseTypes: z
-      .array(z.enum(EXPENSE_TYPES))
-      .min(1, { message: 'Select at least one expense type' }),
-
-    currency: z.enum(CURRENCIES, {
-      message: 'Please select a currency',
-    }),
-  });
+      expenseSplitMethod: z.enum(EXPENSE_SPLIT_METHODS).or(z.literal('')).optional(),
+      trackedExpenseTypes,
+      currency,
+    })
+    .superRefine((data, ctx) => {
+      if (data.financeMode === 'split') {
+        if (!data.expenseSplitMethod) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Please select a split method',
+            path: ['expenseSplitMethod'],
+          });
+          return;
+        }
+        if (!availableMethods.includes(data.expenseSplitMethod as ExpenseSplitMethod)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'This split method is not available for your arrangement',
+            path: ['expenseSplitMethod'],
+          });
+        }
+      }
+    });
 }
 
 export type StepFinancialPreferencesData = z.infer<
@@ -426,6 +440,7 @@ export const onboardingSurveySchema = z
     memberStructure: z.array(memberStructureEntrySchema),
 
     // Step 3
+    financeMode: z.enum(FINANCE_MODES).optional(),
     expenseSplitMethod: z.enum(EXPENSE_SPLIT_METHODS).optional(),
     trackedExpenseTypes: z.array(z.enum(EXPENSE_TYPES)).min(1),
     currency: z.enum(CURRENCIES),
@@ -502,13 +517,23 @@ export const onboardingSurveySchema = z
       });
     }
 
-    // Validate split method requirement
+    // Validate finance mode requirement for non-solo
+    if (livingArrangement !== 'alone' && !data.financeMode) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Please select how you want to manage finances',
+        path: ['financeMode'],
+      });
+    }
+
+    // Validate split method requirement (only when financeMode === 'split')
     if (
-      shouldShowSplitMethod(livingArrangement) &&
+      livingArrangement !== 'alone' &&
+      data.financeMode === 'split' &&
       !data.expenseSplitMethod
     ) {
       ctx.addIssue({
-        code: "custom",
+        code: 'custom',
         message: 'Please select a split method',
         path: ['expenseSplitMethod'],
       });

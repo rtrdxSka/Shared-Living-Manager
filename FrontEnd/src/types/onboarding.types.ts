@@ -32,6 +32,12 @@ export const AGE_GROUPS = ['child', 'teenager', 'adult', 'senior'] as const;
 
 export type AgeGroup = (typeof AGE_GROUPS)[number];
 
+// ── Finance Mode ──────────────────────────────────────────────────────
+
+export const FINANCE_MODES = ['joint', 'split'] as const;
+
+export type FinanceMode = (typeof FINANCE_MODES)[number];
+
 // ── Expense Split Method ──────────────────────────────────────────────
 
 export const EXPENSE_SPLIT_METHODS = [
@@ -132,6 +138,7 @@ export interface OnboardingSurveyData {
   memberStructure: MemberStructureEntry[]; // empty for 'alone'
 
   // Step 3: Financial Preferences
+  financeMode?: FinanceMode;            // required when livingArrangement !== 'alone'
   expenseSplitMethod?: ExpenseSplitMethod;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
@@ -156,6 +163,7 @@ export interface StepHouseholdStructure {
 }
 
 export interface StepFinancialPreferences {
+  financeMode: FinanceMode | '';
   expenseSplitMethod: ExpenseSplitMethod | '';
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
@@ -201,6 +209,19 @@ export const AGE_GROUP_OPTIONS: SelectOption<AgeGroup>[] = [
   { value: 'teenager', label: 'Teenager (13–17)' },
   { value: 'adult', label: 'Adult (18–64)' },
   { value: 'senior', label: 'Senior (65+)' },
+];
+
+export const FINANCE_MODE_OPTIONS: SelectOption<FinanceMode>[] = [
+  {
+    value: 'joint',
+    label: 'Joint pool',
+    description: 'All expenses tracked in a shared pool. No individual shares needed.',
+  },
+  {
+    value: 'split',
+    label: 'Split between members',
+    description: 'Track who owes whom. Choose a split method below.',
+  },
 ];
 
 export const EXPENSE_SPLIT_METHOD_OPTIONS: SelectOption<ExpenseSplitMethod>[] =
@@ -344,9 +365,11 @@ export function getAvailableSplitMethods(
 
 /** Whether to show the split method section */
 export function shouldShowSplitMethod(
-  arrangement: LivingArrangement | ''
+  arrangement: LivingArrangement | '',
+  financeMode: FinanceMode | '' = '',
 ): boolean {
-  return arrangement !== 'alone';
+  if (arrangement === 'alone') return false;
+  return financeMode === 'split';
 }
 
 /** Which task distribution methods are available per arrangement */

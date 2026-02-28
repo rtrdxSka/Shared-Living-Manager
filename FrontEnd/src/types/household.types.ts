@@ -2,6 +2,7 @@ import type {
   LivingArrangement,
   Relationship,
   AgeGroup,
+  FinanceMode,
   ExpenseSplitMethod,
   ExpenseType,
   TaskManagementLevel,
@@ -30,9 +31,11 @@ export interface HouseholdMemberResponse {
   email?: string;
   isCreator: boolean;
   joinedAt: string;
+  monthlyIncome?: number;
 }
 
 export interface HouseholdSettings {
+  financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
