@@ -315,3 +315,15 @@ export const joinHouseholdValidation: ValidationChain[] = [
     .isUUID()
     .withMessage('Invalid invite code format'),
 ];
+
+// ── Update Member Income Validation ───────────────────────────────────
+
+export const updateMemberIncomeValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
+
+  body('monthlyIncome')
+    .isFloat({ min: 0 })
+    .withMessage('Income must be a non-negative number'),
+];

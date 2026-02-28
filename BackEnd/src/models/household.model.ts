@@ -85,6 +85,11 @@ const memberSchema = new Schema(
       type: Date,
       default: Date.now,
     },
+    monthlyIncome: {
+      type: Number,
+      min: [0, 'Income cannot be negative'],
+      default: undefined,
+    },
   },
   { _id: true }
 );

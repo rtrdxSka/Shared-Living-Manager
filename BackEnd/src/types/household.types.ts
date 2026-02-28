@@ -125,6 +125,7 @@ export interface IHouseholdMember {
   email?: string;
   isCreator: boolean;
   joinedAt: Date;
+  monthlyIncome?: number;
 }
 
 export interface IHouseholdSettings {
@@ -209,6 +210,7 @@ export interface IHouseholdMemberResponse {
   email?: string;
   isCreator: boolean;
   joinedAt: string;
+  monthlyIncome?: number;
 }
 
 export interface IHouseholdResponse {
