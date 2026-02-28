@@ -72,6 +72,7 @@ class HouseholdService {
       trackedExpenseTypes: input.trackedExpenseTypes,
       currency: input.currency,
       taskManagementEnabled: input.taskManagementEnabled,
+      ...(input.financeMode && { financeMode: input.financeMode }),
       ...(input.expenseSplitMethod && { expenseSplitMethod: input.expenseSplitMethod }),
       ...(input.taskDistributionMethod && { taskDistributionMethod: input.taskDistributionMethod }),
     };

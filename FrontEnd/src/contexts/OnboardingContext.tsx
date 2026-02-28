@@ -4,7 +4,6 @@ import {
   type OnboardingSurveyState,
 } from './onboarding.context';
 import {
-  shouldShowSplitMethod,
   shouldShowDistributionMethod,
   type OnboardingSurveyData,
 } from '@/types/onboarding.types';
@@ -33,6 +32,7 @@ const initialStep2: OnboardingSurveyState['step2'] = {
 };
 
 const initialStep3: OnboardingSurveyState['step3'] = {
+  financeMode: '',
   expenseSplitMethod: '',
   trackedExpenseTypes: [],
   currency: 'BGN',
@@ -134,12 +134,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
             // Reset Step 2 member structure
             next.step2 = initialStep2;
 
-            // Reset split method if it's no longer available
-            if (next.step3.expenseSplitMethod) {
-              const showSplit = shouldShowSplitMethod(nextArrangement);
-              if (!showSplit) {
-                next.step3 = { ...next.step3, expenseSplitMethod: '' };
-              }
+            // Reset finance mode and split method when switching to/from solo
+            if (nextArrangement === 'alone' || prevArrangement === 'alone') {
+              next.step3 = { ...next.step3, financeMode: '', expenseSplitMethod: '' };
             }
 
             // Reset distribution method if it's no longer applicable
@@ -209,12 +206,15 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (step3.trackedExpenseTypes.length === 0) return null;
 
     const arrangement = step1.livingArrangement;
-    const needsSplit = shouldShowSplitMethod(arrangement);
+    const isNonSolo = arrangement !== 'alone';
+    const needsFinanceMode = isNonSolo;
+    const needsSplit = isNonSolo && step3.financeMode === 'split';
     const needsDistribution = shouldShowDistributionMethod(
       arrangement,
       step4.taskManagementEnabled
     );
 
+    if (needsFinanceMode && !step3.financeMode) return null;
     if (needsSplit && !step3.expenseSplitMethod) return null;
     if (needsDistribution && !step4.taskDistributionMethod) return null;
 
@@ -232,6 +232,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       memberStructure: isAlone ? [] : step2.memberStructure,
 
       // Step 3
+      ...(isNonSolo && step3.financeMode
+        ? { financeMode: step3.financeMode }
+        : {}),
       ...(needsSplit && step3.expenseSplitMethod
         ? { expenseSplitMethod: step3.expenseSplitMethod }
         : {}),

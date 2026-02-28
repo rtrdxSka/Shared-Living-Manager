@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -7,11 +8,12 @@ import {
   type StepFinancialPreferencesData,
 } from '@/schemas/onboarding.schemas';
 import {
+  FINANCE_MODE_OPTIONS,
   EXPENSE_SPLIT_METHOD_OPTIONS,
   EXPENSE_TYPE_OPTIONS,
   CURRENCY_OPTIONS,
   getAvailableSplitMethods,
-  shouldShowSplitMethod,
+  type FinanceMode,
   type ExpenseSplitMethod,
   type ExpenseType,
   type Currency,
@@ -25,22 +27,35 @@ export function StepFinancialPreferences() {
   const { surveyState, updateStepData, nextStep, prevStep } = useOnboarding();
 
   const arrangement = surveyState.step1.livingArrangement;
-  const showSplitMethod = shouldShowSplitMethod(arrangement);
+  const isNonSolo = arrangement !== 'alone';
   const availableMethods = getAvailableSplitMethods(arrangement);
   const schema = createStepFinancialPreferencesSchema(arrangement);
 
   const {
     handleSubmit,
     control,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<StepFinancialPreferencesData>({
     resolver: zodResolver(schema),
     defaultValues: {
+      financeMode: surveyState.step3.financeMode || undefined,
       expenseSplitMethod: surveyState.step3.expenseSplitMethod || undefined,
       trackedExpenseTypes: surveyState.step3.trackedExpenseTypes,
       currency: surveyState.step3.currency,
     },
   });
+
+  const watchedFinanceMode = watch('financeMode');
+  const showSplitMethod = isNonSolo && watchedFinanceMode === 'split';
+
+  // Reset split method when switching to joint pool
+  useEffect(() => {
+    if (watchedFinanceMode === 'joint') {
+      setValue('expenseSplitMethod', '');
+    }
+  }, [watchedFinanceMode, setValue]);
 
   const filteredSplitOptions = EXPENSE_SPLIT_METHOD_OPTIONS.filter((opt) =>
     availableMethods.includes(opt.value)
@@ -48,7 +63,8 @@ export function StepFinancialPreferences() {
 
   const onSubmit = (data: StepFinancialPreferencesData) => {
     updateStepData('step3', {
-      expenseSplitMethod: data.expenseSplitMethod,
+      financeMode: data.financeMode ?? '',
+      expenseSplitMethod: data.expenseSplitMethod ?? '',
       trackedExpenseTypes: data.trackedExpenseTypes,
       currency: data.currency,
     });
@@ -57,7 +73,70 @@ export function StepFinancialPreferences() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Expense split method — hidden for solo */}
+      {/* Finance mode toggle — hidden for solo */}
+      {isNonSolo && (
+        <Controller
+          name="financeMode"
+          control={control}
+          render={({ field }) => (
+            <div className="space-y-2">
+              <Label>How will you manage household expenses?</Label>
+              <div className="grid grid-cols-1 gap-2">
+                {FINANCE_MODE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => field.onChange(option.value as FinanceMode)}
+                    className={cn(
+                      'flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
+                      field.value === option.value
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border/60 hover:border-border hover:bg-muted/30'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                        field.value === option.value
+                          ? 'border-primary'
+                          : 'border-muted-foreground/40'
+                      )}
+                    >
+                      {field.value === option.value && (
+                        <span className="h-2 w-2 rounded-full bg-primary" />
+                      )}
+                    </span>
+                    <div>
+                      <p
+                        className={cn(
+                          'text-sm font-medium',
+                          field.value === option.value
+                            ? 'text-foreground'
+                            : 'text-muted-foreground'
+                        )}
+                      >
+                        {option.label}
+                      </p>
+                      {option.description && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {option.description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {errors.financeMode && (
+                <p className="text-sm text-destructive">
+                  {errors.financeMode.message}
+                </p>
+              )}
+            </div>
+          )}
+        />
+      )}
+
+      {/* Expense split method — only shown when financeMode === 'split' */}
       {showSplitMethod && (
         <Controller
           name="expenseSplitMethod"

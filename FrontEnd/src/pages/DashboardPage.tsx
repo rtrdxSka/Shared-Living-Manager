@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { householdApi } from '@/api/household.api';
 import type { HouseholdResponse } from '@/types/household.types';
+import CoupleDashboard from '@/components/dashboard/couple/CoupleDashboard';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -47,6 +48,10 @@ export default function DashboardPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (household?.uiMode === 'couple') {
+    return <CoupleDashboard />;
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center px-4 py-8 sm:py-12">
