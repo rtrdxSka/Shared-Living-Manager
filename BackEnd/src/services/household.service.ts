@@ -150,6 +150,31 @@ class HouseholdService {
     return this.formatHouseholdResponse(household);
   }
 
+  // ── Update Member Income ─────────────────────────────────────────────
+
+  async updateMemberIncome(
+    householdId: string,
+    userId: string,
+    income: number
+  ): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) {
+      throw NotFoundError('Household not found');
+    }
+
+    const member = household.members.find(
+      (m) => m.userId?.toString() === userId
+    );
+    if (!member) {
+      throw ForbiddenError('You are not a member of this household');
+    }
+
+    member.monthlyIncome = income;
+    await household.save();
+
+    return this.formatHouseholdResponse(household);
+  }
+
   // ── Get by ID ────────────────────────────────────────────────────────
 
   async getById(householdId: string, userId: string): Promise<IHouseholdResponse> {
@@ -204,6 +229,7 @@ class HouseholdService {
       ...(member.email && { email: member.email }),
       isCreator: member.isCreator,
       joinedAt: member.joinedAt.toISOString(),
+      ...(member.monthlyIncome !== undefined && { monthlyIncome: member.monthlyIncome }),
     };
   }
 }
