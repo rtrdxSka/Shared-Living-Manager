@@ -34,6 +34,12 @@ export const AGE_GROUPS = ['child', 'teenager', 'adult', 'senior'] as const;
 
 export type AgeGroup = (typeof AGE_GROUPS)[number];
 
+// ── Finance Mode ──────────────────────────────────────────────────────
+
+export const FINANCE_MODES = ['joint', 'split'] as const;
+
+export type FinanceMode = (typeof FINANCE_MODES)[number];
+
 // ── Expense Split Method ──────────────────────────────────────────────
 
 export const EXPENSE_SPLIT_METHODS = [
@@ -122,6 +128,7 @@ export interface IHouseholdMember {
 }
 
 export interface IHouseholdSettings {
+  financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
@@ -173,6 +180,7 @@ export interface ICreateHouseholdInput {
   livingArrangementOther?: string;
   creatorProfile: ICreatorProfileInput;
   memberStructure: IMemberStructureInput[];
+  financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;

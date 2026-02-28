@@ -5,6 +5,7 @@ import {
   LIVING_ARRANGEMENTS,
   RELATIONSHIPS,
   AGE_GROUPS,
+  FINANCE_MODES,
   EXPENSE_SPLIT_METHODS,
   EXPENSE_TYPES,
   TASK_MANAGEMENT_LEVELS,
@@ -92,6 +93,14 @@ const memberSchema = new Schema(
 
 const settingsSchema = new Schema(
   {
+    financeMode: {
+      type: String,
+      enum: {
+        values: FINANCE_MODES,
+        message: 'Invalid finance mode',
+      },
+      default: undefined,
+    },
     expenseSplitMethod: {
       type: String,
       enum: {

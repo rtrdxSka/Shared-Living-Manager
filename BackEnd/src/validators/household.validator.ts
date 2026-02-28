@@ -103,6 +103,11 @@ export const createHouseholdValidation: ValidationChain[] = [
 
   // ── Step 3: Financial Preferences ─────────────────────────────────────
 
+  body('financeMode')
+    .optional()
+    .isIn(['joint', 'split'])
+    .withMessage('Finance mode must be joint or split'),
+
   body('expenseSplitMethod')
     .optional()
     .isIn([...EXPENSE_SPLIT_METHODS])
@@ -223,10 +228,19 @@ export const createHouseholdValidation: ValidationChain[] = [
     return true;
   }),
 
+  body('financeMode').custom((value: string | undefined, { req }) => {
+    const arrangement = req.body.livingArrangement as LivingArrangement;
+    if (arrangement !== 'alone' && (!value || !['joint', 'split'].includes(value))) {
+      throw new Error('Finance mode is required for shared households');
+    }
+    return true;
+  }),
+
   body('expenseSplitMethod').custom((value: string | undefined, { req }) => {
     const arrangement = req.body.livingArrangement as LivingArrangement;
-    if (arrangement !== 'alone' && !value) {
-      throw new Error('Expense split method is required for shared households');
+    const financeMode = req.body.financeMode as string | undefined;
+    if (arrangement !== 'alone' && financeMode === 'split' && !value) {
+      throw new Error('Expense split method is required when finance mode is split');
     }
     return true;
   }),
