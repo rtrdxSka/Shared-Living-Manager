@@ -3,6 +3,7 @@ import { householdController } from '../controllers/household.controller';
 import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateMemberIncomeValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware } from '../middleware/auth';
+import expenseRouter from './expense.routes';
 
 const router = Router();
 
@@ -41,5 +42,7 @@ router.patch(
   handleValidationErrors,
   householdController.updateMemberIncome.bind(householdController)
 );
+
+router.use('/:id/expenses', expenseRouter);
 
 export default router;

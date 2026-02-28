@@ -1,0 +1,36 @@
+import { Schema, model } from 'mongoose';
+import { IExpense } from '../types/expense.types';
+import { EXPENSE_TYPES } from '../types/household.types';
+
+const expenseSchema = new Schema<IExpense>(
+  {
+    householdId: { type: Schema.Types.ObjectId, ref: 'Household', required: true },
+    paidByUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    createdByUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    description: { type: String, required: true, trim: true, minlength: 1, maxlength: 100 },
+    amount: { type: Number, required: true, min: [0.01, 'Amount must be greater than 0'] },
+    category: {
+      type: String,
+      required: true,
+      enum: { values: EXPENSE_TYPES, message: 'Invalid category' },
+    },
+    date: { type: Date, required: true },
+    notes: { type: String, trim: true, maxlength: 500, default: undefined },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      transform: (_doc, ret: Record<string, unknown>) => {
+        delete ret.__v;
+        return ret;
+      },
+    },
+  }
+);
+
+// Primary access pattern: filter by household + date range
+expenseSchema.index({ householdId: 1, date: -1 });
+// Support category filter on top
+expenseSchema.index({ householdId: 1, category: 1, date: -1 });
+
+export const Expense = model<IExpense>('Expense', expenseSchema);
