@@ -37,10 +37,25 @@ export interface HouseholdMemberResponse {
 export interface HouseholdSettings {
   financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
+  customSplitPercentage?: number;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
   taskManagementEnabled: TaskManagementLevel;
   taskDistributionMethod?: TaskDistributionMethod;
+}
+
+export interface UpdateHouseholdSettingsInput {
+  financeMode?: FinanceMode;
+  expenseSplitMethod?: ExpenseSplitMethod;
+  customSplitPercentage?: number;
+}
+
+export interface Settlement {
+  _id: string;
+  month: string;
+  amount: number;
+  settledByUserId: string;
+  settledAt: string;
 }
 
 export interface HouseholdResponse {
@@ -51,6 +66,7 @@ export interface HouseholdResponse {
   totalMembers: number;
   uiMode: UIMode;
   members: HouseholdMemberResponse[];
+  settlements: Settlement[];
   settings: HouseholdSettings;
   createdBy: string;
   inviteCode: string;

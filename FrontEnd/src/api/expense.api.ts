@@ -27,6 +27,20 @@ export const expenseApi = {
     return data.data.expense;
   },
 
+  async claimExpense(householdId: string, expenseId: string): Promise<ExpenseResponse> {
+    const { data } = await api.post<ApiSuccessResponse<{ expense: ExpenseResponse }>>(
+      `/households/${householdId}/expenses/${expenseId}/claim`
+    );
+    return data.data.expense;
+  },
+
+  async resolveExpense(householdId: string, expenseId: string): Promise<ExpenseResponse> {
+    const { data } = await api.post<ApiSuccessResponse<{ expense: ExpenseResponse }>>(
+      `/households/${householdId}/expenses/${expenseId}/resolve`
+    );
+    return data.data.expense;
+  },
+
   async listExpenses(
     householdId: string,
     month?: string,

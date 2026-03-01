@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -9,16 +9,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { expenseApi } from '@/api/expense.api';
+import { recurringExpenseApi } from '@/api/recurring-expense.api';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
+import { RECURRENCE_INTERVALS, PAYER_MODES } from '@/types/recurring-expense.types';
 import type { HouseholdResponse } from '@/types/household.types';
 import type { ExpenseResponse, AddExpenseInput } from '@/types/expense.types';
+import type { RecurrenceInterval, PayerMode } from '@/types/recurring-expense.types';
 
 interface AddExpenseFormProps {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   household: HouseholdResponse;
   expense?: ExpenseResponse;
-  onAdded: (e: ExpenseResponse) => void;
+  onSaved: () => void;
 }
 
 const selectClass =
@@ -33,7 +36,7 @@ export default function AddExpenseForm({
   onOpenChange,
   household,
   expense,
-  onAdded,
+  onSaved,
 }: AddExpenseFormProps) {
   const isEditMode = expense !== undefined;
   const payableMembers = household.members.filter(
@@ -44,10 +47,16 @@ export default function AddExpenseForm({
   const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
   const [category, setCategory] = useState(expense?.category ?? EXPENSE_TYPES[0]);
   const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : todayISO());
-  const [paidByUserId, setPaidByUserId] = useState(expense?.paidByUserId ?? payableMembers[0]?.userId ?? '');
+  // Optional payer — default to "" (not paid yet) for new expenses; pre-fill for edit
+  const [paidByUserId, setPaidByUserId] = useState(expense?.paidByUserId ?? '');
   const [notes, setNotes] = useState(expense?.notes ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Recurring state (not available in edit mode)
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [interval, setInterval] = useState<RecurrenceInterval>('monthly');
+  const [payerMode, setPayerMode] = useState<PayerMode>('open_to_claim');
 
   // Re-populate form whenever the expense being edited changes
   useEffect(() => {
@@ -56,7 +65,7 @@ export default function AddExpenseForm({
       setAmount(String(expense.amount));
       setCategory(expense.category);
       setDate(expense.date.slice(0, 10));
-      setPaidByUserId(expense.paidByUserId);
+      setPaidByUserId(expense.paidByUserId ?? '');
       setNotes(expense.notes ?? '');
       setError(null);
     }
@@ -67,8 +76,11 @@ export default function AddExpenseForm({
     setAmount('');
     setCategory(EXPENSE_TYPES[0]);
     setDate(todayISO());
-    setPaidByUserId(payableMembers[0]?.userId ?? '');
+    setPaidByUserId('');
     setNotes('');
+    setIsRecurring(false);
+    setInterval('monthly');
+    setPayerMode('open_to_claim');
     setError(null);
   }
 
@@ -77,15 +89,24 @@ export default function AddExpenseForm({
     setSubmitting(true);
     setError(null);
     try {
-      let saved: ExpenseResponse;
       if (isEditMode) {
-        saved = await expenseApi.updateExpense(household._id, expense._id, {
+        await expenseApi.updateExpense(household._id, expense._id, {
           description: description.trim(),
           amount: parseFloat(amount),
           category,
           date,
-          paidByUserId,
+          paidByUserId: paidByUserId || null,
           notes: notes.trim() || undefined,
+        });
+      } else if (isRecurring) {
+        await recurringExpenseApi.create(household._id, {
+          description: description.trim(),
+          amount: parseFloat(amount),
+          category,
+          notes: notes.trim() || undefined,
+          interval,
+          payerMode,
+          ...(payerMode === 'fixed' && paidByUserId ? { fixedPayerUserId: paidByUserId } : {}),
         });
       } else {
         const input: AddExpenseInput = {
@@ -93,29 +114,48 @@ export default function AddExpenseForm({
           amount: parseFloat(amount),
           category,
           date,
-          paidByUserId,
+          ...(paidByUserId && { paidByUserId }),
           ...(notes.trim() && { notes: notes.trim() }),
         };
-        saved = await expenseApi.addExpense(household._id, input);
+        await expenseApi.addExpense(household._id, input);
       }
-      onAdded(saved);
+      onSaved();
       if (!isEditMode) resetForm();
       onOpenChange(false);
     } catch {
-      setError(isEditMode ? 'Failed to update expense. Please try again.' : 'Failed to add expense. Please try again.');
+      setError(
+        isEditMode
+          ? 'Failed to update expense. Please try again.'
+          : isRecurring
+            ? 'Failed to create recurring template. Please try again.'
+            : 'Failed to add expense. Please try again.'
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   const currency = household.settings.currency;
-  const canSubmit = description.trim() && amount && !submitting;
+  const canSubmit =
+    description.trim() &&
+    amount &&
+    !submitting &&
+    // When recurring + fixed payer mode, a payer must be selected
+    !(isRecurring && payerMode === 'fixed' && !paidByUserId);
+
+  // Determine whether to show the "Paid by" dropdown
+  const showPaidBy = isEditMode || (!isRecurring) || (isRecurring && payerMode === 'fixed');
+  const paidByRequired = isRecurring && payerMode === 'fixed';
+
+  const dateLabel = isRecurring ? 'Starts from' : 'Date';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex flex-col gap-0 overflow-y-auto">
         <SheetHeader className="mb-4">
-          <SheetTitle>{isEditMode ? 'Edit Expense' : 'Add Expense'}</SheetTitle>
+          <SheetTitle>
+            {isEditMode ? 'Edit Expense' : isRecurring ? 'New Recurring Template' : 'Add Expense'}
+          </SheetTitle>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -164,34 +204,115 @@ export default function AddExpenseForm({
             </select>
           </div>
 
-          {/* Date */}
+          {/* Date / Starts from */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Date</label>
+            <label className="text-sm font-medium">{dateLabel}</label>
             <Input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              required
+              required={!isRecurring}
               disabled={submitting}
             />
           </div>
 
-          {/* Paid by */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Paid by</label>
-            <select
-              value={paidByUserId}
-              onChange={(e) => setPaidByUserId(e.target.value)}
-              className={selectClass}
-              disabled={submitting}
-            >
-              {payableMembers.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.nickname}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Recurring options — only when not in edit mode */}
+          {!isEditMode && (
+            <>
+              {/* Make recurring toggle */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRecurring((r) => !r)}
+                  disabled={submitting}
+                  className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    isRecurring
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-transparent text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {isRecurring ? 'Recurring (on)' : 'Make this recurring'}
+                </button>
+              </div>
+
+              {isRecurring && (
+                <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3">
+                  {/* Interval */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Interval</label>
+                    <div className="flex gap-2">
+                      {RECURRENCE_INTERVALS.map((iv) => (
+                        <button
+                          key={iv}
+                          type="button"
+                          onClick={() => setInterval(iv)}
+                          disabled={submitting}
+                          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            interval === iv
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-transparent hover:bg-muted'
+                          }`}
+                        >
+                          {iv.charAt(0).toUpperCase() + iv.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Payer mode */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Payer</label>
+                    <div className="flex gap-2">
+                      {PAYER_MODES.map((pm) => (
+                        <button
+                          key={pm}
+                          type="button"
+                          onClick={() => {
+                            setPayerMode(pm);
+                            if (pm === 'open_to_claim') setPaidByUserId('');
+                          }}
+                          disabled={submitting}
+                          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            payerMode === pm
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-transparent hover:bg-muted'
+                          }`}
+                        >
+                          {pm === 'fixed' ? 'Fixed payer' : 'Open to claim'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Paid by — shown for edit mode, non-recurring, or recurring+fixed */}
+          {showPaidBy && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">
+                Paid by{!paidByRequired && <span className="text-muted-foreground"> (optional)</span>}
+              </label>
+              <select
+                value={paidByUserId}
+                onChange={(e) => setPaidByUserId(e.target.value)}
+                className={selectClass}
+                disabled={submitting}
+                required={paidByRequired}
+              >
+                {!paidByRequired && (
+                  <option value="">Not paid yet</option>
+                )}
+                {payableMembers.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.nickname}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Notes */}
           <div className="flex flex-col gap-1.5">
@@ -208,7 +329,15 @@ export default function AddExpenseForm({
           {error && <p className="text-xs text-destructive">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEditMode ? 'Save Changes' : 'Add Expense'}
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isEditMode ? (
+              'Save Changes'
+            ) : isRecurring ? (
+              'Create Template'
+            ) : (
+              'Add Expense'
+            )}
           </Button>
         </form>
       </SheetContent>

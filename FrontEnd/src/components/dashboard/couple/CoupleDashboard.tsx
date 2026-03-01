@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { HouseholdResponse } from '@/types/household.types';
 import type { ExpenseResponse } from '@/types/expense.types';
+import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
 import { expenseApi } from '@/api/expense.api';
+import { recurringExpenseApi } from '@/api/recurring-expense.api';
+import { householdApi } from '@/api/household.api';
 import IncomeEntryCard from '@/components/dashboard/shared/IncomeEntryCard';
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 
@@ -147,11 +150,13 @@ function ToggleGroup<T extends string>({
   options,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -160,18 +165,20 @@ function ToggleGroup<T extends string>({
         {options.map((opt) => (
           <button
             key={opt.value}
-            onClick={() => onChange(opt.value)}
+            onClick={() => !disabled && onChange(opt.value)}
+            disabled={disabled}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
               value === opt.value
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-border bg-transparent hover:bg-muted'
-            }`}
+            } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
           >
             {opt.label}
             {value === opt.value && ' ✓'}
           </button>
         ))}
       </div>
+      {disabled && <span className="text-xs text-muted-foreground italic">Admin only</span>}
     </div>
   );
 }
@@ -185,6 +192,7 @@ function MockControls({
   setTaskLevel,
   distribution,
   setDistribution,
+  isAdmin,
 }: {
   financeMode: FinanceMode;
   setFinanceMode: (v: FinanceMode) => void;
@@ -194,6 +202,7 @@ function MockControls({
   setTaskLevel: (v: TaskLevel) => void;
   distribution: DistributionMethod;
   setDistribution: (v: DistributionMethod) => void;
+  isAdmin: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -217,6 +226,7 @@ function MockControls({
             ]}
             value={financeMode}
             onChange={setFinanceMode}
+            disabled={!isAdmin}
           />
 
           {financeMode === 'split' && (
@@ -229,6 +239,7 @@ function MockControls({
               ]}
               value={splitMethod}
               onChange={setSplitMethod}
+              disabled={!isAdmin}
             />
           )}
 
@@ -266,12 +277,15 @@ function StatsRow({
   splitMethod,
   customMyPct,
   incomeSplit,
+  myNickname,
   partnerNickname,
   currency,
   expenses,
   myPaidTotal,
   partnerPaidTotal,
   totalAmount,
+  settlementForMonth,
+  onSettleUp,
 }: {
   financeMode: FinanceMode;
   splitMethod: SplitMethod;
@@ -284,7 +298,11 @@ function StatsRow({
   myPaidTotal: number;
   partnerPaidTotal: number;
   totalAmount: number;
+  settlementForMonth: { amount: number; settledAt: string } | null;
+  onSettleUp: (amount: number) => Promise<void>;
 }) {
+  const [confirmSettle, setConfirmSettle] = useState(false);
+  const [settlingUp, setSettlingUp] = useState(false);
   if (financeMode === 'joint') {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -325,16 +343,21 @@ function StatsRow({
     );
   }
 
-  // Split mode — derive balance
+  // Split mode — balance uses only unresolved paid expenses
+  const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
+  const unresolvedTotal = unresolvedPaid.reduce((s, e) => s + e.amount, 0);
+  const myUnresolvedPaid = unresolvedPaid
+    .filter((e) => e.paidByNickname === myNickname)
+    .reduce((s, e) => s + e.amount, 0);
   let myShare: number;
   if (splitMethod === 'equal') {
-    myShare = totalAmount * 0.5;
+    myShare = unresolvedTotal * 0.5;
   } else if (splitMethod === 'income_based' && incomeSplit) {
-    myShare = totalAmount * (incomeSplit.myPct / 100);
+    myShare = unresolvedTotal * (incomeSplit.myPct / 100);
   } else {
-    myShare = totalAmount * (customMyPct / 100);
+    myShare = unresolvedTotal * (customMyPct / 100);
   }
-  const balance = myPaidTotal - myShare;
+  const balance = myUnresolvedPaid - myShare;
   const balancePositive = balance > 0;
 
   return (
@@ -355,6 +378,29 @@ function StatsRow({
             {splitMethod === 'income_based' && !incomeSplit && 'income-based (data incomplete)'}
             {splitMethod === 'custom' && `${customMyPct} / ${100 - customMyPct} custom`}
           </p>
+          {Math.abs(balance) > 0 && (
+            settlementForMonth ? (
+              <p className="mt-1 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                ✓ Settled on {new Date(settlementForMonth.settledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+            ) : confirmSettle ? (
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Settle?</span>
+                <button
+                  onClick={async () => { setSettlingUp(true); try { await onSettleUp(Math.abs(balance)); setConfirmSettle(false); } finally { setSettlingUp(false); } }}
+                  disabled={settlingUp}
+                  className="text-xs font-medium text-foreground hover:underline disabled:opacity-50"
+                >
+                  {settlingUp ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes'}
+                </button>
+                <button onClick={() => setConfirmSettle(false)} className="text-xs text-muted-foreground hover:underline">No</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmSettle(true)} className="mt-1 text-xs text-muted-foreground hover:underline">
+                Mark as Settled
+              </button>
+            )
+          )}
         </CardContent>
       </Card>
 
@@ -518,16 +564,20 @@ function SplitMethodCallout({
   splitMethod,
   customMyPct,
   setCustomMyPct,
+  onCustomPctCommit,
   incomeSplit,
   myNickname,
   partnerNickname,
+  isAdmin,
 }: {
   splitMethod: SplitMethod;
   customMyPct: number;
   setCustomMyPct: (v: number) => void;
+  onCustomPctCommit: (v: number) => void;
   incomeSplit: { myPct: number; partnerPct: number } | null;
   myNickname: string;
   partnerNickname: string;
+  isAdmin: boolean;
 }) {
   const customPartnerPct = 100 - customMyPct;
 
@@ -555,19 +605,28 @@ function SplitMethodCallout({
       {splitMethod === 'custom' && (
         <div className="space-y-2">
           <p className="font-medium">Custom split</p>
-          <div className="flex items-center gap-3">
-            <span className="w-16 text-right text-xs text-muted-foreground">{myNickname} {customMyPct}%</span>
-            <input
-              type="range"
-              min={10}
-              max={90}
-              step={5}
-              value={customMyPct}
-              onChange={(e) => setCustomMyPct(Number(e.target.value))}
-              className="flex-1 accent-primary"
-            />
-            <span className="w-16 text-xs text-muted-foreground">{partnerNickname} {customPartnerPct}%</span>
-          </div>
+          {isAdmin ? (
+            <div className="flex items-center gap-3">
+              <span className="w-16 text-right text-xs text-muted-foreground">{myNickname} {customMyPct}%</span>
+              <input
+                type="range"
+                min={1}
+                max={99}
+                step={1}
+                value={customMyPct}
+                onChange={(e) => setCustomMyPct(Number(e.target.value))}
+                onMouseUp={(e) => onCustomPctCommit(Number((e.target as HTMLInputElement).value))}
+                onTouchEnd={(e) => onCustomPctCommit(Number((e.target as HTMLInputElement).value))}
+                className="flex-1 accent-primary"
+              />
+              <span className="w-16 text-xs text-muted-foreground">{partnerNickname} {customPartnerPct}%</span>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <span className="text-muted-foreground">{myNickname} {customMyPct}% · {partnerNickname} {customPartnerPct}%</span>
+              <p className="text-xs text-muted-foreground">Only an admin can change this.</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -579,6 +638,7 @@ function FullExpensesCard({
   splitMethod,
   customMyPct,
   setCustomMyPct,
+  onCustomPctCommit,
   incomeSplit,
   myNickname,
   partnerNickname,
@@ -593,11 +653,18 @@ function FullExpensesCard({
   currentUserId,
   onEditExpense,
   onDeleteExpense,
+  onClaimExpense,
+  onResolveExpense,
+  recurringExpenses,
+  recurringLoading,
+  onDeactivateRecurring,
+  isAdmin,
 }: {
   financeMode: FinanceMode;
   splitMethod: SplitMethod;
   customMyPct: number;
   setCustomMyPct: (v: number) => void;
+  onCustomPctCommit: (v: number) => void;
   incomeSplit: { myPct: number; partnerPct: number } | null;
   myNickname: string;
   partnerNickname: string;
@@ -612,10 +679,30 @@ function FullExpensesCard({
   currentUserId: string;
   onEditExpense: (e: ExpenseResponse) => void;
   onDeleteExpense: (expenseId: string) => Promise<void>;
+  onClaimExpense: (expenseId: string) => Promise<void>;
+  onResolveExpense: (expenseId: string) => Promise<void>;
+  recurringExpenses: RecurringExpenseResponse[];
+  recurringLoading: boolean;
+  onDeactivateRecurring: (id: string) => Promise<void>;
+  isAdmin: boolean;
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const totalAmount = expenses.reduce((s, e) => s + e.amount, 0);
-  const myPaidTotal = expenses
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [confirmClaimId, setConfirmClaimId] = useState<string | null>(null);
+  const [confirmResolveId, setConfirmResolveId] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [recurringOpen, setRecurringOpen] = useState(false);
+
+  // Client-side filter for display only — does not affect balance/stats
+  const displayedExpenses = categoryFilter === 'all'
+    ? expenses
+    : expenses.filter((e) => e.category === categoryFilter);
+
+  // Balance uses only unresolved paid expenses
+  const paidExpenses = expenses.filter((e) => e.paidByUserId);
+  const unresolvedPaidExpenses = paidExpenses.filter((e) => !e.isResolved);
+  const totalAmount = unresolvedPaidExpenses.reduce((s, e) => s + e.amount, 0);
+  const myPaidTotal = unresolvedPaidExpenses
     .filter((e) => e.paidByNickname === myNickname)
     .reduce((s, e) => s + e.amount, 0);
 
@@ -677,9 +764,11 @@ function FullExpensesCard({
             splitMethod={splitMethod}
             customMyPct={customMyPct}
             setCustomMyPct={setCustomMyPct}
+            onCustomPctCommit={onCustomPctCommit}
             incomeSplit={incomeSplit}
             myNickname={myNickname}
             partnerNickname={partnerNickname}
+            isAdmin={isAdmin}
           />
         )}
 
@@ -687,12 +776,12 @@ function FullExpensesCard({
           <div className="flex justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : expenses.length === 0 ? (
+        ) : displayedExpenses.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             No expenses for {formatMonthLabel(currentMonth)}{categoryFilter !== 'all' ? ` · ${categoryFilter}` : ''}.
           </p>
         ) : (
-          expenses.map((expense) => (
+          displayedExpenses.map((expense) => (
             <div key={expense._id} className="flex flex-col gap-0.5">
               <div className="flex items-center gap-2">
                 <span
@@ -702,10 +791,50 @@ function FullExpensesCard({
                 >
                   {expense.category}
                 </span>
+                {expense.recurringExpenseId && (
+                  <span title="Recurring"><RefreshCw className="h-3 w-3 shrink-0 text-muted-foreground" /></span>
+                )}
                 <span className="flex-1 truncate text-sm font-medium">{expense.description}</span>
-                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {expense.paidByNickname}
-                </span>
+                {expense.paidByNickname ? (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    {expense.paidByNickname}
+                  </span>
+                ) : (
+                  <>
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                      Unpaid
+                    </span>
+                    {confirmClaimId === expense._id ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Claim?</span>
+                        <button
+                          onClick={async () => {
+                            setClaimingId(expense._id);
+                            setConfirmClaimId(null);
+                            try { await onClaimExpense(expense._id); } finally { setClaimingId(null); }
+                          }}
+                          disabled={claimingId === expense._id}
+                          className="text-xs font-medium text-foreground hover:underline disabled:opacity-50"
+                        >
+                          {claimingId === expense._id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmClaimId(null)}
+                          className="text-xs text-muted-foreground hover:underline"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmClaimId(expense._id)}
+                        className="shrink-0 rounded border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+                      >
+                        Claim
+                      </button>
+                    )}
+                  </>
+                )}
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {new Date(expense.date).toLocaleDateString('en-US', {
                     month: 'short',
@@ -751,16 +880,45 @@ function FullExpensesCard({
                   )
                 )}
               </div>
-              {financeMode === 'split' && (
-                <p className="ml-2 text-xs text-muted-foreground">
-                  {getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency)}
-                </p>
+              {financeMode === 'split' && expense.paidByUserId && (
+                <div className="ml-2 flex items-center gap-1.5 flex-wrap">
+                  {expense.isResolved ? (
+                    <span className="text-xs text-green-600 dark:text-green-400">✓ Share settled</span>
+                  ) : (
+                    <>
+                      <span className="text-xs text-muted-foreground">
+                        {getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency)}
+                      </span>
+                      {confirmResolveId === expense._id ? (
+                        <>
+                          <span className="text-xs text-muted-foreground">Paid?</span>
+                          <button
+                            onClick={async () => {
+                              setResolvingId(expense._id);
+                              setConfirmResolveId(null);
+                              try { await onResolveExpense(expense._id); } finally { setResolvingId(null); }
+                            }}
+                            disabled={resolvingId === expense._id}
+                            className="text-xs font-medium text-foreground hover:underline disabled:opacity-50"
+                          >
+                            {resolvingId === expense._id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes'}
+                          </button>
+                          <button onClick={() => setConfirmResolveId(null)} className="text-xs text-muted-foreground hover:underline">No</button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConfirmResolveId(expense._id)} className="text-xs text-muted-foreground hover:underline">
+                          Mark as Paid
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
           ))
         )}
 
-        {financeMode === 'split' && !expensesLoading && expenses.length > 0 && (
+        {financeMode === 'split' && !expensesLoading && unresolvedPaidExpenses.length > 0 && (
           <div className="mt-2 border-t border-border pt-3 text-sm">
             <span className={balancePositive ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
               {balancePositive
@@ -770,6 +928,68 @@ function FullExpensesCard({
             <span className="text-muted-foreground"> · based on {getBalanceSplitLabel(splitMethod, customMyPct, incomeSplit)}</span>
           </div>
         )}
+
+        {/* Recurring Templates section */}
+        <div className="mt-3 border-t border-border pt-3">
+          <button
+            onClick={() => setRecurringOpen((o) => !o)}
+            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+          >
+            <span className="flex items-center gap-1.5">
+              <RefreshCw className="h-3 w-3" />
+              Recurring Templates
+              {recurringExpenses.length > 0 && (
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-normal">
+                  {recurringExpenses.length}
+                </span>
+              )}
+            </span>
+            {recurringOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+
+          {recurringOpen && (
+            <div className="mt-2 space-y-2">
+              {recurringLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : recurringExpenses.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No active recurring templates.</p>
+              ) : (
+                recurringExpenses.map((t) => (
+                  <div key={t._id} className="flex items-center gap-2">
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                        CATEGORY_CHIP_CLASSES[t.category] ?? ''
+                      }`}
+                    >
+                      {t.category}
+                    </span>
+                    <span className="flex-1 truncate text-sm">{t.description}</span>
+                    <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground capitalize">
+                      {t.interval}
+                    </span>
+                    <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                      {t.payerMode === 'fixed' ? (t.fixedPayerNickname ?? 'Fixed') : 'Open'}
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold">
+                      {fmt(t.amount)} {currency}
+                    </span>
+                    {t.createdByUserId === currentUserId && (
+                      <button
+                        onClick={() => void onDeactivateRecurring(t._id)}
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                        title="Deactivate"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -953,11 +1173,15 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     (household.settings.taskDistributionMethod as DistributionMethod) ?? 'rotation'
   );
   const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const [customMyPct, setCustomMyPct] = useState(70);
+  const [customMyPct, setCustomMyPct] = useState(
+    household.settings.customSplitPercentage ?? 50
+  );
 
   // Expense state
   const [expenses, setExpenses] = useState<ExpenseResponse[]>([]);
   const [expensesLoading, setExpensesLoading] = useState(false);
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpenseResponse[]>([]);
+  const [recurringLoading, setRecurringLoading] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string>(() => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
@@ -972,6 +1196,40 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
   const myNickname = myMember?.nickname ?? 'You';
   const partnerNickname = partnerMember?.nickname ?? 'Partner';
   const currency = household.settings.currency ?? MOCK_CURRENCY;
+  const isAdmin = myMember?.role === 'owner' || myMember?.role === 'admin';
+
+  // Save handlers — only called when isAdmin
+  const handleFinanceModeChange = async (v: FinanceMode) => {
+    setFinanceMode(v);
+    if (!isAdmin) return;
+    try {
+      const updated = await householdApi.updateSettings(household._id, { financeMode: v });
+      onHouseholdUpdated(updated);
+    } catch {
+      // silently ignore save errors — UI already reflects the change
+    }
+  };
+
+  const handleSplitMethodChange = async (v: SplitMethod) => {
+    setSplitMethod(v);
+    if (!isAdmin) return;
+    try {
+      const updated = await householdApi.updateSettings(household._id, { expenseSplitMethod: v });
+      onHouseholdUpdated(updated);
+    } catch {
+      // silently ignore
+    }
+  };
+
+  const handleCustomPctCommit = async (v: number) => {
+    if (!isAdmin) return;
+    try {
+      const updated = await householdApi.updateSettings(household._id, { customSplitPercentage: v });
+      onHouseholdUpdated(updated);
+    } catch {
+      // silently ignore
+    }
+  };
 
   // Derive income split from real data when income_based is active
   const incomeSplit = splitMethod === 'income_based'
@@ -987,8 +1245,8 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     try {
       const data = await expenseApi.listExpenses(
         household._id,
-        currentMonth,
-        categoryFilter !== 'all' ? categoryFilter : undefined
+        currentMonth
+        // no category filter — always fetch all expenses for the month
       );
       setExpenses(data);
     } catch {
@@ -996,18 +1254,45 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     } finally {
       setExpensesLoading(false);
     }
-  }, [household._id, currentMonth, categoryFilter]);
+  }, [household._id, currentMonth]);
+
+  const fetchRecurringExpenses = useCallback(async () => {
+    setRecurringLoading(true);
+    try {
+      const data = await recurringExpenseApi.list(household._id);
+      setRecurringExpenses(data);
+    } catch {
+      // silently keep previous state
+    } finally {
+      setRecurringLoading(false);
+    }
+  }, [household._id]);
 
   useEffect(() => {
     fetchExpenses();
   }, [fetchExpenses]);
 
-  // Derived totals for stats
-  const totalAmount = expenses.reduce((s, e) => s + e.amount, 0);
-  const myPaidTotal = expenses
+  useEffect(() => {
+    if (activeTab === 'expenses') {
+      fetchRecurringExpenses();
+    }
+  }, [activeTab, fetchRecurringExpenses]);
+
+  // totalAmount / myPaidTotal / partnerPaidTotal cover ALL paid expenses (for "Total Spent" and
+  // "Your Payments" display). StatsRow derives unresolved amounts internally for the balance card.
+  const paidExpenses = expenses.filter((e) => e.paidByUserId);
+  const totalAmount = paidExpenses.reduce((s, e) => s + e.amount, 0);
+  const myPaidTotal = paidExpenses
     .filter((e) => e.paidByNickname === myNickname)
     .reduce((s, e) => s + e.amount, 0);
   const partnerPaidTotal = totalAmount - myPaidTotal;
+
+  const settlementForMonth = (household.settlements ?? []).find((s) => s.month === currentMonth) ?? null;
+
+  const handleSettleUp = async (amount: number) => {
+    const updated = await householdApi.recordSettlement(household._id, currentMonth, amount);
+    onHouseholdUpdated(updated);
+  };
 
   const subLine = [
     `${myNickname} & ${partnerNickname}`,
@@ -1025,13 +1310,14 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
         {/* Mock Controls */}
         <MockControls
           financeMode={financeMode}
-          setFinanceMode={setFinanceMode}
+          setFinanceMode={handleFinanceModeChange}
           splitMethod={splitMethod}
-          setSplitMethod={setSplitMethod}
+          setSplitMethod={handleSplitMethodChange}
           taskLevel={taskLevel}
           setTaskLevel={setTaskLevel}
           distribution={distribution}
           setDistribution={setDistribution}
+          isAdmin={isAdmin}
         />
 
         {/* Income Entry Card */}
@@ -1086,6 +1372,8 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
               myPaidTotal={myPaidTotal}
               partnerPaidTotal={partnerPaidTotal}
               totalAmount={totalAmount}
+              settlementForMonth={settlementForMonth}
+              onSettleUp={handleSettleUp}
             />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <GoalsCard currency={currency} />
@@ -1106,6 +1394,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
             splitMethod={splitMethod}
             customMyPct={customMyPct}
             setCustomMyPct={setCustomMyPct}
+            onCustomPctCommit={handleCustomPctCommit}
             incomeSplit={incomeSplit}
             myNickname={myNickname}
             partnerNickname={partnerNickname}
@@ -1123,6 +1412,21 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
               await expenseApi.deleteExpense(household._id, expenseId);
               await fetchExpenses();
             }}
+            onClaimExpense={async (expenseId) => {
+              await expenseApi.claimExpense(household._id, expenseId);
+              await fetchExpenses();
+            }}
+            onResolveExpense={async (expenseId) => {
+              await expenseApi.resolveExpense(household._id, expenseId);
+              await fetchExpenses();
+            }}
+            recurringExpenses={recurringExpenses}
+            recurringLoading={recurringLoading}
+            onDeactivateRecurring={async (id) => {
+              await recurringExpenseApi.deactivate(household._id, id);
+              await fetchRecurringExpenses();
+            }}
+            isAdmin={isAdmin}
           />
         )}
 
@@ -1144,7 +1448,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
         }}
         household={household}
         expense={editingExpense ?? undefined}
-        onAdded={() => fetchExpenses()}
+        onSaved={() => { void fetchExpenses(); void fetchRecurringExpenses(); }}
       />
     </div>
   );
