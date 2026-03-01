@@ -24,18 +24,22 @@ class ExpenseService {
       throw ForbiddenError('You are not a member of this household');
     }
 
-    // 3. Verify payer is a member with a userId
-    const payerMember = household.members.find(
-      (m) => m.userId?.toString() === input.paidByUserId
-    );
-    if (!payerMember) {
-      throw BadRequestError('paidByUserId does not match any household member');
+    // 3. Optionally verify payer when provided
+    let payerNickname: string | undefined;
+    if (input.paidByUserId) {
+      const payerMember = household.members.find(
+        (m) => m.userId?.toString() === input.paidByUserId
+      );
+      if (!payerMember) {
+        throw BadRequestError('paidByUserId does not match any household member');
+      }
+      payerNickname = payerMember.nickname;
     }
 
     // 4. Create expense
     const expense = await Expense.create({
       householdId: household._id,
-      paidByUserId: input.paidByUserId,
+      ...(input.paidByUserId && { paidByUserId: input.paidByUserId }),
       createdByUserId: requestingUserId,
       description: input.description,
       amount: input.amount,
@@ -45,7 +49,7 @@ class ExpenseService {
     });
 
     // 5. Return formatted response
-    return this.formatExpenseResponse(expense, payerMember.nickname);
+    return this.formatExpenseResponse(expense, payerNickname);
   }
 
   async listExpenses(
@@ -98,7 +102,9 @@ class ExpenseService {
     return expenses.map((expense) =>
       this.formatExpenseResponse(
         expense,
-        nicknameMap.get(expense.paidByUserId.toString()) ?? 'Unknown'
+        expense.paidByUserId
+          ? (nicknameMap.get(expense.paidByUserId.toString()) ?? 'Unknown')
+          : undefined
       )
     );
   }
@@ -177,21 +183,24 @@ class ExpenseService {
       throw ForbiddenError('You can only edit expenses you created');
     }
 
-    if (input.paidByUserId !== undefined) {
-      const payerMember = household.members.find(
-        (m) => m.userId?.toString() === input.paidByUserId
-      );
-      if (!payerMember) {
-        throw BadRequestError('paidByUserId does not match any household member');
-      }
-    }
-
     if (input.description !== undefined) expense.description = input.description;
     if (input.amount !== undefined) expense.amount = input.amount;
     if (input.category !== undefined) expense.category = input.category;
     if (input.date !== undefined) expense.date = new Date(input.date);
     if (input.notes !== undefined) expense.notes = input.notes;
-    if (input.paidByUserId !== undefined) expense.paidByUserId = input.paidByUserId as unknown as typeof expense.paidByUserId;
+    if (input.paidByUserId !== undefined) {
+      if (input.paidByUserId === null) {
+        expense.paidByUserId = undefined;
+      } else {
+        const payerMember = household.members.find(
+          (m) => m.userId?.toString() === input.paidByUserId
+        );
+        if (!payerMember) {
+          throw BadRequestError('paidByUserId does not match any household member');
+        }
+        expense.paidByUserId = input.paidByUserId as unknown as typeof expense.paidByUserId;
+      }
+    }
 
     await expense.save();
 
@@ -201,23 +210,101 @@ class ExpenseService {
         nicknameMap.set(member.userId.toString(), member.nickname);
       }
     }
-    const paidByNickname = nicknameMap.get(expense.paidByUserId.toString()) ?? 'Unknown';
+    const paidByNickname = expense.paidByUserId
+      ? (nicknameMap.get(expense.paidByUserId.toString()) ?? 'Unknown')
+      : undefined;
 
     return this.formatExpenseResponse(expense, paidByNickname);
   }
 
-  private formatExpenseResponse(expense: IExpense, paidByNickname: string): IExpenseResponse {
+  async claimExpense(
+    householdId: string,
+    requestingUserId: string,
+    expenseId: string
+  ): Promise<IExpenseResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) {
+      throw NotFoundError('Household not found');
+    }
+
+    // Verify requester is a financial member
+    const requesterMember = household.members.find(
+      (m) => m.userId?.toString() === requestingUserId && m.participatesInFinances
+    );
+    if (!requesterMember) {
+      throw ForbiddenError('You must be a financial member to claim an expense');
+    }
+
+    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
+    if (!expense) {
+      throw NotFoundError('Expense not found');
+    }
+
+    if (expense.paidByUserId) {
+      throw BadRequestError('This expense has already been claimed');
+    }
+
+    expense.paidByUserId = requesterMember.userId as unknown as typeof expense.paidByUserId;
+    await expense.save();
+
+    return this.formatExpenseResponse(expense, requesterMember.nickname);
+  }
+
+  async resolveExpense(
+    householdId: string,
+    requestingUserId: string,
+    expenseId: string
+  ): Promise<IExpenseResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) {
+      throw NotFoundError('Household not found');
+    }
+
+    const isMember = household.members.some(
+      (m) => m.userId?.toString() === requestingUserId && m.participatesInFinances
+    );
+    if (!isMember) {
+      throw ForbiddenError('You must be a financial member to resolve an expense');
+    }
+
+    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
+    if (!expense) {
+      throw NotFoundError('Expense not found');
+    }
+    if (!expense.paidByUserId) {
+      throw BadRequestError('Cannot resolve an unclaimed expense');
+    }
+    if (expense.isResolved) {
+      throw BadRequestError('This expense is already resolved');
+    }
+
+    expense.isResolved = true;
+    expense.resolvedAt = new Date();
+    expense.resolvedByUserId = requestingUserId as unknown as typeof expense.resolvedByUserId;
+    await expense.save();
+
+    const paidByNickname = household.members.find(
+      (m) => m.userId?.toString() === expense.paidByUserId?.toString()
+    )?.nickname;
+    return this.formatExpenseResponse(expense, paidByNickname);
+  }
+
+  formatExpenseResponse(expense: IExpense, paidByNickname?: string): IExpenseResponse {
     return {
       _id: expense._id.toString(),
       householdId: expense.householdId.toString(),
-      paidByUserId: expense.paidByUserId.toString(),
-      paidByNickname,
+      ...(expense.paidByUserId && { paidByUserId: expense.paidByUserId.toString() }),
+      ...(paidByNickname && { paidByNickname }),
       createdByUserId: expense.createdByUserId?.toString() ?? '',
       description: expense.description,
       amount: expense.amount,
       category: expense.category,
       date: expense.date.toISOString(),
       ...(expense.notes && { notes: expense.notes }),
+      ...(expense.recurringExpenseId && { recurringExpenseId: expense.recurringExpenseId.toString() }),
+      isResolved: expense.isResolved ?? false,
+      ...(expense.resolvedAt && { resolvedAt: expense.resolvedAt.toISOString() }),
+      ...(expense.resolvedByUserId && { resolvedByUserId: expense.resolvedByUserId.toString() }),
       createdAt: expense.createdAt.toISOString(),
       updatedAt: expense.updatedAt.toISOString(),
     };

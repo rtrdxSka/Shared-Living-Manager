@@ -1,13 +1,11 @@
 import { Schema, model } from 'mongoose';
-import { IExpense } from '../types/expense.types';
+import { IRecurringExpense, RECURRENCE_INTERVALS, PAYER_MODES } from '../types/recurring-expense.types';
 import { EXPENSE_TYPES } from '../types/household.types';
 
-const expenseSchema = new Schema<IExpense>(
+const recurringExpenseSchema = new Schema<IRecurringExpense>(
   {
     householdId: { type: Schema.Types.ObjectId, ref: 'Household', required: true },
-    paidByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
     createdByUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    recurringExpenseId: { type: Schema.Types.ObjectId, ref: 'RecurringExpense', default: undefined },
     description: { type: String, required: true, trim: true, minlength: 1, maxlength: 100 },
     amount: { type: Number, required: true, min: [0.01, 'Amount must be greater than 0'] },
     category: {
@@ -15,11 +13,19 @@ const expenseSchema = new Schema<IExpense>(
       required: true,
       enum: { values: EXPENSE_TYPES, message: 'Invalid category' },
     },
-    date: { type: Date, required: true },
     notes: { type: String, trim: true, maxlength: 500, default: undefined },
-    isResolved: { type: Boolean, default: false },
-    resolvedAt: { type: Date, default: undefined },
-    resolvedByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
+    interval: {
+      type: String,
+      required: true,
+      enum: { values: RECURRENCE_INTERVALS, message: 'Invalid interval' },
+    },
+    payerMode: {
+      type: String,
+      required: true,
+      enum: { values: PAYER_MODES, message: 'Invalid payer mode' },
+    },
+    fixedPayerUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
+    isActive: { type: Boolean, required: true, default: true },
   },
   {
     timestamps: true,
@@ -32,9 +38,6 @@ const expenseSchema = new Schema<IExpense>(
   }
 );
 
-// Primary access pattern: filter by household + date range
-expenseSchema.index({ householdId: 1, date: -1 });
-// Support category filter on top
-expenseSchema.index({ householdId: 1, category: 1, date: -1 });
+recurringExpenseSchema.index({ householdId: 1, isActive: 1 });
 
-export const Expense = model<IExpense>('Expense', expenseSchema);
+export const RecurringExpense = model<IRecurringExpense>('RecurringExpense', recurringExpenseSchema);

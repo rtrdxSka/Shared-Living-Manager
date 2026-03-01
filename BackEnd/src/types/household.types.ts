@@ -111,6 +111,24 @@ export const HOUSEHOLD_ROLES = ['owner', 'admin', 'member'] as const;
 
 export type HouseholdRole = (typeof HOUSEHOLD_ROLES)[number];
 
+// ── Settlement ────────────────────────────────────────────────────────
+
+export interface ISettlement {
+  _id: Types.ObjectId;
+  month: string;
+  amount: number;
+  settledByUserId: Types.ObjectId;
+  settledAt: Date;
+}
+
+export interface ISettlementResponse {
+  _id: string;
+  month: string;
+  amount: number;
+  settledByUserId: string;
+  settledAt: string;
+}
+
 // ── Subdocument Interfaces ────────────────────────────────────────────
 
 export interface IHouseholdMember {
@@ -131,10 +149,17 @@ export interface IHouseholdMember {
 export interface IHouseholdSettings {
   financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
+  customSplitPercentage?: number;   // 1–99, only meaningful when expenseSplitMethod === 'custom'
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
   taskManagementEnabled: TaskManagementLevel;
   taskDistributionMethod?: TaskDistributionMethod;
+}
+
+export interface IUpdateHouseholdSettingsInput {
+  financeMode?: FinanceMode;
+  expenseSplitMethod?: ExpenseSplitMethod;
+  customSplitPercentage?: number;
 }
 
 // ── Household Document ────────────────────────────────────────────────
@@ -147,6 +172,7 @@ export interface IHousehold extends Document {
   totalMembers: number;
   uiMode: UIMode;
   members: IHouseholdMember[];
+  settlements: ISettlement[];
   settings: IHouseholdSettings;
   createdBy: Types.ObjectId;
   inviteCode: string;
@@ -221,6 +247,7 @@ export interface IHouseholdResponse {
   totalMembers: number;
   uiMode: UIMode;
   members: IHouseholdMemberResponse[];
+  settlements: ISettlementResponse[];
   settings: IHouseholdSettings;
   createdBy: string;
   inviteCode: string;

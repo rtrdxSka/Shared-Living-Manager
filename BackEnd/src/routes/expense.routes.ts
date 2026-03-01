@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { expenseController } from '../controllers/expense.controller';
-import { addExpenseValidation, listExpensesValidation, expenseIdValidation, updateExpenseValidation } from '../validators/expense.validator';
+import { addExpenseValidation, listExpensesValidation, expenseIdValidation, updateExpenseValidation, claimExpenseValidation } from '../validators/expense.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware } from '../middleware/auth';
 
@@ -40,6 +40,24 @@ router.patch(
   updateExpenseValidation,
   handleValidationErrors,
   expenseController.updateExpense.bind(expenseController)
+);
+
+// POST /api/households/:id/expenses/:expenseId/claim
+router.post(
+  '/:expenseId/claim',
+  authMiddleware,
+  claimExpenseValidation,
+  handleValidationErrors,
+  expenseController.claimExpense.bind(expenseController)
+);
+
+// POST /api/households/:id/expenses/:expenseId/resolve
+router.post(
+  '/:expenseId/resolve',
+  authMiddleware,
+  expenseIdValidation,
+  handleValidationErrors,
+  expenseController.resolveExpense.bind(expenseController)
 );
 
 export default router;

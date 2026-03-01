@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { householdController } from '../controllers/household.controller';
-import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateMemberIncomeValidation } from '../validators/household.validator';
+import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
+import recurringExpenseRouter from './recurring-expense.routes';
 
 const router = Router();
 
@@ -34,6 +35,15 @@ router.get(
   householdController.getById.bind(householdController)
 );
 
+// PATCH /api/households/:id/settings — Update household settings (admin/owner only)
+router.patch(
+  '/:id/settings',
+  authMiddleware,
+  updateSettingsValidation,
+  handleValidationErrors,
+  householdController.updateSettings.bind(householdController)
+);
+
 // PATCH /api/households/:id/members/me/income — Update own monthly income
 router.patch(
   '/:id/members/me/income',
@@ -43,6 +53,16 @@ router.patch(
   householdController.updateMemberIncome.bind(householdController)
 );
 
+// POST /api/households/:id/settlements
+router.post(
+  '/:id/settlements',
+  authMiddleware,
+  recordSettlementValidation,
+  handleValidationErrors,
+  householdController.recordSettlement.bind(householdController)
+);
+
 router.use('/:id/expenses', expenseRouter);
+router.use('/:id/recurring-expenses', recurringExpenseRouter);
 
 export default router;

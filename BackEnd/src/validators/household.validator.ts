@@ -3,6 +3,7 @@ import {
   LIVING_ARRANGEMENTS,
   RELATIONSHIPS,
   AGE_GROUPS,
+  FINANCE_MODES,
   EXPENSE_SPLIT_METHODS,
   EXPENSE_TYPES,
   TASK_MANAGEMENT_LEVELS,
@@ -316,6 +317,27 @@ export const joinHouseholdValidation: ValidationChain[] = [
     .withMessage('Invalid invite code format'),
 ];
 
+// ── Update Settings Validation ────────────────────────────────────────
+
+export const updateSettingsValidation: ValidationChain[] = [
+  param('id').isMongoId().withMessage('Invalid household ID'),
+
+  body('financeMode')
+    .optional()
+    .isIn([...FINANCE_MODES])
+    .withMessage('Invalid finance mode'),
+
+  body('expenseSplitMethod')
+    .optional()
+    .isIn([...EXPENSE_SPLIT_METHODS])
+    .withMessage('Invalid split method'),
+
+  body('customSplitPercentage')
+    .optional()
+    .isInt({ min: 1, max: 99 })
+    .withMessage('customSplitPercentage must be an integer between 1 and 99'),
+];
+
 // ── Update Member Income Validation ───────────────────────────────────
 
 export const updateMemberIncomeValidation: ValidationChain[] = [
@@ -326,4 +348,12 @@ export const updateMemberIncomeValidation: ValidationChain[] = [
   body('monthlyIncome')
     .isFloat({ min: 0 })
     .withMessage('Income must be a non-negative number'),
+];
+
+// ── Record Settlement Validation ──────────────────────────────────────
+
+export const recordSettlementValidation: ValidationChain[] = [
+  param('id').isMongoId().withMessage('Invalid household ID'),
+  body('month').matches(/^\d{4}-(0[1-9]|1[0-2])$/).withMessage('Month must be in YYYY-MM format'),
+  body('amount').isFloat({ min: 0 }).withMessage('Amount must be a non-negative number'),
 ];

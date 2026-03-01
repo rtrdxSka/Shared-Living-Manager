@@ -114,6 +114,12 @@ const settingsSchema = new Schema(
       },
       default: undefined,
     },
+    customSplitPercentage: {
+      type: Number,
+      min: [1, 'Split percentage must be at least 1'],
+      max: [99, 'Split percentage cannot exceed 99'],
+      default: undefined,
+    },
     trackedExpenseTypes: [
       {
         type: String,
@@ -149,6 +155,18 @@ const settingsSchema = new Schema(
     },
   },
   { _id: false }
+);
+
+// ── Settlement subdocument schema ────────────────────────────────────
+
+const settlementSchema = new Schema(
+  {
+    month: { type: String, required: true },
+    amount: { type: Number, required: true },
+    settledByUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    settledAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
 );
 
 // ── Main household schema ─────────────────────────────────────────────
@@ -191,6 +209,7 @@ const householdSchema = new Schema<IHousehold>(
       },
     },
     members: [memberSchema],
+    settlements: { type: [settlementSchema], default: [] },
     settings: {
       type: settingsSchema,
       required: [true, 'Settings are required'],

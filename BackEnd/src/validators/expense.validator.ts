@@ -39,8 +39,14 @@ export const addExpenseValidation: ValidationChain[] = [
     .withMessage('Notes cannot exceed 500 characters'),
 
   body('paidByUserId')
+    .optional()
     .isMongoId()
     .withMessage('Invalid paidByUserId'),
+];
+
+export const claimExpenseValidation: ValidationChain[] = [
+  param('id').isMongoId().withMessage('Invalid household ID'),
+  param('expenseId').isMongoId().withMessage('Invalid expense ID'),
 ];
 
 export const expenseIdValidation: ValidationChain[] = [
@@ -66,7 +72,8 @@ export const updateExpenseValidation: ValidationChain[] = [
     }),
   body('notes').optional().trim().isLength({ max: 500 })
     .withMessage('Notes cannot exceed 500 characters'),
-  body('paidByUserId').optional().isMongoId()
+  body('paidByUserId').optional({ nullable: true })
+    .if((value: unknown) => value !== null).isMongoId()
     .withMessage('Invalid paidByUserId'),
 ];
 

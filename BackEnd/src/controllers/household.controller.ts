@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { householdService } from '../services/household.service';
-import { ICreateHouseholdInput, IJoinHouseholdInput } from '../types/household.types';
+import { ICreateHouseholdInput, IJoinHouseholdInput, IUpdateHouseholdSettingsInput } from '../types/household.types';
 
 class HouseholdController {
   // POST /api/households
@@ -86,6 +86,46 @@ class HouseholdController {
     } catch (error) {
       next(error);
     }
+  }
+
+  // PATCH /api/households/:id/settings
+  async updateSettings(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
+
+      const householdId = req.params.id as string;
+      const input = req.body as IUpdateHouseholdSettingsInput;
+
+      const household = await householdService.updateSettings(
+        householdId,
+        req.user.userId,
+        input
+      );
+
+      res.status(200).json({
+        status: 'success',
+        data: { household },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // POST /api/households/:id/settlements
+  async recordSettlement(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) { res.status(401).json({ status: 'error', message: 'Unauthorized' }); return; }
+      const { month, amount } = req.body as { month: string; amount: number };
+      const household = await householdService.recordSettlement(req.params.id as string, req.user.userId, month, amount);
+      res.status(201).json({ status: 'success', data: { household } });
+    } catch (error) { next(error); }
   }
 
   // PATCH /api/households/:id/members/me/income

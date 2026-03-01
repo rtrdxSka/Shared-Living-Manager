@@ -7,8 +7,11 @@ import {
   IHouseholdMemberResponse,
   IHouseholdMember,
   IHousehold,
+  ISettlement,
+  IUpdateHouseholdSettingsInput,
   determineUIMode,
 } from '../types/household.types';
+import { Types } from 'mongoose';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../utils/error';
 
 class HouseholdService {
@@ -175,6 +178,53 @@ class HouseholdService {
     return this.formatHouseholdResponse(household);
   }
 
+  // ── Update Settings ──────────────────────────────────────────────────
+
+  async updateSettings(
+    householdId: string,
+    requestingUserId: string,
+    input: IUpdateHouseholdSettingsInput
+  ): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const member = household.members.find(
+      (m) => m.userId?.toString() === requestingUserId
+    );
+    if (!member) throw ForbiddenError('You are not a member of this household');
+    if (member.role !== 'owner' && member.role !== 'admin')
+      throw ForbiddenError('Only admins can update household settings');
+
+    if (input.financeMode !== undefined) household.settings.financeMode = input.financeMode;
+    if (input.expenseSplitMethod !== undefined) household.settings.expenseSplitMethod = input.expenseSplitMethod;
+    if (input.customSplitPercentage !== undefined) household.settings.customSplitPercentage = input.customSplitPercentage;
+
+    await household.save();
+    return this.formatHouseholdResponse(household);
+  }
+
+  // ── Record Settlement ─────────────────────────────────────────────────
+
+  async recordSettlement(
+    householdId: string,
+    userId: string,
+    month: string,
+    amount: number
+  ): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const isMember = household.members.some((m) => m.userId?.toString() === userId);
+    if (!isMember) throw ForbiddenError('You are not a member of this household');
+
+    if (household.settlements.find((s) => s.month === month))
+      throw BadRequestError('Balance for this month is already marked as settled');
+
+    household.settlements.push({ month, amount, settledByUserId: userId, settledAt: new Date() } as unknown as ISettlement);
+    await household.save();
+    return this.formatHouseholdResponse(household);
+  }
+
   // ── Get by ID ────────────────────────────────────────────────────────
 
   async getById(householdId: string, userId: string): Promise<IHouseholdResponse> {
@@ -207,6 +257,13 @@ class HouseholdService {
       totalMembers: household.totalMembers,
       uiMode: household.uiMode,
       members: household.members.map((m) => this.formatMemberResponse(m)),
+      settlements: (household.settlements ?? []).map((s) => ({
+        _id: (s._id as Types.ObjectId).toString(),
+        month: s.month,
+        amount: s.amount,
+        settledByUserId: s.settledByUserId.toString(),
+        settledAt: s.settledAt.toISOString(),
+      })),
       settings: household.settings,
       createdBy: household.createdBy.toString(),
       inviteCode: household.inviteCode,
