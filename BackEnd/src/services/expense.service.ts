@@ -277,6 +277,9 @@ class ExpenseService {
     if (expense.isResolved) {
       throw BadRequestError('This expense is already resolved');
     }
+    if (expense.paidByUserId?.toString() === requestingUserId) {
+      throw ForbiddenError('The person who paid this expense cannot mark it as resolved');
+    }
 
     expense.isResolved = true;
     expense.resolvedAt = new Date();

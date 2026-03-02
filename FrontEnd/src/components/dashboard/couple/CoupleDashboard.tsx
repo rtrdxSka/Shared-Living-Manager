@@ -880,7 +880,7 @@ function FullExpensesCard({
                   )
                 )}
               </div>
-              {financeMode === 'split' && expense.paidByUserId && (
+              {financeMode === 'split' && expense.paidByUserId && currentUserId !== expense.paidByUserId && (
                 <div className="ml-2 flex items-center gap-1.5 flex-wrap">
                   {expense.isResolved ? (
                     <span className="text-xs text-green-600 dark:text-green-400">✓ Share settled</span>

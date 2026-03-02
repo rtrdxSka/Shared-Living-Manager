@@ -391,7 +391,7 @@ export function shouldShowDistributionMethod(
   arrangement: LivingArrangement | '',
   taskLevel: TaskManagementLevel | ''
 ): boolean {
-  return arrangement !== 'alone' && taskLevel !== 'disabled' && taskLevel !== '';
+  return arrangement !== 'alone' && taskLevel === 'full';
 }
 
 /** Which relationships to suggest per arrangement */

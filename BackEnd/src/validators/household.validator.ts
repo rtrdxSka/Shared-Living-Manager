@@ -249,8 +249,8 @@ export const createHouseholdValidation: ValidationChain[] = [
   body('taskDistributionMethod').custom((value: string | undefined, { req }) => {
     const arrangement = req.body.livingArrangement as LivingArrangement;
     const taskLevel = req.body.taskManagementEnabled as TaskManagementLevel;
-    if (arrangement !== 'alone' && taskLevel !== 'disabled' && !value) {
-      throw new Error('Task distribution method is required when task management is enabled');
+    if (arrangement !== 'alone' && taskLevel === 'full' && !value) {
+      throw new Error('Task distribution method is required when task management is set to full');
     }
     return true;
   }),
