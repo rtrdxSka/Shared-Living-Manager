@@ -71,6 +71,12 @@ export default function AddExpenseForm({
     }
   }, [expense?._id]);
 
+  // Reset all fields when the sheet is dismissed so stale data never leaks
+  // into the next open cycle (whether for a new expense or a different edit).
+  useEffect(() => {
+    if (!open) resetForm();
+  }, [open]);
+
   function resetForm() {
     setDescription('');
     setAmount('');

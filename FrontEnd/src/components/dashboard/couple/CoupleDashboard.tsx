@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, Pencil, Trash2, RefreshCw, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { HouseholdResponse } from '@/types/household.types';
@@ -1173,6 +1173,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     (household.settings.taskDistributionMethod as DistributionMethod) ?? 'rotation'
   );
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [copied, setCopied] = useState(false);
   const [customMyPct, setCustomMyPct] = useState(
     household.settings.customSplitPercentage ?? 50
   );
@@ -1294,6 +1295,12 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     onHouseholdUpdated(updated);
   };
 
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(household.inviteCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const subLine = [
     `${myNickname} & ${partnerNickname}`,
     financeMode === 'split'
@@ -1338,6 +1345,19 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
           <div className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
             {financeMode === 'joint' ? 'Joint finances' : `Split: ${splitMethod}`}
           </div>
+        </div>
+
+        {/* Invite Code */}
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-2">
+          <span className="text-xs text-muted-foreground shrink-0">Invite code:</span>
+          <span className="flex-1 font-mono text-xs tracking-wide">{household.inviteCode}</span>
+          <button
+            onClick={() => void handleCopy()}
+            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+            title="Copy invite code"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
         </div>
 
         {/* Tab Bar */}
