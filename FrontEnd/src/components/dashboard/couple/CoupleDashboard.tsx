@@ -118,6 +118,34 @@ function formatMonthLabel(ym: string): string {
   });
 }
 
+type DueDateStatus = 'overdue' | 'due-today' | 'upcoming' | 'none';
+
+function getDueDateStatus(dueDate: string | undefined, isCompleted: boolean): DueDateStatus {
+  if (!dueDate || isCompleted) return 'none';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  const diff = due.getTime() - today.getTime();
+  if (diff < 0) return 'overdue';
+  if (diff === 0) return 'due-today';
+  return 'upcoming';
+}
+
+function formatDueDate(dueDate: string): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+  if (diffDays === 0) return 'Due today';
+  if (diffDays === 1) return 'Due tomorrow';
+  if (diffDays === -1) return 'Due 1 day ago';
+  if (diffDays > 1 && diffDays <= 6) return `Due in ${diffDays} days`;
+  if (diffDays < -1) return `Due ${Math.abs(diffDays)} days ago`;
+  return `Due ${new Date(dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`;
+}
+
 // ── Tab config ─────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string }[] = [
@@ -1206,7 +1234,17 @@ function TasksCard({
           </p>
         ) : (
           <div className="space-y-2">
-            {tasks.map((task) => (
+            {(() => {
+              const order = { overdue: 0, 'due-today': 1, upcoming: 2, none: 3 } as const;
+              const sortedTasks = [...tasks].sort((a, b) => {
+                if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+                return (
+                  order[getDueDateStatus(a.dueDate, a.isCompleted)] -
+                  order[getDueDateStatus(b.dueDate, b.isCompleted)]
+                );
+              });
+              return sortedTasks;
+            })().map((task) => (
               <div
                 key={task._id}
                 className={`flex items-start gap-2 ${task.isCompleted ? 'opacity-60' : ''}`}
@@ -1235,12 +1273,14 @@ function TasksCard({
                     <p className="text-xs text-muted-foreground">{task.notes}</p>
                   )}
                   {task.dueDate && (
-                    <p className="text-xs text-muted-foreground">
-                      Due: {new Date(task.dueDate).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        timeZone: 'UTC',
-                      })}
+                    <p className={`text-xs ${
+                      getDueDateStatus(task.dueDate, task.isCompleted) === 'overdue'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-muted-foreground'
+                    }`}>
+                      {task.isCompleted
+                        ? `Due: ${new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
+                        : formatDueDate(task.dueDate)}
                     </p>
                   )}
                 </div>
@@ -1255,6 +1295,12 @@ function TasksCard({
                     {task.assignedToNickname}
                   </span>
                 ) : null}
+
+                {getDueDateStatus(task.dueDate, task.isCompleted) === 'overdue' && (
+                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                    Overdue
+                  </span>
+                )}
 
                 {/* Delete button */}
                 {(task.createdByUserId === currentUserId || isAdmin) && (
@@ -1488,6 +1534,10 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
       : 'Tasks: Off',
   ].join(' · ');
 
+  const overdueCount = tasks.filter(
+    (t) => !t.isCompleted && getDueDateStatus(t.dueDate, t.isCompleted) === 'overdue'
+  ).length;
+
   return (
     <div className="min-h-screen bg-background px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-4">
@@ -1549,7 +1599,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
                   : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {tab.label}
+              {tab.id === 'tasks' && overdueCount > 0 ? `Tasks (${overdueCount})` : tab.label}
             </button>
           ))}
         </div>
