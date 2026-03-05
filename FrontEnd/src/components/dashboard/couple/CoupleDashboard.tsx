@@ -2,16 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, Pencil, Trash2, RefreshCw, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import type { HouseholdResponse } from '@/types/household.types';
+import type { HouseholdResponse, HouseholdMemberResponse } from '@/types/household.types';
 import type { ExpenseResponse } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
+import type { TaskResponse, RotationStatus } from '@/types/task.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
 import { expenseApi } from '@/api/expense.api';
 import { recurringExpenseApi } from '@/api/recurring-expense.api';
 import { householdApi } from '@/api/household.api';
+import { taskApi } from '@/api/task.api';
 import IncomeEntryCard from '@/components/dashboard/shared/IncomeEntryCard';
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
+import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,26 +33,6 @@ const MOCK_GOALS = [
   { id: 2, name: 'New Sofa', target: 800, current: 320, deadline: 'Apr 2026' },
 ];
 
-const MOCK_TASKS = {
-  rotation: [
-    { id: 1, title: 'Buy groceries', assignedTo: 'Sam', due: 'Today', done: false, note: 'This week: Sam' },
-    { id: 2, title: 'Take out trash', assignedTo: 'Alex', due: 'Tomorrow', done: false, note: 'This week: Alex' },
-    { id: 3, title: 'Clean bathroom', assignedTo: 'Sam', due: 'This week', done: false },
-    { id: 4, title: 'Vacuum living room', assignedTo: 'Alex', due: 'Last week', done: true },
-  ],
-  fixed: [
-    { id: 1, title: 'Take out trash', assignedTo: 'Alex', due: 'Tomorrow', done: false, fixed: true },
-    { id: 2, title: 'Vacuum living room', assignedTo: 'Alex', due: 'This week', done: false, fixed: true },
-    { id: 3, title: 'Buy groceries', assignedTo: 'Sam', due: 'Today', done: false, fixed: true },
-    { id: 4, title: 'Clean bathroom', assignedTo: 'Sam', due: 'This week', done: true, fixed: true },
-  ],
-  voluntary: [
-    { id: 1, title: 'Buy groceries', claimedBy: 'Sam', due: 'Today', done: false },
-    { id: 2, title: 'Take out trash', claimedBy: null, due: 'Tomorrow', done: false },
-    { id: 3, title: 'Clean bathroom', claimedBy: null, due: 'This week', done: false },
-    { id: 4, title: 'Vacuum living room', claimedBy: 'Alex', due: 'Last week', done: true },
-  ],
-};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -286,6 +269,8 @@ function StatsRow({
   totalAmount,
   settlementForMonth,
   onSettleUp,
+  myParticipatesInFinances,
+  hasFinancialPartner,
 }: {
   financeMode: FinanceMode;
   splitMethod: SplitMethod;
@@ -300,6 +285,8 @@ function StatsRow({
   totalAmount: number;
   settlementForMonth: { amount: number; settledAt: string } | null;
   onSettleUp: (amount: number) => Promise<void>;
+  myParticipatesInFinances: boolean;
+  hasFinancialPartner: boolean;
 }) {
   const [confirmSettle, setConfirmSettle] = useState(false);
   const [settlingUp, setSettlingUp] = useState(false);
@@ -337,6 +324,38 @@ function StatsRow({
           <CardContent>
             <p className="text-2xl font-bold">{expenses.length}</p>
             <p className="text-xs text-muted-foreground">this month</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Split mode — guard: if user is not a financial member or has no financial partner,
+  // show a neutral two-card view instead of the balance card
+  if (!myParticipatesInFinances || !hasFinancialPartner) {
+    const note = !myParticipatesInFinances
+      ? 'You are not part of the shared finances.'
+      : 'No financial partner found.';
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Spent</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              {fmt(totalAmount)} {currency}
+            </p>
+            <p className="text-xs text-muted-foreground">this month</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Expenses</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{expenses.length}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{note}</p>
           </CardContent>
         </Card>
       </div>
@@ -474,21 +493,19 @@ function GoalsCard({ currency }: { currency: string }) {
 
 function RecentActivityCard({
   taskLevel,
-  distribution,
   setActiveTab,
   currency,
   expenses,
+  tasks,
 }: {
   taskLevel: TaskLevel;
-  distribution: DistributionMethod;
   setActiveTab: (tab: Tab) => void;
   currency: string;
   expenses: ExpenseResponse[];
+  tasks: TaskResponse[];
 }) {
   const topExpenses = expenses.slice(0, 3);
-
-  const taskList = MOCK_TASKS[distribution];
-  const pendingTasks = taskList.filter((t) => !t.done).slice(0, 2);
+  const pendingTasks = tasks.filter((t) => !t.isCompleted).slice(0, 2);
 
   return (
     <Card>
@@ -530,21 +547,21 @@ function RecentActivityCard({
         {taskLevel !== 'disabled' ? (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pending Tasks</p>
-            {pendingTasks.map((task) => {
-              const label =
-                'claimedBy' in task
-                  ? (task.claimedBy ?? 'Unclaimed')
-                  : (task as { assignedTo: string }).assignedTo;
-              return (
-                <div key={task.id} className="flex items-center gap-2">
+            {pendingTasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No pending tasks.</p>
+            ) : (
+              pendingTasks.map((task) => (
+                <div key={task._id} className="flex items-center gap-2">
                   <div className="h-4 w-4 shrink-0 rounded border-2 border-border" />
                   <span className="flex-1 text-sm">{task.title}</span>
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    {label}
-                  </span>
+                  {task.assignedToNickname && (
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {task.assignedToNickname}
+                    </span>
+                  )}
                 </div>
-              );
-            })}
+              ))
+            )}
             <button
               onClick={() => setActiveTab('tasks')}
               className="text-xs text-primary hover:underline"
@@ -659,6 +676,8 @@ function FullExpensesCard({
   recurringLoading,
   onDeactivateRecurring,
   isAdmin,
+  myParticipatesInFinances,
+  hasFinancialPartner,
 }: {
   financeMode: FinanceMode;
   splitMethod: SplitMethod;
@@ -685,6 +704,8 @@ function FullExpensesCard({
   recurringLoading: boolean;
   onDeactivateRecurring: (id: string) => Promise<void>;
   isAdmin: boolean;
+  myParticipatesInFinances: boolean;
+  hasFinancialPartner: boolean;
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
@@ -804,34 +825,36 @@ function FullExpensesCard({
                     <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                       Unpaid
                     </span>
-                    {confirmClaimId === expense._id ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground">Claim?</span>
+                    {myParticipatesInFinances && (
+                      confirmClaimId === expense._id ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">Claim?</span>
+                          <button
+                            onClick={async () => {
+                              setClaimingId(expense._id);
+                              setConfirmClaimId(null);
+                              try { await onClaimExpense(expense._id); } finally { setClaimingId(null); }
+                            }}
+                            disabled={claimingId === expense._id}
+                            className="text-xs font-medium text-foreground hover:underline disabled:opacity-50"
+                          >
+                            {claimingId === expense._id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmClaimId(null)}
+                            className="text-xs text-muted-foreground hover:underline"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          onClick={async () => {
-                            setClaimingId(expense._id);
-                            setConfirmClaimId(null);
-                            try { await onClaimExpense(expense._id); } finally { setClaimingId(null); }
-                          }}
-                          disabled={claimingId === expense._id}
-                          className="text-xs font-medium text-foreground hover:underline disabled:opacity-50"
+                          onClick={() => setConfirmClaimId(expense._id)}
+                          className="shrink-0 rounded border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
                         >
-                          {claimingId === expense._id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes'}
+                          Claim
                         </button>
-                        <button
-                          onClick={() => setConfirmClaimId(null)}
-                          className="text-xs text-muted-foreground hover:underline"
-                        >
-                          No
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmClaimId(expense._id)}
-                        className="shrink-0 rounded border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
-                      >
-                        Claim
-                      </button>
+                      )
                     )}
                   </>
                 )}
@@ -880,7 +903,7 @@ function FullExpensesCard({
                   )
                 )}
               </div>
-              {financeMode === 'split' && expense.paidByUserId && currentUserId !== expense.paidByUserId && (
+              {financeMode === 'split' && myParticipatesInFinances && expense.paidByUserId && currentUserId !== expense.paidByUserId && (
                 <div className="ml-2 flex items-center gap-1.5 flex-wrap">
                   {expense.isResolved ? (
                     <span className="text-xs text-green-600 dark:text-green-400">✓ Share settled</span>
@@ -918,7 +941,7 @@ function FullExpensesCard({
           ))
         )}
 
-        {financeMode === 'split' && !expensesLoading && unresolvedPaidExpenses.length > 0 && (
+        {financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && !expensesLoading && unresolvedPaidExpenses.length > 0 && (
           <div className="mt-2 border-t border-border pt-3 text-sm">
             <span className={balancePositive ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
               {balancePositive
@@ -995,7 +1018,120 @@ function FullExpensesCard({
   );
 }
 
-function TasksCard({ taskLevel, distribution, myNickname, partnerNickname }: { taskLevel: TaskLevel; distribution: DistributionMethod; myNickname: string; partnerNickname: string }) {
+function SetRotationDialog({
+  open,
+  onOpenChange,
+  taskMembers,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  taskMembers: HouseholdMemberResponse[];
+  onConfirm: (startMemberId: string) => Promise<void>;
+}) {
+  const [selectedId, setSelectedId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open && taskMembers.length > 0) {
+      setSelectedId(taskMembers[0]._id);
+      setError(null);
+    }
+  }, [open, taskMembers]);
+
+  if (!open) return null;
+
+  async function handleConfirm() {
+    if (!selectedId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onConfirm(selectedId);
+      onOpenChange(false);
+    } catch {
+      setError('Failed to configure rotation. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const selectClass =
+    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-lg">
+        <h2 className="mb-1 text-base font-semibold">Configure Rotation</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Select who starts the rotation. The order follows member positions and advances every 7 days.
+        </p>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Starts with</label>
+            <select
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className={selectClass}
+              disabled={submitting}
+            >
+              {taskMembers.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.nickname}
+                </option>
+              ))}
+            </select>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => void handleConfirm()} disabled={!selectedId || submitting}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TasksCard({
+  taskLevel,
+  distribution,
+  tasks,
+  rotationStatus,
+  tasksLoading,
+  isAdmin,
+  taskMembers,
+  onAddTask,
+  onToggleComplete,
+  onDeleteTask,
+  onConfigureRotation,
+  currentUserId,
+}: {
+  taskLevel: TaskLevel;
+  distribution: DistributionMethod;
+  tasks: TaskResponse[];
+  rotationStatus: RotationStatus | null;
+  tasksLoading: boolean;
+  isAdmin: boolean;
+  taskMembers: HouseholdMemberResponse[];
+  onAddTask: () => void;
+  onToggleComplete: (taskId: string) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onConfigureRotation: () => void;
+  currentUserId: string;
+}) {
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   if (taskLevel === 'disabled') {
     return (
       <Card>
@@ -1006,146 +1142,153 @@ function TasksCard({ taskLevel, distribution, myNickname, partnerNickname }: { t
     );
   }
 
-  const tasks = MOCK_TASKS[distribution];
-
-  if (taskLevel === 'basic') {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Tasks</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {MOCK_TASKS.rotation.map((task) => (
-            <div
-              key={task.id}
-              className={`flex items-center gap-2 ${task.done ? 'opacity-50' : ''}`}
-            >
-              <div
-                className={`h-4 w-4 shrink-0 rounded border-2 ${
-                  task.done ? 'border-primary bg-primary' : 'border-border'
-                }`}
-              />
-              <span className={`flex-1 text-sm ${task.done ? 'line-through' : ''}`}>{task.title}</span>
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {task.assignedTo}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">{task.due}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    );
+  async function handleToggle(taskId: string) {
+    setTogglingId(taskId);
+    try {
+      await onToggleComplete(taskId);
+    } finally {
+      setTogglingId(null);
+    }
   }
 
-  // Full level
-  if (distribution === 'rotation') {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Tasks</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-            🔄 This week: <strong>{partnerNickname}</strong> · Next week: <strong>{myNickname}</strong>
-          </div>
-          <div className="space-y-2">
-            {(tasks as typeof MOCK_TASKS.rotation).map((task) => (
-              <div
-                key={task.id}
-                className={`flex items-center gap-2 ${task.done ? 'opacity-50' : ''}`}
+  const showRotationBanner = distribution === 'rotation' && taskLevel === 'full';
+  const rotationNotConfigured = showRotationBanner && rotationStatus === null;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-base font-semibold">Tasks</CardTitle>
+        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddTask}>
+          <Plus className="h-3.5 w-3.5" />
+          Add
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Rotation banner */}
+        {showRotationBanner && (
+          rotationStatus ? (
+            <div className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+              This week: <strong>{rotationStatus.currentNickname}</strong> · Next week:{' '}
+              <strong>{rotationStatus.nextNickname}</strong>
+            </div>
+          ) : isAdmin ? (
+            <div className="flex items-center justify-between rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2">
+              <span className="text-xs text-muted-foreground">Rotation not configured yet.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={onConfigureRotation}
+                disabled={taskMembers.length === 0}
               >
-                <div
-                  className={`h-4 w-4 shrink-0 rounded border-2 ${
-                    task.done ? 'border-primary bg-primary' : 'border-border'
-                  }`}
-                />
-                <span className={`flex-1 text-sm ${task.done ? 'line-through' : ''}`}>{task.title}</span>
-                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {task.assignedTo}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">{task.due}</span>
+                Configure Rotation
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Rotation not configured yet. Ask an admin to set it up.
+            </div>
+          )
+        )}
+
+        {tasksLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : tasks.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No tasks yet.{' '}
+            {!rotationNotConfigured && (
+              <button onClick={onAddTask} className="text-primary hover:underline">
+                Add the first one.
+              </button>
+            )}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {tasks.map((task) => (
+              <div
+                key={task._id}
+                className={`flex items-start gap-2 ${task.isCompleted ? 'opacity-60' : ''}`}
+              >
+                {/* Checkbox toggle */}
+                <button
+                  onClick={() => void handleToggle(task._id)}
+                  disabled={togglingId === task._id}
+                  className={`mt-0.5 h-4 w-4 shrink-0 rounded border-2 transition-colors ${
+                    task.isCompleted
+                      ? 'border-primary bg-primary'
+                      : 'border-border hover:border-primary'
+                  } disabled:opacity-50`}
+                >
+                  {togglingId === task._id && (
+                    <Loader2 className="h-3 w-3 animate-spin text-primary-foreground" />
+                  )}
+                </button>
+
+                {/* Title + notes */}
+                <div className="min-w-0 flex-1">
+                  <span className={`text-sm ${task.isCompleted ? 'line-through' : ''}`}>
+                    {task.title}
+                  </span>
+                  {task.notes && (
+                    <p className="text-xs text-muted-foreground">{task.notes}</p>
+                  )}
+                  {task.dueDate && (
+                    <p className="text-xs text-muted-foreground">
+                      Due: {new Date(task.dueDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        timeZone: 'UTC',
+                      })}
+                    </p>
+                  )}
+                </div>
+
+                {/* Completed by or assigned to */}
+                {task.isCompleted && task.completedByNickname ? (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    Done by {task.completedByNickname}
+                  </span>
+                ) : task.assignedToNickname && !task.isCompleted ? (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    {task.assignedToNickname}
+                  </span>
+                ) : null}
+
+                {/* Delete button */}
+                {(task.createdByUserId === currentUserId || isAdmin) && (
+                  confirmDeleteId === task._id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">Delete?</span>
+                      <button
+                        onClick={() => {
+                          void onDeleteTask(task._id).then(() => setConfirmDeleteId(null));
+                        }}
+                        className="text-xs font-medium text-destructive hover:underline"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="text-xs text-muted-foreground hover:underline"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(task._id)}
+                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )
+                )}
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (distribution === 'fixed') {
-    const myTasks = (tasks as typeof MOCK_TASKS.fixed).filter((t) => t.assignedTo === 'Alex');
-    const partnerTasks = (tasks as typeof MOCK_TASKS.fixed).filter((t) => t.assignedTo === 'Sam');
-
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Tasks</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {[
-            { label: `${myNickname}'s tasks`, items: myTasks },
-            { label: `${partnerNickname}'s tasks`, items: partnerTasks },
-          ].map(({ label, items }) => (
-            <div key={label} className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-              {items.map((task) => (
-                <div
-                  key={task.id}
-                  className={`flex items-center gap-2 ${task.done ? 'opacity-50' : ''}`}
-                >
-                  <div
-                    className={`h-4 w-4 shrink-0 rounded border-2 ${
-                      task.done ? 'border-primary bg-primary' : 'border-border'
-                    }`}
-                  />
-                  <span className={`flex-1 text-sm ${task.done ? 'line-through' : ''}`}>{task.title}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{task.due}</span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // voluntary
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Tasks</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-          Anyone can claim any task
-        </div>
-        <div className="space-y-2">
-          {(tasks as typeof MOCK_TASKS.voluntary).map((task) => (
-            <div
-              key={task.id}
-              className={`flex items-center gap-2 ${task.done ? 'opacity-50' : ''}`}
-            >
-              <div
-                className={`h-4 w-4 shrink-0 rounded border-2 ${
-                  task.done ? 'border-primary bg-primary' : 'border-border'
-                }`}
-              />
-              <span className={`flex-1 text-sm ${task.done ? 'line-through' : ''}`}>{task.title}</span>
-              {task.claimedBy ? (
-                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {task.claimedBy}
-                </span>
-              ) : (
-                !task.done && (
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
-                    Claim
-                  </Button>
-                )
-              )}
-              <span className="shrink-0 text-xs text-muted-foreground">{task.due}</span>
-            </div>
-          ))}
-        </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1178,6 +1321,13 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     household.settings.customSplitPercentage ?? 50
   );
 
+  // Task state
+  const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [rotationStatus, setRotationStatus] = useState<RotationStatus | null>(null);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [rotationConfigOpen, setRotationConfigOpen] = useState(false);
+
   // Expense state
   const [expenses, setExpenses] = useState<ExpenseResponse[]>([]);
   const [expensesLoading, setExpensesLoading] = useState(false);
@@ -1191,13 +1341,17 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseResponse | null>(null);
 
-  // Derive real names from household members
+  // Derived member data
   const myMember = household.members.find((m) => m.userId === currentUserId);
-  const partnerMember = household.members.find((m) => m.userId && m.userId !== currentUserId);
+  const partnerMember = household.members.find(
+    (m) => m.userId && m.userId !== currentUserId && m.participatesInFinances
+  );
   const myNickname = myMember?.nickname ?? 'You';
   const partnerNickname = partnerMember?.nickname ?? 'Partner';
   const currency = household.settings.currency ?? MOCK_CURRENCY;
   const isAdmin = myMember?.role === 'owner' || myMember?.role === 'admin';
+  const myParticipatesInFinances = myMember?.participatesInFinances ?? false;
+  const hasFinancialPartner = partnerMember != null;
 
   // Save handlers — only called when isAdmin
   const handleFinanceModeChange = async (v: FinanceMode) => {
@@ -1237,8 +1391,31 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     ? deriveIncomeSplit(household, currentUserId)
     : null;
 
-  // Show income entry card when income_based is configured and any member is missing income
-  const showIncomeCard = splitMethod === 'income_based';
+  // Show income entry card when income_based is configured and the current user is a financial member
+  const showIncomeCard = splitMethod === 'income_based' && (myMember?.participatesInFinances ?? false);
+
+  // Task-participating members (for rotation dialog)
+  const taskMembers = household.members.filter((m) => m.participatesInTasks);
+
+  // Fetch tasks
+  const fetchTasks = useCallback(async () => {
+    setTasksLoading(true);
+    try {
+      const result = await taskApi.listTasks(household._id);
+      setTasks(result.tasks);
+      setRotationStatus(result.rotation ?? null);
+    } catch {
+      // silently keep previous state
+    } finally {
+      setTasksLoading(false);
+    }
+  }, [household._id]);
+
+  useEffect(() => {
+    if (activeTab === 'tasks') {
+      void fetchTasks();
+    }
+  }, [activeTab, fetchTasks]);
 
   // Fetch expenses
   const fetchExpenses = useCallback(async () => {
@@ -1394,15 +1571,17 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
               totalAmount={totalAmount}
               settlementForMonth={settlementForMonth}
               onSettleUp={handleSettleUp}
+              myParticipatesInFinances={myParticipatesInFinances}
+              hasFinancialPartner={hasFinancialPartner}
             />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <GoalsCard currency={currency} />
               <RecentActivityCard
                 taskLevel={taskLevel}
-                distribution={distribution}
                 setActiveTab={setActiveTab}
                 currency={currency}
                 expenses={expenses}
+                tasks={tasks}
               />
             </div>
           </div>
@@ -1447,6 +1626,8 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
               await fetchRecurringExpenses();
             }}
             isAdmin={isAdmin}
+            myParticipatesInFinances={myParticipatesInFinances}
+            hasFinancialPartner={hasFinancialPartner}
           />
         )}
 
@@ -1454,11 +1635,46 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
           <TasksCard
             taskLevel={taskLevel}
             distribution={distribution}
-            myNickname={myNickname}
-            partnerNickname={partnerNickname}
+            tasks={tasks}
+            rotationStatus={rotationStatus}
+            tasksLoading={tasksLoading}
+            isAdmin={isAdmin}
+            taskMembers={taskMembers}
+            onAddTask={() => setAddTaskOpen(true)}
+            onToggleComplete={async (taskId) => {
+              await taskApi.toggleComplete(household._id, taskId);
+              await fetchTasks();
+            }}
+            onDeleteTask={async (taskId) => {
+              await taskApi.deleteTask(household._id, taskId);
+              await fetchTasks();
+            }}
+            onConfigureRotation={() => setRotationConfigOpen(true)}
+            currentUserId={currentUserId}
           />
         )}
       </div>
+
+      {/* Add Task Sheet */}
+      <AddTaskForm
+        householdId={household._id}
+        open={addTaskOpen}
+        onOpenChange={setAddTaskOpen}
+        onTaskAdded={(task) => {
+          setTasks((prev) => [task, ...prev]);
+        }}
+      />
+
+      {/* Set Rotation Dialog */}
+      <SetRotationDialog
+        open={rotationConfigOpen}
+        onOpenChange={setRotationConfigOpen}
+        taskMembers={taskMembers}
+        onConfirm={async (startMemberId) => {
+          const rotation = await taskApi.setRotation(household._id, startMemberId);
+          setRotationStatus(rotation);
+        }}
+      />
 
       {/* Add / Edit Expense Sheet */}
       <AddExpenseForm
