@@ -16,22 +16,25 @@ class ExpenseService {
       throw NotFoundError('Household not found');
     }
 
-    // 2. Verify requester is a member
+    // 2. Verify requester is a financial member
     const requesterMember = household.members.find(
       (m) => m.userId?.toString() === requestingUserId
     );
     if (!requesterMember) {
       throw ForbiddenError('You are not a member of this household');
     }
+    if (!requesterMember.participatesInFinances) {
+      throw ForbiddenError('You do not participate in household finances');
+    }
 
     // 3. Optionally verify payer when provided
     let payerNickname: string | undefined;
     if (input.paidByUserId) {
       const payerMember = household.members.find(
-        (m) => m.userId?.toString() === input.paidByUserId
+        (m) => m.userId?.toString() === input.paidByUserId && m.participatesInFinances
       );
       if (!payerMember) {
-        throw BadRequestError('paidByUserId does not match any household member');
+        throw BadRequestError('paidByUserId does not match a financial household member');
       }
       payerNickname = payerMember.nickname;
     }
@@ -137,11 +140,14 @@ class ExpenseService {
       throw NotFoundError('Household not found');
     }
 
-    const isMember = household.members.some(
+    const requesterMember = household.members.find(
       (m) => m.userId?.toString() === requestingUserId
     );
-    if (!isMember) {
+    if (!requesterMember) {
       throw ForbiddenError('You are not a member of this household');
+    }
+    if (!requesterMember.participatesInFinances) {
+      throw ForbiddenError('You do not participate in household finances');
     }
 
     const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
@@ -167,11 +173,14 @@ class ExpenseService {
       throw NotFoundError('Household not found');
     }
 
-    const isMember = household.members.some(
+    const requesterMember = household.members.find(
       (m) => m.userId?.toString() === requestingUserId
     );
-    if (!isMember) {
+    if (!requesterMember) {
       throw ForbiddenError('You are not a member of this household');
+    }
+    if (!requesterMember.participatesInFinances) {
+      throw ForbiddenError('You do not participate in household finances');
     }
 
     const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
@@ -193,10 +202,10 @@ class ExpenseService {
         expense.paidByUserId = undefined;
       } else {
         const payerMember = household.members.find(
-          (m) => m.userId?.toString() === input.paidByUserId
+          (m) => m.userId?.toString() === input.paidByUserId && m.participatesInFinances
         );
         if (!payerMember) {
-          throw BadRequestError('paidByUserId does not match any household member');
+          throw BadRequestError('paidByUserId does not match a financial household member');
         }
         expense.paidByUserId = input.paidByUserId as unknown as typeof expense.paidByUserId;
       }

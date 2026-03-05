@@ -5,6 +5,7 @@ import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
 import recurringExpenseRouter from './recurring-expense.routes';
+import taskRouter from './task.routes';
 
 const router = Router();
 
@@ -64,5 +65,6 @@ router.post(
 
 router.use('/:id/expenses', expenseRouter);
 router.use('/:id/recurring-expenses', recurringExpenseRouter);
+router.use('/:id/tasks', taskRouter);
 
 export default router;

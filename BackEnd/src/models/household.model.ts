@@ -94,6 +94,17 @@ const memberSchema = new Schema(
   { _id: true }
 );
 
+// ── Task rotation config subdocument schema ───────────────────────────
+
+const taskRotationConfigSchema = new Schema(
+  {
+    orderedMemberIds: [{ type: Schema.Types.ObjectId, required: true }],
+    startedAt: { type: Date, required: true },
+    periodDays: { type: Number, required: true, default: 7 },
+  },
+  { _id: false }
+);
+
 // ── Settings subdocument schema ───────────────────────────────────────
 
 const settingsSchema = new Schema(
@@ -151,6 +162,10 @@ const settingsSchema = new Schema(
         values: TASK_DISTRIBUTION_METHODS,
         message: 'Invalid task distribution method',
       },
+      default: undefined,
+    },
+    taskRotationConfig: {
+      type: taskRotationConfigSchema,
       default: undefined,
     },
   },

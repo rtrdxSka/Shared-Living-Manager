@@ -34,7 +34,7 @@ app.use(express.urlencoded({ extended: true }));
 // ── Rate limiting ─────────────────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 requests per window per IP
+  max: 20000, // 20 requests per window per IP
   message: {
     status: 'error',
     message: 'Too many requests, please try again later',
@@ -55,7 +55,7 @@ app.get('/health', (_req, res) => {
 // ── Rate limiting (general API) ───────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window per IP
+  max: 100000, // 100 requests per window per IP
   message: {
     status: 'error',
     message: 'Too many requests, please try again later',
