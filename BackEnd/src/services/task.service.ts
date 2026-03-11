@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import { Household } from '../models/household.model';
 import { Task } from '../models/task.model';
-import { ITask, IAddTaskInput, ITaskResponse, IRotationStatus } from '../types/task.types';
+import { ITask, IAddTaskInput, ITaskResponse, IRotationStatus, IAssignTaskInput } from '../types/task.types';
 import { IHouseholdMember, ITaskRotationConfig, ISetRotationInput } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 
@@ -27,7 +27,30 @@ class TaskService {
       createdByUserId: userId,
     });
 
-    return this.formatTaskResponse(task);
+    if (
+      household.settings.taskDistributionMethod === 'rotation' &&
+      household.settings.taskRotationConfig
+    ) {
+      const rotStatus = this.computeRotationStatus(
+        household.settings.taskRotationConfig,
+        household.members
+      );
+      if (rotStatus) {
+        task.assignedToMemberId = new Types.ObjectId(rotStatus.currentMemberId);
+        await task.save();
+      }
+    }
+
+    const memberMap = new Map<string, string>();
+    for (const m of household.members) {
+      memberMap.set(m._id.toString(), m.nickname);
+    }
+    const assignedToMemberId = task.assignedToMemberId?.toString();
+    const assignedToNickname = assignedToMemberId
+      ? memberMap.get(assignedToMemberId)
+      : undefined;
+
+    return this.formatTaskResponse(task, assignedToMemberId, assignedToNickname);
   }
 
   async listTasks(
@@ -49,12 +72,10 @@ class TaskService {
     }
 
     let rotation: IRotationStatus | undefined;
-    let assignedToMemberId: string | undefined;
-    let assignedToNickname: string | undefined;
 
+    const method = household.settings.taskDistributionMethod;
     const isRotation =
-      household.settings.taskDistributionMethod === 'rotation' &&
-      household.settings.taskRotationConfig != null;
+      method === 'rotation' && household.settings.taskRotationConfig != null;
 
     if (isRotation) {
       const rotStatus = this.computeRotationStatus(
@@ -63,21 +84,30 @@ class TaskService {
       );
       if (rotStatus) {
         rotation = rotStatus;
-        assignedToMemberId = rotStatus.currentMemberId;
-        assignedToNickname = rotStatus.currentNickname;
       }
     }
 
-    const taskResponses = tasks.map((task) =>
-      this.formatTaskResponse(
+    const taskResponses = tasks.map((task) => {
+      let assignedToMemberId: string | undefined;
+      let assignedToNickname: string | undefined;
+
+      if (isRotation && task.assignedToMemberId) {
+        assignedToMemberId = task.assignedToMemberId.toString();
+        assignedToNickname = memberMap.get(assignedToMemberId);
+      } else if (method === 'fixed' && task.assignedToMemberId) {
+        assignedToMemberId = task.assignedToMemberId.toString();
+        assignedToNickname = memberMap.get(assignedToMemberId);
+      }
+
+      return this.formatTaskResponse(
         task,
         assignedToMemberId,
         assignedToNickname,
         task.completedByMemberId
           ? (memberMap.get(task.completedByMemberId.toString()) ?? 'Unknown')
           : undefined
-      )
-    );
+      );
+    });
 
     return { tasks: taskResponses, ...(rotation && { rotation }) };
   }
@@ -134,6 +164,56 @@ class TaskService {
     }
 
     await task.deleteOne();
+  }
+
+  // ── Any member can assign/unassign ───────────────────────────────────
+
+  async assignTask(
+    householdId: string,
+    userId: string,
+    taskId: string,
+    input: IAssignTaskInput
+  ): Promise<ITaskResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const isMember = household.members.some((m) => m.userId?.toString() === userId);
+    if (!isMember) throw ForbiddenError('You are not a member of this household');
+
+    const task = await Task.findOne({ _id: taskId, householdId: household._id });
+    if (!task) throw NotFoundError('Task not found');
+
+    if (input.assignedToMemberId !== null) {
+      const memberExists = household.members.some(
+        (m) => m._id.toString() === input.assignedToMemberId
+      );
+      if (!memberExists) throw BadRequestError('assignedToMemberId does not match a household member');
+      task.assignedToMemberId = new Types.ObjectId(input.assignedToMemberId);
+    } else {
+      task.assignedToMemberId = undefined;
+    }
+
+    await task.save();
+
+    const memberMap = new Map<string, string>();
+    for (const m of household.members) {
+      memberMap.set(m._id.toString(), m.nickname);
+    }
+
+    const assignedToNickname = task.assignedToMemberId
+      ? memberMap.get(task.assignedToMemberId.toString())
+      : undefined;
+
+    const completedByNickname = task.completedByMemberId
+      ? (memberMap.get(task.completedByMemberId.toString()) ?? 'Unknown')
+      : undefined;
+
+    return this.formatTaskResponse(
+      task,
+      task.assignedToMemberId?.toString(),
+      assignedToNickname,
+      completedByNickname
+    );
   }
 
   // ── Admin/owner only ──────────────────────────────────────────────────

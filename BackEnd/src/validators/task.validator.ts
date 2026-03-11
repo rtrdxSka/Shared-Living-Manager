@@ -32,6 +32,21 @@ export const taskIdValidation: ValidationChain[] = [
     .withMessage('Invalid task ID'),
 ];
 
+export const assignTaskValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
+
+  param('taskId')
+    .isMongoId()
+    .withMessage('Invalid task ID'),
+
+  body('assignedToMemberId')
+    .if(body('assignedToMemberId').notEmpty())
+    .isMongoId()
+    .withMessage('assignedToMemberId must be a valid ID or null'),
+];
+
 export const setRotationValidation: ValidationChain[] = [
   param('id')
     .isMongoId()

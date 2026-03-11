@@ -11,6 +11,7 @@ const taskSchema = new Schema<ITask>(
     isCompleted: { type: Boolean, default: false },
     completedAt: { type: Date, default: undefined },
     completedByMemberId: { type: Schema.Types.ObjectId, default: undefined },
+    assignedToMemberId: { type: Schema.Types.ObjectId, ref: 'Household.members', default: undefined },
   },
   {
     timestamps: true,

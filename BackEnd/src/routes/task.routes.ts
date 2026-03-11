@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { taskController } from '../controllers/task.controller';
-import { addTaskValidation, taskIdValidation, setRotationValidation } from '../validators/task.validator';
+import { addTaskValidation, taskIdValidation, setRotationValidation, assignTaskValidation } from '../validators/task.validator';
 import { param } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware } from '../middleware/auth';
@@ -32,6 +32,15 @@ router.patch(
   setRotationValidation,
   handleValidationErrors,
   taskController.setRotation.bind(taskController)
+);
+
+// PATCH /api/households/:id/tasks/:taskId/assign
+router.patch(
+  '/:taskId/assign',
+  authMiddleware,
+  assignTaskValidation,
+  handleValidationErrors,
+  taskController.assignTask.bind(taskController)
 );
 
 // PATCH /api/households/:id/tasks/:taskId/complete

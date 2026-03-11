@@ -10,6 +10,7 @@ export interface ITask extends Document {
   isCompleted: boolean;
   completedAt?: Date;
   completedByMemberId?: Types.ObjectId;
+  assignedToMemberId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,10 @@ export interface ITaskResponse {
   assignedToNickname?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IAssignTaskInput {
+  assignedToMemberId: string | null;  // null = unassign
 }
 
 export interface IRotationStatus {
