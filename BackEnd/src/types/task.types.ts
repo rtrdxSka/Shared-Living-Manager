@@ -11,6 +11,7 @@ export interface ITask extends Document {
   completedAt?: Date;
   completedByMemberId?: Types.ObjectId;
   assignedToMemberId?: Types.ObjectId;
+  recurringTaskId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,6 +20,7 @@ export interface IAddTaskInput {
   title: string;
   notes?: string;
   dueDate?: string;  // "YYYY-MM-DD"
+  assignedToMemberId?: string;
 }
 
 export interface ITaskResponse {
@@ -35,6 +37,7 @@ export interface ITaskResponse {
   // Rotation-computed fields (populated by service when distribution === 'rotation')
   assignedToMemberId?: string;
   assignedToNickname?: string;
+  recurringTaskId?: string;
   createdAt: string;
   updatedAt: string;
 }

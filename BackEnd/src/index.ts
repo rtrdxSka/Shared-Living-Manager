@@ -9,6 +9,7 @@ import householdRoutes from './routes/household.routes';
 import userRoutes from './routes/user.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { startRecurringScheduler } from './scheduler/recurringExpenses';
+import { startRecurringTaskScheduler } from './scheduler/recurringTasks';
 
 // Load environment variables
 dotenv.config();
@@ -77,6 +78,7 @@ const startServer = async () => {
   try {
     await connectDatabase();
     startRecurringScheduler();
+    startRecurringTaskScheduler();
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);

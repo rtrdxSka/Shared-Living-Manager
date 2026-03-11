@@ -12,6 +12,7 @@ const taskSchema = new Schema<ITask>(
     completedAt: { type: Date, default: undefined },
     completedByMemberId: { type: Schema.Types.ObjectId, default: undefined },
     assignedToMemberId: { type: Schema.Types.ObjectId, ref: 'Household.members', default: undefined },
+    recurringTaskId: { type: Schema.Types.ObjectId, default: undefined },
   },
   {
     timestamps: true,

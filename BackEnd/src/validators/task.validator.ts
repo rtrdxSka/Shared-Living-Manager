@@ -20,6 +20,11 @@ export const addTaskValidation: ValidationChain[] = [
     .optional()
     .isISO8601()
     .withMessage('Due date must be a valid ISO 8601 date'),
+
+  body('assignedToMemberId')
+    .optional()
+    .isMongoId()
+    .withMessage('assignedToMemberId must be a valid ID'),
 ];
 
 export const taskIdValidation: ValidationChain[] = [

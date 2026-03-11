@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
 import recurringExpenseRouter from './recurring-expense.routes';
 import taskRouter from './task.routes';
+import recurringTaskRouter from './recurring-task.routes';
 
 const router = Router();
 
@@ -66,5 +67,6 @@ router.post(
 router.use('/:id/expenses', expenseRouter);
 router.use('/:id/recurring-expenses', recurringExpenseRouter);
 router.use('/:id/tasks', taskRouter);
+router.use('/:id/recurring-tasks', recurringTaskRouter);
 
 export default router;

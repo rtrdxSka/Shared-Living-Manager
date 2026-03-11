@@ -41,6 +41,18 @@ class TaskService {
       }
     }
 
+    if (
+      household.settings.taskDistributionMethod === 'fixed' &&
+      input.assignedToMemberId
+    ) {
+      const memberExists = household.members.some(
+        (m) => m._id.toString() === input.assignedToMemberId
+      );
+      if (!memberExists) throw BadRequestError('assignedToMemberId does not match a household member');
+      task.assignedToMemberId = new Types.ObjectId(input.assignedToMemberId);
+      await task.save();
+    }
+
     const memberMap = new Map<string, string>();
     for (const m of household.members) {
       memberMap.set(m._id.toString(), m.nickname);
@@ -322,6 +334,7 @@ class TaskService {
       ...(completedByNickname && { completedByNickname }),
       ...(assignedToMemberId && { assignedToMemberId }),
       ...(assignedToNickname && { assignedToNickname }),
+      ...(task.recurringTaskId && { recurringTaskId: task.recurringTaskId.toString() }),
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
     };
