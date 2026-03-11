@@ -9,13 +9,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { taskApi } from '@/api/task.api';
-import type { TaskResponse } from '@/types/task.types';
 
 interface AddTaskFormProps {
   householdId: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onTaskAdded: (task: TaskResponse) => void;
+  onTaskAdded: () => void;
 }
 
 export default function AddTaskForm({
@@ -44,12 +43,12 @@ export default function AddTaskForm({
     setSubmitting(true);
     setError(null);
     try {
-      const task = await taskApi.addTask(householdId, {
+      await taskApi.addTask(householdId, {
         title: title.trim(),
         ...(notes.trim() && { notes: notes.trim() }),
         ...(dueDate && { dueDate }),
       });
-      onTaskAdded(task);
+      onTaskAdded();
       onOpenChange(false);
     } catch {
       setError('Failed to add task. Please try again.');

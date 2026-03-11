@@ -1,6 +1,6 @@
 import api from '@/utils/axios';
 import type { ApiSuccessResponse } from '@/types/auth.types';
-import type { TaskResponse, AddTaskInput, RotationStatus } from '@/types/task.types';
+import type { TaskResponse, AddTaskInput, AssignTaskInput, RotationStatus } from '@/types/task.types';
 
 export const taskApi = {
   async listTasks(
@@ -29,6 +29,14 @@ export const taskApi = {
 
   async deleteTask(householdId: string, taskId: string): Promise<void> {
     await api.delete(`/households/${householdId}/tasks/${taskId}`);
+  },
+
+  async assignTask(householdId: string, taskId: string, input: AssignTaskInput): Promise<TaskResponse> {
+    const { data } = await api.patch<ApiSuccessResponse<{ task: TaskResponse }>>(
+      `/households/${householdId}/tasks/${taskId}/assign`,
+      input
+    );
+    return data.data.task;
   },
 
   async setRotation(householdId: string, startMemberId: string): Promise<RotationStatus> {

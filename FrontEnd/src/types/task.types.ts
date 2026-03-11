@@ -15,6 +15,10 @@ export interface TaskResponse {
   updatedAt: string;
 }
 
+export interface AssignTaskInput {
+  assignedToMemberId: string | null;
+}
+
 export interface AddTaskInput {
   title: string;
   notes?: string;

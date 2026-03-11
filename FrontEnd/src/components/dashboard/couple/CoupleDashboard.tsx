@@ -15,6 +15,9 @@ import { taskApi } from '@/api/task.api';
 import IncomeEntryCard from '@/components/dashboard/shared/IncomeEntryCard';
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1097,18 +1100,16 @@ function SetRotationDialog({
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Starts with</label>
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className={selectClass}
-              disabled={submitting}
-            >
-              {taskMembers.map((m) => (
-                <option key={m._id} value={m._id}>
-                  {m.nickname}
-                </option>
-              ))}
-            </select>
+            <Select value={selectedId} onValueChange={setSelectedId} disabled={submitting}>
+              <SelectTrigger className={selectClass}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {taskMembers.map((m) => (
+                  <SelectItem key={m._id} value={m._id}>{m.nickname}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
@@ -1141,6 +1142,7 @@ function TasksCard({
   onAddTask,
   onToggleComplete,
   onDeleteTask,
+  onAssignTask,
   onConfigureRotation,
   currentUserId,
 }: {
@@ -1154,11 +1156,13 @@ function TasksCard({
   onAddTask: () => void;
   onToggleComplete: (taskId: string) => Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
+  onAssignTask: (taskId: string, memberId: string | null) => Promise<void>;
   onConfigureRotation: () => void;
   currentUserId: string;
 }) {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [assigningTaskId, setAssigningTaskId] = useState<string | null>(null);
 
   if (taskLevel === 'disabled') {
     return (
@@ -1290,10 +1294,46 @@ function TasksCard({
                   <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     Done by {task.completedByNickname}
                   </span>
-                ) : task.assignedToNickname && !task.isCompleted ? (
+                ) : distribution === 'rotation' && task.assignedToNickname && !task.isCompleted ? (
                   <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     {task.assignedToNickname}
                   </span>
+                ) : distribution === 'fixed' && !task.isCompleted ? (
+                  assigningTaskId === task._id ? (
+                    <Select
+                      defaultValue={task.assignedToMemberId ?? '__none__'}
+                      onValueChange={(val) => {
+                        const resolved = val === '__none__' ? null : val;
+                        void onAssignTask(task._id, resolved).finally(() => setAssigningTaskId(null));
+                      }}
+                      onOpenChange={(open) => { if (!open) setAssigningTaskId(null); }}
+                      defaultOpen
+                    >
+                      <SelectTrigger className="h-7 w-36 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Unassign</SelectItem>
+                        {taskMembers.map((m) => (
+                          <SelectItem key={m._id} value={m._id}>{m.nickname}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : task.assignedToNickname ? (
+                    <button
+                      onClick={() => setAssigningTaskId(task._id)}
+                      className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted/70"
+                    >
+                      {task.assignedToNickname}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setAssigningTaskId(task._id)}
+                      className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      + Assign
+                    </button>
+                  )
                 ) : null}
 
                 {getDueDateStatus(task.dueDate, task.isCompleted) === 'overdue' && (
@@ -1442,6 +1482,11 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
 
   // Task-participating members (for rotation dialog)
   const taskMembers = household.members.filter((m) => m.participatesInTasks);
+
+  const handleAssignTask = async (taskId: string, memberId: string | null) => {
+    const updated = await taskApi.assignTask(household._id, taskId, { assignedToMemberId: memberId });
+    setTasks((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
+  };
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
@@ -1699,6 +1744,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
               await taskApi.deleteTask(household._id, taskId);
               await fetchTasks();
             }}
+            onAssignTask={handleAssignTask}
             onConfigureRotation={() => setRotationConfigOpen(true)}
             currentUserId={currentUserId}
           />
@@ -1710,8 +1756,8 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
         householdId={household._id}
         open={addTaskOpen}
         onOpenChange={setAddTaskOpen}
-        onTaskAdded={(task) => {
-          setTasks((prev) => [task, ...prev]);
+        onTaskAdded={() => {
+          void fetchTasks();
         }}
       />
 

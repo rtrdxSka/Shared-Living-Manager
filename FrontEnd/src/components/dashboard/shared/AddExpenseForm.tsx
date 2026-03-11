@@ -8,6 +8,9 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { expenseApi } from '@/api/expense.api';
 import { recurringExpenseApi } from '@/api/recurring-expense.api';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
@@ -196,18 +199,18 @@ export default function AddExpenseForm({
           {/* Category */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Category</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as typeof category)}
-              className={selectClass}
-              disabled={submitting}
-            >
-              {EXPENSE_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </option>
-              ))}
-            </select>
+            <Select value={category} onValueChange={(v) => setCategory(v as typeof category)} disabled={submitting}>
+              <SelectTrigger className={selectClass}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EXPENSE_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Date / Starts from */}
@@ -301,22 +304,21 @@ export default function AddExpenseForm({
               <label className="text-sm font-medium">
                 Paid by{!paidByRequired && <span className="text-muted-foreground"> (optional)</span>}
               </label>
-              <select
-                value={paidByUserId}
-                onChange={(e) => setPaidByUserId(e.target.value)}
-                className={selectClass}
+              <Select
+                value={paidByUserId || '__none__'}
+                onValueChange={(v) => setPaidByUserId(v === '__none__' ? '' : v)}
                 disabled={submitting}
-                required={paidByRequired}
               >
-                {!paidByRequired && (
-                  <option value="">Not paid yet</option>
-                )}
-                {payableMembers.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.nickname}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className={selectClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {!paidByRequired && <SelectItem value="__none__">Not paid yet</SelectItem>}
+                  {payableMembers.map((m) => (
+                    <SelectItem key={m.userId} value={m.userId!}>{m.nickname}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
