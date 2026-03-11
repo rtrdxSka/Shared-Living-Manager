@@ -11,6 +11,7 @@ export interface TaskResponse {
   completedByNickname?: string;
   assignedToMemberId?: string;
   assignedToNickname?: string;
+  recurringTaskId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,6 +24,7 @@ export interface AddTaskInput {
   title: string;
   notes?: string;
   dueDate?: string;  // "YYYY-MM-DD"
+  assignedToMemberId?: string;
 }
 
 export interface RotationStatus {

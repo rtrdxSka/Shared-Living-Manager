@@ -350,9 +350,12 @@ export function createStepFinancialPreferencesSchema(
     });
 }
 
-export type StepFinancialPreferencesData = z.infer<
-  typeof baseStepFinancialPreferencesSchema
->;
+export type StepFinancialPreferencesData = {
+  financeMode?: (typeof FINANCE_MODES)[number] | '';
+  expenseSplitMethod?: (typeof EXPENSE_SPLIT_METHODS)[number] | '';
+  trackedExpenseTypes: (typeof EXPENSE_TYPES)[number][];
+  currency: (typeof CURRENCIES)[number];
+};
 
 // ── Step 4: Task Preferences ──────────────────────────────────────────
 

@@ -15,28 +15,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { taskApi } from '@/api/task.api';
+import { recurringTaskApi } from '@/api/recurring-task.api';
+import type { RecurrenceInterval } from '@/types/recurring-task.types';
 
-interface AddTaskFormProps {
+interface AddRecurringTaskFormProps {
   householdId: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onTaskAdded: () => void;
+  onCreated: () => void;
   distributionMethod?: string;
   taskMembers?: { _id: string; nickname: string }[];
 }
 
-export default function AddTaskForm({
+export default function AddRecurringTaskForm({
   householdId,
   open,
   onOpenChange,
-  onTaskAdded,
+  onCreated,
   distributionMethod,
   taskMembers = [],
-}: AddTaskFormProps) {
+}: AddRecurringTaskFormProps) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [interval, setInterval] = useState<RecurrenceInterval>('weekly');
   const [assignedToMemberId, setAssignedToMemberId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export default function AddTaskForm({
     if (!open) {
       setTitle('');
       setNotes('');
-      setDueDate('');
+      setInterval('weekly');
       setAssignedToMemberId('');
       setError(null);
     }
@@ -58,16 +59,16 @@ export default function AddTaskForm({
     setSubmitting(true);
     setError(null);
     try {
-      await taskApi.addTask(householdId, {
+      await recurringTaskApi.create(householdId, {
         title: title.trim(),
         ...(notes.trim() && { notes: notes.trim() }),
-        ...(dueDate && { dueDate }),
+        interval,
         ...(showAssigneeSelect && assignedToMemberId && { assignedToMemberId }),
       });
-      onTaskAdded();
+      onCreated();
       onOpenChange(false);
     } catch {
-      setError('Failed to add task. Please try again.');
+      setError('Failed to create recurring task. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -79,7 +80,7 @@ export default function AddTaskForm({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex flex-col gap-0 overflow-y-auto">
         <SheetHeader className="mb-4">
-          <SheetTitle>Add Task</SheetTitle>
+          <SheetTitle>Add Recurring Task</SheetTitle>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -89,7 +90,7 @@ export default function AddTaskForm({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={100}
-              placeholder="e.g. Clean bathroom"
+              placeholder="e.g. Take out trash"
               required
               disabled={submitting}
             />
@@ -107,13 +108,20 @@ export default function AddTaskForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Due date <span className="text-muted-foreground">(optional)</span></label>
-            <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+            <label className="text-sm font-medium">Repeats</label>
+            <Select
+              value={interval}
+              onValueChange={(v) => setInterval(v as RecurrenceInterval)}
               disabled={submitting}
-            />
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {showAssigneeSelect && (
@@ -140,7 +148,7 @@ export default function AddTaskForm({
           {error && <p className="text-xs text-destructive">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Task'}
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Recurring Task'}
           </Button>
         </form>
       </SheetContent>

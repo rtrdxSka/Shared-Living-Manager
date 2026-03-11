@@ -6,15 +6,18 @@ import type { HouseholdResponse, HouseholdMemberResponse } from '@/types/househo
 import type { ExpenseResponse } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
 import type { TaskResponse, RotationStatus } from '@/types/task.types';
+import type { RecurringTaskResponse } from '@/types/recurring-task.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
 import { expenseApi } from '@/api/expense.api';
 import { recurringExpenseApi } from '@/api/recurring-expense.api';
 import { householdApi } from '@/api/household.api';
 import { taskApi } from '@/api/task.api';
+import { recurringTaskApi } from '@/api/recurring-task.api';
 import IncomeEntryCard from '@/components/dashboard/shared/IncomeEntryCard';
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
+import AddRecurringTaskForm from '@/components/dashboard/shared/AddRecurringTaskForm';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -1145,6 +1148,10 @@ function TasksCard({
   onAssignTask,
   onConfigureRotation,
   currentUserId,
+  recurringTasks,
+  recurringTasksLoading,
+  onAddRecurringTask,
+  onDeactivateRecurringTask,
 }: {
   taskLevel: TaskLevel;
   distribution: DistributionMethod;
@@ -1159,6 +1166,10 @@ function TasksCard({
   onAssignTask: (taskId: string, memberId: string | null) => Promise<void>;
   onConfigureRotation: () => void;
   currentUserId: string;
+  recurringTasks: RecurringTaskResponse[];
+  recurringTasksLoading: boolean;
+  onAddRecurringTask: () => void;
+  onDeactivateRecurringTask: (id: string) => Promise<void>;
 }) {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -1190,10 +1201,16 @@ function TasksCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-base font-semibold">Tasks</CardTitle>
-        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddTask}>
-          <Plus className="h-3.5 w-3.5" />
-          Add
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddRecurringTask}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            Recurring
+          </Button>
+          <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddTask}>
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Rotation banner */}
@@ -1271,6 +1288,9 @@ function TasksCard({
                 {/* Title + notes */}
                 <div className="min-w-0 flex-1">
                   <span className={`text-sm ${task.isCompleted ? 'line-through' : ''}`}>
+                    {task.recurringTaskId && (
+                      <RefreshCw className="mr-1 inline h-3 w-3 text-muted-foreground" />
+                    )}
                     {task.title}
                   </span>
                   {task.notes && (
@@ -1375,6 +1395,44 @@ function TasksCard({
             ))}
           </div>
         )}
+
+        {/* Recurring Tasks subsection */}
+        {(recurringTasksLoading || recurringTasks.length > 0) && (
+          <div className="mt-4 border-t border-border pt-4">
+            <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Recurring</p>
+            {recurringTasksLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recurringTasks.map((rt) => (
+                  <div key={rt._id} className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <RefreshCw className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="text-sm truncate">{rt.title}</span>
+                      </div>
+                      <p className="ml-4.5 text-xs text-muted-foreground capitalize">{rt.interval}</p>
+                    </div>
+                    {rt.assignedToNickname && (
+                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {rt.assignedToNickname}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => void onDeactivateRecurringTask(rt._id)}
+                      className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                      title="Deactivate"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1413,6 +1471,9 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
   const [tasksLoading, setTasksLoading] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [rotationConfigOpen, setRotationConfigOpen] = useState(false);
+  const [recurringTasks, setRecurringTasks] = useState<RecurringTaskResponse[]>([]);
+  const [recurringTasksLoading, setRecurringTasksLoading] = useState(false);
+  const [addRecurringTaskOpen, setAddRecurringTaskOpen] = useState(false);
 
   // Expense state
   const [expenses, setExpenses] = useState<ExpenseResponse[]>([]);
@@ -1502,11 +1563,24 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     }
   }, [household._id]);
 
+  const fetchRecurringTasks = useCallback(async () => {
+    setRecurringTasksLoading(true);
+    try {
+      const data = await recurringTaskApi.list(household._id);
+      setRecurringTasks(data);
+    } catch {
+      // silently keep previous state
+    } finally {
+      setRecurringTasksLoading(false);
+    }
+  }, [household._id]);
+
   useEffect(() => {
     if (activeTab === 'tasks') {
       void fetchTasks();
+      void fetchRecurringTasks();
     }
-  }, [activeTab, fetchTasks]);
+  }, [activeTab, fetchTasks, fetchRecurringTasks]);
 
   // Fetch expenses
   const fetchExpenses = useCallback(async () => {
@@ -1747,6 +1821,13 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
             onAssignTask={handleAssignTask}
             onConfigureRotation={() => setRotationConfigOpen(true)}
             currentUserId={currentUserId}
+            recurringTasks={recurringTasks}
+            recurringTasksLoading={recurringTasksLoading}
+            onAddRecurringTask={() => setAddRecurringTaskOpen(true)}
+            onDeactivateRecurringTask={async (id) => {
+              await recurringTaskApi.deactivate(household._id, id);
+              await fetchRecurringTasks();
+            }}
           />
         )}
       </div>
@@ -1759,6 +1840,20 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
         onTaskAdded={() => {
           void fetchTasks();
         }}
+        distributionMethod={distribution}
+        taskMembers={taskMembers}
+      />
+
+      {/* Add Recurring Task Sheet */}
+      <AddRecurringTaskForm
+        householdId={household._id}
+        open={addRecurringTaskOpen}
+        onOpenChange={setAddRecurringTaskOpen}
+        onCreated={() => {
+          void fetchRecurringTasks();
+        }}
+        distributionMethod={distribution}
+        taskMembers={taskMembers}
       />
 
       {/* Set Rotation Dialog */}
