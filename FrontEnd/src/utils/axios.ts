@@ -69,6 +69,16 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Handle 403 — email verification required
+    if (
+      error.response?.status === 403 &&
+      typeof error.response?.data?.message === 'string' &&
+      error.response.data.message.toLowerCase().includes('verify your email')
+    ) {
+      window.location.href = '/profile';
+      return Promise.reject(error);
+    }
+
     if (originalRequest.url?.includes('/login')) {
       return Promise.reject(error);
     }
