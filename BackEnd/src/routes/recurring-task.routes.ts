@@ -7,7 +7,7 @@ import {
 } from '../validators/recurring-task.validator';
 import { param } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validate';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 
 const router = Router({ mergeParams: true });
 
@@ -15,6 +15,7 @@ const router = Router({ mergeParams: true });
 router.post(
   '/',
   authMiddleware,
+  emailVerifiedMiddleware,
   createRecurringTaskValidation,
   handleValidationErrors,
   recurringTaskController.create.bind(recurringTaskController)
@@ -24,6 +25,7 @@ router.post(
 router.get(
   '/',
   authMiddleware,
+  emailVerifiedMiddleware,
   [param('id').isMongoId().withMessage('Invalid household ID')],
   handleValidationErrors,
   recurringTaskController.list.bind(recurringTaskController)
@@ -33,6 +35,7 @@ router.get(
 router.patch(
   '/:recurringTaskId',
   authMiddleware,
+  emailVerifiedMiddleware,
   updateRecurringTaskValidation,
   handleValidationErrors,
   recurringTaskController.update.bind(recurringTaskController)
@@ -42,6 +45,7 @@ router.patch(
 router.delete(
   '/:recurringTaskId',
   authMiddleware,
+  emailVerifiedMiddleware,
   recurringTaskIdValidation,
   handleValidationErrors,
   recurringTaskController.deactivate.bind(recurringTaskController)

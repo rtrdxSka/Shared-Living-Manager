@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { expenseController } from '../controllers/expense.controller';
 import { addExpenseValidation, listExpensesValidation, expenseIdValidation, updateExpenseValidation, claimExpenseValidation } from '../validators/expense.validator';
 import { handleValidationErrors } from '../middleware/validate';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 
 const router = Router({ mergeParams: true }); // exposes :id from household router
 
@@ -10,6 +10,7 @@ const router = Router({ mergeParams: true }); // exposes :id from household rout
 router.post(
   '/',
   authMiddleware,
+  emailVerifiedMiddleware,
   addExpenseValidation,
   handleValidationErrors,
   expenseController.addExpense.bind(expenseController)
@@ -19,6 +20,7 @@ router.post(
 router.get(
   '/',
   authMiddleware,
+  emailVerifiedMiddleware,
   listExpensesValidation,
   handleValidationErrors,
   expenseController.listExpenses.bind(expenseController)
@@ -28,6 +30,7 @@ router.get(
 router.delete(
   '/:expenseId',
   authMiddleware,
+  emailVerifiedMiddleware,
   expenseIdValidation,
   handleValidationErrors,
   expenseController.deleteExpense.bind(expenseController)
@@ -37,6 +40,7 @@ router.delete(
 router.patch(
   '/:expenseId',
   authMiddleware,
+  emailVerifiedMiddleware,
   updateExpenseValidation,
   handleValidationErrors,
   expenseController.updateExpense.bind(expenseController)
@@ -46,6 +50,7 @@ router.patch(
 router.post(
   '/:expenseId/claim',
   authMiddleware,
+  emailVerifiedMiddleware,
   claimExpenseValidation,
   handleValidationErrors,
   expenseController.claimExpense.bind(expenseController)
@@ -55,6 +60,7 @@ router.post(
 router.post(
   '/:expenseId/resolve',
   authMiddleware,
+  emailVerifiedMiddleware,
   expenseIdValidation,
   handleValidationErrors,
   expenseController.resolveExpense.bind(expenseController)

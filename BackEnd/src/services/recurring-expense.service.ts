@@ -43,6 +43,9 @@ class RecurringExpenseService {
 
     const member = household.members.find((m) => m.userId?.toString() === userId);
     if (!member) throw ForbiddenError('You are not a member of this household');
+    if (!member.participatesInFinances) {
+      throw ForbiddenError('You do not participate in household finances');
+    }
 
     let fixedPayerNickname: string | undefined;
     if (input.payerMode === 'fixed') {
@@ -206,6 +209,19 @@ class RecurringExpenseService {
           date: { $gte: periodStart },
         });
         if (existing) continue;
+
+        // Verify creator is still a participating member
+        const household = await Household.findById(template.householdId);
+        if (!household) continue;
+
+        const creator = household.members.find(
+          (m) => m.userId?.toString() === template.createdByUserId.toString()
+        );
+        if (!creator || !creator.participatesInFinances) {
+          template.isActive = false;
+          await template.save();
+          continue;
+        }
 
         // Create expense instance
         await Expense.create({

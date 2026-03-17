@@ -21,6 +21,11 @@ export const updateProfileValidation: ValidationChain[] = [
     .isEmail()
     .withMessage('Please provide a valid email address')
     .normalizeEmail({ gmail_remove_subaddress: false }),
+
+  body('currentPassword')
+    .optional()
+    .isString()
+    .withMessage('Current password must be a string'),
 ];
 
 // ── Change password validation ───────────────────────────────────────

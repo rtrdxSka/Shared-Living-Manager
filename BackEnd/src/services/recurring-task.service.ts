@@ -46,6 +46,9 @@ class RecurringTaskService {
     if (input.assignedToMemberId) {
       const member = household.members.find((m) => m._id.toString() === input.assignedToMemberId);
       if (!member) throw BadRequestError('assignedToMemberId does not match a household member');
+      if (!member.participatesInTasks) {
+        throw BadRequestError('That member does not participate in tasks');
+      }
       assignedToNickname = member.nickname;
     }
 
@@ -109,6 +112,9 @@ class RecurringTaskService {
     if (input.assignedToMemberId !== undefined && input.assignedToMemberId !== null) {
       const member = household.members.find((m) => m._id.toString() === input.assignedToMemberId);
       if (!member) throw BadRequestError('assignedToMemberId does not match a household member');
+      if (!member.participatesInTasks) {
+        throw BadRequestError('That member does not participate in tasks');
+      }
     }
 
     if (input.title !== undefined) template.title = input.title.trim();
@@ -183,6 +189,16 @@ class RecurringTaskService {
         // Load household to determine distribution method and members
         const household = await Household.findById(template.householdId);
         if (!household) continue;
+
+        // Verify creator is still a participating member
+        const creator = household.members.find(
+          (m) => m.userId?.toString() === template.createdByUserId.toString()
+        );
+        if (!creator || !creator.participatesInTasks) {
+          template.isActive = false;
+          await template.save();
+          continue;
+        }
 
         const method = household.settings.taskDistributionMethod;
         let assignedToMemberId: Types.ObjectId | undefined;

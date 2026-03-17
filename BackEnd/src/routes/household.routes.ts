@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { householdController } from '../controllers/household.controller';
 import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
 import recurringExpenseRouter from './recurring-expense.routes';
 import taskRouter from './task.routes';
@@ -14,6 +14,7 @@ const router = Router();
 router.post(
   '/',
   authMiddleware,
+  emailVerifiedMiddleware,
   createHouseholdValidation,
   handleValidationErrors,
   householdController.create.bind(householdController)
@@ -23,6 +24,7 @@ router.post(
 router.post(
   '/join',
   authMiddleware,
+  emailVerifiedMiddleware,
   joinHouseholdValidation,
   handleValidationErrors,
   householdController.join.bind(householdController)
@@ -32,6 +34,7 @@ router.post(
 router.get(
   '/:id',
   authMiddleware,
+  emailVerifiedMiddleware,
   getHouseholdByIdValidation,
   handleValidationErrors,
   householdController.getById.bind(householdController)
@@ -41,6 +44,7 @@ router.get(
 router.patch(
   '/:id/settings',
   authMiddleware,
+  emailVerifiedMiddleware,
   updateSettingsValidation,
   handleValidationErrors,
   householdController.updateSettings.bind(householdController)
@@ -50,6 +54,7 @@ router.patch(
 router.patch(
   '/:id/members/me/income',
   authMiddleware,
+  emailVerifiedMiddleware,
   updateMemberIncomeValidation,
   handleValidationErrors,
   householdController.updateMemberIncome.bind(householdController)
@@ -59,6 +64,7 @@ router.patch(
 router.post(
   '/:id/settlements',
   authMiddleware,
+  emailVerifiedMiddleware,
   recordSettlementValidation,
   handleValidationErrors,
   householdController.recordSettlement.bind(householdController)

@@ -31,6 +31,25 @@ export const errorHandler = (
     return;
   }
 
+  // Handle MongoDB duplicate key errors (e.g. unique index race condition)
+  if (
+    err instanceof Error &&
+    'code' in err &&
+    (err as Record<string, unknown>).code === 11000
+  ) {
+    const response: ErrorResponse = {
+      status: 'error',
+      message: 'A resource with that value already exists',
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      response.stack = err.stack;
+    }
+
+    res.status(409).json(response);
+    return;
+  }
+
   // Handle Mongoose validation errors (e.g. schema-level match/required)
   if (err instanceof mongoose.Error.ValidationError) {
     const firstError = Object.values(err.errors)[0];

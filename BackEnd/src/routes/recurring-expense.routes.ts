@@ -7,7 +7,7 @@ import {
 } from '../validators/recurring-expense.validator';
 import { param } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validate';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 
 const router = Router({ mergeParams: true }); // exposes :id from household router
 
@@ -15,6 +15,7 @@ const router = Router({ mergeParams: true }); // exposes :id from household rout
 router.post(
   '/',
   authMiddleware,
+  emailVerifiedMiddleware,
   createRecurringExpenseValidation,
   handleValidationErrors,
   recurringExpenseController.create.bind(recurringExpenseController)
@@ -24,6 +25,7 @@ router.post(
 router.get(
   '/',
   authMiddleware,
+  emailVerifiedMiddleware,
   [param('id').isMongoId().withMessage('Invalid household ID')],
   handleValidationErrors,
   recurringExpenseController.list.bind(recurringExpenseController)
@@ -33,6 +35,7 @@ router.get(
 router.patch(
   '/:recurringId',
   authMiddleware,
+  emailVerifiedMiddleware,
   updateRecurringExpenseValidation,
   handleValidationErrors,
   recurringExpenseController.update.bind(recurringExpenseController)
@@ -42,6 +45,7 @@ router.patch(
 router.delete(
   '/:recurringId',
   authMiddleware,
+  emailVerifiedMiddleware,
   recurringExpenseIdValidation,
   handleValidationErrors,
   recurringExpenseController.deactivate.bind(recurringExpenseController)

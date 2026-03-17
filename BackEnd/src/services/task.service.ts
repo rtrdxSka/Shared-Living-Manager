@@ -16,8 +16,11 @@ class TaskService {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
+    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    if (!requesterMember.participatesInTasks) {
+      throw ForbiddenError('You do not participate in household tasks');
+    }
 
     const task = await Task.create({
       householdId: household._id,
@@ -45,10 +48,13 @@ class TaskService {
       household.settings.taskDistributionMethod === 'fixed' &&
       input.assignedToMemberId
     ) {
-      const memberExists = household.members.some(
+      const assignee = household.members.find(
         (m) => m._id.toString() === input.assignedToMemberId
       );
-      if (!memberExists) throw BadRequestError('assignedToMemberId does not match a household member');
+      if (!assignee) throw BadRequestError('assignedToMemberId does not match a household member');
+      if (!assignee.participatesInTasks) {
+        throw BadRequestError('That member does not participate in tasks');
+      }
       task.assignedToMemberId = new Types.ObjectId(input.assignedToMemberId);
       await task.save();
     }
@@ -134,6 +140,9 @@ class TaskService {
 
     const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
     if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    if (!requesterMember.participatesInTasks) {
+      throw ForbiddenError('You do not participate in household tasks');
+    }
 
     const task = await Task.findOne({ _id: taskId, householdId: household._id });
     if (!task) throw NotFoundError('Task not found');
@@ -164,6 +173,9 @@ class TaskService {
 
     const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
     if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    if (!requesterMember.participatesInTasks) {
+      throw ForbiddenError('You do not participate in household tasks');
+    }
 
     const task = await Task.findOne({ _id: taskId, householdId: household._id });
     if (!task) throw NotFoundError('Task not found');
@@ -189,17 +201,23 @@ class TaskService {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
+    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    if (!requesterMember.participatesInTasks) {
+      throw ForbiddenError('You do not participate in household tasks');
+    }
 
     const task = await Task.findOne({ _id: taskId, householdId: household._id });
     if (!task) throw NotFoundError('Task not found');
 
     if (input.assignedToMemberId !== null) {
-      const memberExists = household.members.some(
+      const assignee = household.members.find(
         (m) => m._id.toString() === input.assignedToMemberId
       );
-      if (!memberExists) throw BadRequestError('assignedToMemberId does not match a household member');
+      if (!assignee) throw BadRequestError('assignedToMemberId does not match a household member');
+      if (!assignee.participatesInTasks) {
+        throw BadRequestError('That member does not participate in tasks');
+      }
       task.assignedToMemberId = new Types.ObjectId(input.assignedToMemberId);
     } else {
       task.assignedToMemberId = undefined;

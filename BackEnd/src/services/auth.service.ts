@@ -83,7 +83,7 @@ class AuthService {
     let decoded: IJwtPayload;
 
     try {
-      decoded = jwt.verify(refreshToken, secret) as IJwtPayload;
+      decoded = jwt.verify(refreshToken, secret, { algorithms: ['HS256'] }) as IJwtPayload;
     } catch {
       throw UnauthorizedError('Invalid or expired refresh token');
     }
@@ -136,6 +136,7 @@ class AuthService {
     }
 
     user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
     user.emailVerificationExpires = undefined;
     await user.save();
   }

@@ -214,8 +214,14 @@ class HouseholdService {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const member = household.members.find((m) => m.userId?.toString() === userId);
+    if (!member) throw ForbiddenError('You are not a member of this household');
+    if (!member.participatesInFinances) {
+      throw ForbiddenError('Only financial members can record settlements');
+    }
+    if (member.role !== 'owner' && member.role !== 'admin') {
+      throw ForbiddenError('Only admins can record settlements');
+    }
 
     if (household.settlements.find((s) => s.month === month))
       throw BadRequestError('Balance for this month is already marked as settled');
