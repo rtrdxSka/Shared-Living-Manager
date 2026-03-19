@@ -7,6 +7,7 @@ import expenseRouter from './expense.routes';
 import recurringExpenseRouter from './recurring-expense.routes';
 import taskRouter from './task.routes';
 import recurringTaskRouter from './recurring-task.routes';
+import goalRouter from './goal.routes';
 
 const router = Router();
 
@@ -74,5 +75,6 @@ router.use('/:id/expenses', expenseRouter);
 router.use('/:id/recurring-expenses', recurringExpenseRouter);
 router.use('/:id/tasks', taskRouter);
 router.use('/:id/recurring-tasks', recurringTaskRouter);
+router.use('/:id/goals', goalRouter);
 
 export default router;
