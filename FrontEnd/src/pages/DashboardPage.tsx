@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Copy, Check, Loader2, LayoutDashboard } from 'lucide-react';
 
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { householdApi } from '@/api/household.api';
+import { useHousehold } from '@/hooks/queries';
 import type { HouseholdResponse } from '@/types/household.types';
 import CoupleDashboard from '@/components/dashboard/couple/CoupleDashboard';
 
@@ -19,42 +19,34 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const location = useLocation();
 
-  const [household, setHousehold] = useState<HouseholdResponse | null>(
+  const initialHousehold =
     (location.state as { createdHousehold?: HouseholdResponse } | null)
-      ?.createdHousehold ?? null
-  );
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+      ?.createdHousehold ?? undefined;
+
+  const {
+    data: household,
+    isLoading,
+    error,
+  } = useHousehold(user?.activeHousehold);
+
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    // If we already have household data from route state, skip fetching
-    if (household) return;
-
-    if (!user?.activeHousehold) return;
-
-    setIsLoading(true);
-    householdApi
-      .getById(user.activeHousehold)
-      .then((data) => setHousehold(data))
-      .catch(() => setError('Failed to load household information.'))
-      .finally(() => setIsLoading(false));
-  }, [user?.activeHousehold, household]);
+  // Use route-state household while query is still loading for instant render
+  const resolved = household ?? initialHousehold ?? null;
 
   const handleCopy = async () => {
-    if (!household?.inviteCode) return;
+    if (!resolved?.inviteCode) return;
 
-    await navigator.clipboard.writeText(household.inviteCode);
+    await navigator.clipboard.writeText(resolved.inviteCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (household?.uiMode === 'couple' && user) {
+  if (resolved?.uiMode === 'couple' && user) {
     return (
       <CoupleDashboard
-        household={household}
+        household={resolved}
         currentUserId={user._id}
-        onHouseholdUpdated={setHousehold}
       />
     );
   }
@@ -85,14 +77,14 @@ export default function DashboardPage() {
           )}
 
           {error && (
-            <p className="text-center text-sm text-destructive">{error}</p>
+            <p className="text-center text-sm text-destructive">Failed to load household information.</p>
           )}
 
-          {household && (
+          {resolved && (
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">Household</p>
-                <p className="text-lg font-semibold">{household.name}</p>
+                <p className="text-lg font-semibold">{resolved.name}</p>
               </div>
 
               <div className="space-y-2">
@@ -102,7 +94,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex-1 rounded-lg border border-border bg-muted/30 px-4 py-2.5">
                     <span className="font-mono text-sm tracking-wide">
-                      {household.inviteCode}
+                      {resolved.inviteCode}
                     </span>
                   </div>
                   <Button

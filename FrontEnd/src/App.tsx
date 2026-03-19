@@ -1,4 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { queryClient } from '@/lib/queryClient';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ProtectedRoute, GuestRoute } from '@/components/ProtectedRoute';
@@ -17,6 +20,7 @@ import ProfilePage from '@/pages/ProfilePage';
 export default function App() {
   return (
     <BrowserRouter>
+      <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ThemeProvider defaultTheme="system">
           <Navbar />
@@ -45,6 +49,8 @@ export default function App() {
           </Routes>
         </ThemeProvider>
       </AuthProvider>
+      <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
     </BrowserRouter>
   );
 }

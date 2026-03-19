@@ -3,19 +3,19 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { householdApi } from '@/api/household.api';
+import { useUpdateIncome } from '@/hooks/queries';
 import type { HouseholdResponse } from '@/types/household.types';
 
 interface IncomeEntryCardProps {
   household: HouseholdResponse;
   currentUserId: string;
-  onUpdated: (updated: HouseholdResponse) => void;
 }
 
-export default function IncomeEntryCard({ household, currentUserId, onUpdated }: IncomeEntryCardProps) {
+export default function IncomeEntryCard({ household, currentUserId }: IncomeEntryCardProps) {
   const [value, setValue] = useState('');
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const updateIncomeMutation = useUpdateIncome(household._id);
 
   const currency = household.settings.currency;
 
@@ -33,15 +33,11 @@ export default function IncomeEntryCard({ household, currentUserId, onUpdated }:
       return;
     }
 
-    setSaving(true);
     setError(null);
     try {
-      const updated = await householdApi.updateMyIncome(household._id, parsed);
-      onUpdated(updated);
+      await updateIncomeMutation.mutateAsync(parsed);
     } catch {
       setError('Failed to save income. Please try again.');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -73,16 +69,16 @@ export default function IncomeEntryCard({ household, currentUserId, onUpdated }:
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 className="h-8 w-36 bg-white dark:bg-amber-950/60"
-                disabled={saving}
+                disabled={updateIncomeMutation.isPending}
               />
               <span className="text-sm text-amber-800 dark:text-amber-300">{currency}</span>
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={saving || value === ''}
+                disabled={updateIncomeMutation.isPending || value === ''}
                 className="h-8"
               >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+                {updateIncomeMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
               </Button>
             </div>
 

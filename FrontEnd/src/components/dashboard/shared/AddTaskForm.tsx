@@ -15,13 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { taskApi } from '@/api/task.api';
+import { useAddTask } from '@/hooks/queries';
 
 interface AddTaskFormProps {
   householdId: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onTaskAdded: () => void;
   distributionMethod?: string;
   taskMembers?: { _id: string; nickname: string }[];
 }
@@ -30,7 +29,6 @@ export default function AddTaskForm({
   householdId,
   open,
   onOpenChange,
-  onTaskAdded,
   distributionMethod,
   taskMembers = [],
 }: AddTaskFormProps) {
@@ -38,8 +36,9 @@ export default function AddTaskForm({
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedToMemberId, setAssignedToMemberId] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const addTaskMutation = useAddTask(householdId);
 
   const showAssigneeSelect = distributionMethod === 'fixed' && taskMembers.length > 0;
 
@@ -55,25 +54,21 @@ export default function AddTaskForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
     try {
-      await taskApi.addTask(householdId, {
+      await addTaskMutation.mutateAsync({
         title: title.trim(),
         ...(notes.trim() && { notes: notes.trim() }),
         ...(dueDate && { dueDate }),
         ...(showAssigneeSelect && assignedToMemberId && { assignedToMemberId }),
       });
-      onTaskAdded();
       onOpenChange(false);
     } catch {
       setError('Failed to add task. Please try again.');
-    } finally {
-      setSubmitting(false);
     }
   }
 
-  const canSubmit = title.trim().length > 0 && !submitting;
+  const canSubmit = title.trim().length > 0 && !addTaskMutation.isPending;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -91,7 +86,7 @@ export default function AddTaskForm({
               maxLength={100}
               placeholder="e.g. Clean bathroom"
               required
-              disabled={submitting}
+              disabled={addTaskMutation.isPending}
             />
           </div>
 
@@ -102,7 +97,7 @@ export default function AddTaskForm({
               onChange={(e) => setNotes(e.target.value)}
               maxLength={500}
               placeholder="Any details…"
-              disabled={submitting}
+              disabled={addTaskMutation.isPending}
             />
           </div>
 
@@ -112,7 +107,7 @@ export default function AddTaskForm({
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              disabled={submitting}
+              disabled={addTaskMutation.isPending}
             />
           </div>
 
@@ -122,7 +117,7 @@ export default function AddTaskForm({
               <Select
                 value={assignedToMemberId || '__none__'}
                 onValueChange={(v) => setAssignedToMemberId(v === '__none__' ? '' : v)}
-                disabled={submitting}
+                disabled={addTaskMutation.isPending}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Unassigned" />
@@ -140,7 +135,7 @@ export default function AddTaskForm({
           {error && <p className="text-xs text-destructive">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Task'}
+            {addTaskMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Task'}
           </Button>
         </form>
       </SheetContent>

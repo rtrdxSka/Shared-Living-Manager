@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, Pencil, Trash2, RefreshCw, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,14 +9,33 @@ import type { TaskResponse, RotationStatus } from '@/types/task.types';
 import type { RecurringTaskResponse } from '@/types/recurring-task.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
-import { expenseApi } from '@/api/expense.api';
-import { recurringExpenseApi } from '@/api/recurring-expense.api';
-import { householdApi } from '@/api/household.api';
-import { taskApi } from '@/api/task.api';
-import { recurringTaskApi } from '@/api/recurring-task.api';
+import type { GoalResponse, GoalStatus } from '@/types/goal.types';
+import {
+  useExpenses,
+  useDeleteExpense,
+  useClaimExpense,
+  useResolveExpense,
+  useRecurringExpenses,
+  useDeactivateRecurringExpense,
+  useTasks,
+  useToggleTaskComplete,
+  useDeleteTask,
+  useAssignTask,
+  useSetRotation,
+  useRecurringTasks,
+  useDeactivateRecurringTask,
+  useGoals,
+  useUpdateGoal,
+  useDeleteGoal,
+  useRemoveContribution,
+  useUpdateSettings,
+  useRecordSettlement,
+} from '@/hooks/queries';
 import IncomeEntryCard from '@/components/dashboard/shared/IncomeEntryCard';
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
+import AddGoalForm from '@/components/dashboard/shared/AddGoalForm';
+import AddContributionDialog from '@/components/dashboard/shared/AddContributionDialog';
 import AddRecurringTaskForm from '@/components/dashboard/shared/AddRecurringTaskForm';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -28,16 +47,12 @@ type FinanceMode = 'joint' | 'split';
 type SplitMethod = 'equal' | 'income_based' | 'custom';
 type TaskLevel = 'full' | 'basic' | 'disabled';
 type DistributionMethod = 'rotation' | 'fixed' | 'voluntary';
-type Tab = 'overview' | 'expenses' | 'tasks';
+type Tab = 'overview' | 'expenses' | 'tasks' | 'goals';
 
 // ── Mock Data ──────────────────────────────────────────────────────────────
 
 const MOCK_CURRENCY = 'лв';
 
-const MOCK_GOALS = [
-  { id: 1, name: 'Summer Vacation', target: 3000, current: 1200, deadline: 'Jul 2026' },
-  { id: 2, name: 'New Sofa', target: 800, current: 320, deadline: 'Apr 2026' },
-];
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -158,6 +173,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'expenses', label: 'Expenses' },
   { id: 'tasks', label: 'Tasks' },
+  { id: 'goals', label: 'Goals' },
 ];
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -486,40 +502,310 @@ function StatsRow({
   );
 }
 
-function GoalsCard({ currency }: { currency: string }) {
+function GoalsCard({
+  goals,
+  goalsLoading,
+  currency,
+  onAddGoal,
+  onViewAll,
+}: {
+  goals: GoalResponse[];
+  goalsLoading: boolean;
+  currency: string;
+  onAddGoal: () => void;
+  onViewAll: () => void;
+}) {
+  const activeGoals = goals.filter((g) => g.status === 'active').slice(0, 3);
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-base font-semibold">Shared Goals</CardTitle>
-        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs">
+        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddGoal}>
           <Plus className="h-3.5 w-3.5" />
           Add
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {MOCK_GOALS.map((goal) => {
-          const pct = Math.round((goal.current / goal.target) * 100);
-          return (
-            <div key={goal.id} className="space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{goal.name}</span>
-                <span className="text-xs text-muted-foreground">{goal.deadline}</span>
-              </div>
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{pct}%</span>
-                <span>
-                  {fmt(goal.current)} / {fmt(goal.target)} {currency}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+        {goalsLoading && activeGoals.length === 0 ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : activeGoals.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">No active goals yet</p>
+        ) : (
+          <>
+            {activeGoals.map((goal) => {
+              const pct = goal.targetAmount > 0
+                ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
+                : 0;
+              return (
+                <div key={goal._id} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{goal.name}</span>
+                    {goal.deadline && (
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{pct}%</span>
+                    <span>
+                      {fmt(goal.currentAmount)} / {fmt(goal.targetAmount)} {currency}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {goals.filter((g) => g.status === 'active').length > 3 && (
+              <button
+                onClick={onViewAll}
+                className="w-full text-center text-xs font-medium text-primary hover:underline"
+              >
+                View all goals
+              </button>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const GOAL_STATUS_OPTIONS: { value: GoalStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'abandoned', label: 'Abandoned' },
+];
+
+const GOAL_CATEGORY_CHIP: Record<string, string> = {
+  savings: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  travel: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  home: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  emergency: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  other: 'bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-300',
+};
+
+function FullGoalsCard({
+  goals,
+  goalsLoading,
+  currency,
+  currentUserId,
+  isAdmin,
+  onAddGoal,
+  onContribute,
+  onUpdateGoal,
+  onDeleteGoal,
+  onRemoveContribution,
+}: {
+  goals: GoalResponse[];
+  goalsLoading: boolean;
+  currency: string;
+  currentUserId: string;
+  isAdmin: boolean;
+  onAddGoal: () => void;
+  onContribute: (goal: GoalResponse) => void;
+  onUpdateGoal: (goalId: string, input: { status: 'completed' | 'abandoned' }) => Promise<void>;
+  onDeleteGoal: (goalId: string) => Promise<void>;
+  onRemoveContribution: (goalId: string, contributionId: string) => Promise<void>;
+}) {
+  const [statusFilter, setStatusFilter] = useState<GoalStatus | 'all'>('active');
+  const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
+
+  const filtered = statusFilter === 'all'
+    ? goals
+    : goals.filter((g) => g.status === statusFilter);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-base font-semibold">Goals</CardTitle>
+        <div className="flex items-center gap-2">
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as GoalStatus | 'all')}
+          >
+            <SelectTrigger className="h-8 w-[120px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {GOAL_STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddGoal}>
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {goalsLoading && filtered.length === 0 ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            {statusFilter === 'all' ? 'No goals yet' : `No ${statusFilter} goals`}
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {filtered.map((goal) => {
+              const pct = goal.targetAmount > 0
+                ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
+                : 0;
+              const isExpanded = expandedGoalId === goal._id;
+              const isCreator = goal.createdByUserId === currentUserId;
+              const canManage = isCreator || isAdmin;
+
+              return (
+                <div key={goal._id} className="rounded-lg border border-border p-3 space-y-2">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{goal.name}</span>
+                        {goal.category && (
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${GOAL_CATEGORY_CHIP[goal.category] ?? GOAL_CATEGORY_CHIP.other}`}>
+                            {goal.category}
+                          </span>
+                        )}
+                        {goal.status !== 'active' && (
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            goal.status === 'completed'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                              : 'bg-gray-100 text-gray-600 dark:bg-gray-800/60 dark:text-gray-400'
+                          }`}>
+                            {goal.status}
+                          </span>
+                        )}
+                      </div>
+                      {goal.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{goal.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {goal.status === 'active' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 gap-1 text-xs"
+                          onClick={() => onContribute(goal)}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Contribute
+                        </Button>
+                      )}
+                      {canManage && goal.status === 'active' && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => void onUpdateGoal(goal._id, { status: 'completed' })}
+                            title="Mark as completed"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                            onClick={() => void onUpdateGoal(goal._id, { status: 'abandoned' })}
+                            title="Abandon goal"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                      {canManage && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                          onClick={() => void onDeleteGoal(goal._id)}
+                          title="Delete goal"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="space-y-1">
+                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{pct}%</span>
+                      <span>
+                        {fmt(goal.currentAmount)} / {fmt(goal.targetAmount)} {currency}
+                        {goal.deadline && (
+                          <> · {new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Contributions toggle */}
+                  {goal.contributions.length > 0 && (
+                    <button
+                      onClick={() => setExpandedGoalId(isExpanded ? null : goal._id)}
+                      className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      {goal.contributions.length} contribution{goal.contributions.length !== 1 ? 's' : ''}
+                    </button>
+                  )}
+
+                  {/* Contributions list */}
+                  {isExpanded && (
+                    <div className="space-y-1.5 pl-2 border-l-2 border-muted ml-1">
+                      {goal.contributions.map((c) => (
+                          <div key={c._id} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{c.memberNickname}</span>
+                              <span className="text-muted-foreground">
+                                +{fmt(c.amount)} {currency}
+                              </span>
+                              {c.note && (
+                                <span className="text-muted-foreground">— {c.note}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">
+                                {new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                              <button
+                                  onClick={() => void onRemoveContribution(goal._id, c._id)}
+                                  className="rounded p-0.5 text-muted-foreground hover:text-destructive"
+                                  title="Remove contribution"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                            </div>
+                          </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1443,10 +1729,9 @@ function TasksCard({
 interface CoupleDashboardProps {
   household: HouseholdResponse;
   currentUserId: string;
-  onHouseholdUpdated: (updated: HouseholdResponse) => void;
 }
 
-export default function CoupleDashboard({ household, currentUserId, onHouseholdUpdated }: CoupleDashboardProps) {
+export default function CoupleDashboard({ household, currentUserId }: CoupleDashboardProps) {
   const [financeMode, setFinanceMode] = useState<FinanceMode>(
     (household.settings.financeMode as FinanceMode) ?? 'split'
   );
@@ -1465,21 +1750,10 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     household.settings.customSplitPercentage ?? 50
   );
 
-  // Task state
-  const [tasks, setTasks] = useState<TaskResponse[]>([]);
-  const [rotationStatus, setRotationStatus] = useState<RotationStatus | null>(null);
-  const [tasksLoading, setTasksLoading] = useState(false);
+  // UI-only state
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [rotationConfigOpen, setRotationConfigOpen] = useState(false);
-  const [recurringTasks, setRecurringTasks] = useState<RecurringTaskResponse[]>([]);
-  const [recurringTasksLoading, setRecurringTasksLoading] = useState(false);
   const [addRecurringTaskOpen, setAddRecurringTaskOpen] = useState(false);
-
-  // Expense state
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([]);
-  const [expensesLoading, setExpensesLoading] = useState(false);
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpenseResponse[]>([]);
-  const [recurringLoading, setRecurringLoading] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<string>(() => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
@@ -1487,6 +1761,53 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
   const [categoryFilter, setCategoryFilter] = useState<ExpenseType | 'all'>('all');
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseResponse | null>(null);
+  const [addGoalOpen, setAddGoalOpen] = useState(false);
+  const [contributionTarget, setContributionTarget] = useState<GoalResponse | null>(null);
+
+  // ── Query hooks ────────────────────────────────────────────────────────
+  const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, currentMonth);
+  const expenses = expensesData ?? [];
+
+  const { data: recurringExpensesData, isLoading: recurringLoading } = useRecurringExpenses(
+    household._id,
+    activeTab === 'expenses'
+  );
+  const recurringExpenses = recurringExpensesData ?? [];
+
+  const { data: tasksData, isLoading: tasksLoading } = useTasks(
+    household._id,
+    activeTab === 'tasks' || activeTab === 'overview'
+  );
+  const tasks = tasksData?.tasks ?? [];
+  const rotationStatus = tasksData?.rotation ?? null;
+
+  const { data: recurringTasksData, isLoading: recurringTasksLoading } = useRecurringTasks(
+    household._id,
+    activeTab === 'tasks'
+  );
+  const recurringTasks = recurringTasksData ?? [];
+
+  const { data: goalsData, isLoading: goalsLoading } = useGoals(
+    household._id,
+    activeTab === 'overview' || activeTab === 'goals'
+  );
+  const goals = goalsData ?? [];
+
+  // ── Mutation hooks ─────────────────────────────────────────────────────
+  const deleteExpenseMutation = useDeleteExpense(household._id);
+  const claimExpenseMutation = useClaimExpense(household._id);
+  const resolveExpenseMutation = useResolveExpense(household._id);
+  const deactivateRecurringExpenseMutation = useDeactivateRecurringExpense(household._id);
+  const toggleCompleteMutation = useToggleTaskComplete(household._id);
+  const deleteTaskMutation = useDeleteTask(household._id);
+  const assignTaskMutation = useAssignTask(household._id);
+  const setRotationMutation = useSetRotation(household._id);
+  const deactivateRecurringTaskMutation = useDeactivateRecurringTask(household._id);
+  const updateGoalMutation = useUpdateGoal(household._id);
+  const deleteGoalMutation = useDeleteGoal(household._id);
+  const removeContributionMutation = useRemoveContribution(household._id);
+  const updateSettingsMutation = useUpdateSettings(household._id);
+  const settleMutation = useRecordSettlement(household._id);
 
   // Derived member data
   const myMember = household.members.find((m) => m.userId === currentUserId);
@@ -1505,8 +1826,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     setFinanceMode(v);
     if (!isAdmin) return;
     try {
-      const updated = await householdApi.updateSettings(household._id, { financeMode: v });
-      onHouseholdUpdated(updated);
+      await updateSettingsMutation.mutateAsync({ financeMode: v });
     } catch {
       // silently ignore save errors — UI already reflects the change
     }
@@ -1516,8 +1836,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
     setSplitMethod(v);
     if (!isAdmin) return;
     try {
-      const updated = await householdApi.updateSettings(household._id, { expenseSplitMethod: v });
-      onHouseholdUpdated(updated);
+      await updateSettingsMutation.mutateAsync({ expenseSplitMethod: v });
     } catch {
       // silently ignore
     }
@@ -1526,8 +1845,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
   const handleCustomPctCommit = async (v: number) => {
     if (!isAdmin) return;
     try {
-      const updated = await householdApi.updateSettings(household._id, { customSplitPercentage: v });
-      onHouseholdUpdated(updated);
+      await updateSettingsMutation.mutateAsync({ customSplitPercentage: v });
     } catch {
       // silently ignore
     }
@@ -1544,83 +1862,6 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
   // Task-participating members (for rotation dialog)
   const taskMembers = household.members.filter((m) => m.participatesInTasks);
 
-  const handleAssignTask = async (taskId: string, memberId: string | null) => {
-    const updated = await taskApi.assignTask(household._id, taskId, { assignedToMemberId: memberId });
-    setTasks((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
-  };
-
-  // Fetch tasks
-  const fetchTasks = useCallback(async () => {
-    setTasksLoading(true);
-    try {
-      const result = await taskApi.listTasks(household._id);
-      setTasks(result.tasks);
-      setRotationStatus(result.rotation ?? null);
-    } catch {
-      // silently keep previous state
-    } finally {
-      setTasksLoading(false);
-    }
-  }, [household._id]);
-
-  const fetchRecurringTasks = useCallback(async () => {
-    setRecurringTasksLoading(true);
-    try {
-      const data = await recurringTaskApi.list(household._id);
-      setRecurringTasks(data);
-    } catch {
-      // silently keep previous state
-    } finally {
-      setRecurringTasksLoading(false);
-    }
-  }, [household._id]);
-
-  useEffect(() => {
-    if (activeTab === 'tasks') {
-      void fetchTasks();
-      void fetchRecurringTasks();
-    }
-  }, [activeTab, fetchTasks, fetchRecurringTasks]);
-
-  // Fetch expenses
-  const fetchExpenses = useCallback(async () => {
-    setExpensesLoading(true);
-    try {
-      const data = await expenseApi.listExpenses(
-        household._id,
-        currentMonth
-        // no category filter — always fetch all expenses for the month
-      );
-      setExpenses(data);
-    } catch {
-      // silently keep previous state
-    } finally {
-      setExpensesLoading(false);
-    }
-  }, [household._id, currentMonth]);
-
-  const fetchRecurringExpenses = useCallback(async () => {
-    setRecurringLoading(true);
-    try {
-      const data = await recurringExpenseApi.list(household._id);
-      setRecurringExpenses(data);
-    } catch {
-      // silently keep previous state
-    } finally {
-      setRecurringLoading(false);
-    }
-  }, [household._id]);
-
-  useEffect(() => {
-    fetchExpenses();
-  }, [fetchExpenses]);
-
-  useEffect(() => {
-    if (activeTab === 'expenses') {
-      fetchRecurringExpenses();
-    }
-  }, [activeTab, fetchRecurringExpenses]);
-
   // totalAmount / myPaidTotal / partnerPaidTotal cover ALL paid expenses (for "Total Spent" and
   // "Your Payments" display). StatsRow derives unresolved amounts internally for the balance card.
   const paidExpenses = expenses.filter((e) => e.paidByUserId);
@@ -1633,8 +1874,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
   const settlementForMonth = (household.settlements ?? []).find((s) => s.month === currentMonth) ?? null;
 
   const handleSettleUp = async (amount: number) => {
-    const updated = await householdApi.recordSettlement(household._id, currentMonth, amount);
-    onHouseholdUpdated(updated);
+    await settleMutation.mutateAsync({ month: currentMonth, amount });
   };
 
   const handleCopy = async () => {
@@ -1678,7 +1918,6 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
           <IncomeEntryCard
             household={household}
             currentUserId={currentUserId}
-            onUpdated={onHouseholdUpdated}
           />
         )}
 
@@ -1744,7 +1983,13 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
               hasFinancialPartner={hasFinancialPartner}
             />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <GoalsCard currency={currency} />
+              <GoalsCard
+                goals={goals}
+                goalsLoading={goalsLoading}
+                currency={currency}
+                onAddGoal={() => setAddGoalOpen(true)}
+                onViewAll={() => setActiveTab('goals')}
+              />
               <RecentActivityCard
                 taskLevel={taskLevel}
                 setActiveTab={setActiveTab}
@@ -1776,24 +2021,12 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
             onAddExpense={() => setAddExpenseOpen(true)}
             currentUserId={currentUserId}
             onEditExpense={(e) => setEditingExpense(e)}
-            onDeleteExpense={async (expenseId) => {
-              await expenseApi.deleteExpense(household._id, expenseId);
-              await fetchExpenses();
-            }}
-            onClaimExpense={async (expenseId) => {
-              await expenseApi.claimExpense(household._id, expenseId);
-              await fetchExpenses();
-            }}
-            onResolveExpense={async (expenseId) => {
-              await expenseApi.resolveExpense(household._id, expenseId);
-              await fetchExpenses();
-            }}
+            onDeleteExpense={async (expenseId) => { await deleteExpenseMutation.mutateAsync(expenseId); }}
+            onClaimExpense={async (expenseId) => { await claimExpenseMutation.mutateAsync(expenseId); }}
+            onResolveExpense={async (expenseId) => { await resolveExpenseMutation.mutateAsync(expenseId); }}
             recurringExpenses={recurringExpenses}
             recurringLoading={recurringLoading}
-            onDeactivateRecurring={async (id) => {
-              await recurringExpenseApi.deactivate(household._id, id);
-              await fetchRecurringExpenses();
-            }}
+            onDeactivateRecurring={async (id) => { await deactivateRecurringExpenseMutation.mutateAsync(id); }}
             isAdmin={isAdmin}
             myParticipatesInFinances={myParticipatesInFinances}
             hasFinancialPartner={hasFinancialPartner}
@@ -1810,23 +2043,35 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
             isAdmin={isAdmin}
             taskMembers={taskMembers}
             onAddTask={() => setAddTaskOpen(true)}
-            onToggleComplete={async (taskId) => {
-              await taskApi.toggleComplete(household._id, taskId);
-              await fetchTasks();
+            onToggleComplete={async (taskId) => { await toggleCompleteMutation.mutateAsync(taskId); }}
+            onDeleteTask={async (taskId) => { await deleteTaskMutation.mutateAsync(taskId); }}
+            onAssignTask={async (taskId, memberId) => {
+              await assignTaskMutation.mutateAsync({ taskId, input: { assignedToMemberId: memberId } });
             }}
-            onDeleteTask={async (taskId) => {
-              await taskApi.deleteTask(household._id, taskId);
-              await fetchTasks();
-            }}
-            onAssignTask={handleAssignTask}
             onConfigureRotation={() => setRotationConfigOpen(true)}
             currentUserId={currentUserId}
             recurringTasks={recurringTasks}
             recurringTasksLoading={recurringTasksLoading}
             onAddRecurringTask={() => setAddRecurringTaskOpen(true)}
-            onDeactivateRecurringTask={async (id) => {
-              await recurringTaskApi.deactivate(household._id, id);
-              await fetchRecurringTasks();
+            onDeactivateRecurringTask={async (id) => { await deactivateRecurringTaskMutation.mutateAsync(id); }}
+          />
+        )}
+
+        {activeTab === 'goals' && (
+          <FullGoalsCard
+            goals={goals}
+            goalsLoading={goalsLoading}
+            currency={currency}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            onAddGoal={() => setAddGoalOpen(true)}
+            onContribute={(goal) => setContributionTarget(goal)}
+            onUpdateGoal={async (goalId, input) => {
+              await updateGoalMutation.mutateAsync({ goalId, input });
+            }}
+            onDeleteGoal={async (goalId) => { await deleteGoalMutation.mutateAsync(goalId); }}
+            onRemoveContribution={async (goalId, contributionId) => {
+              await removeContributionMutation.mutateAsync({ goalId, contributionId });
             }}
           />
         )}
@@ -1837,9 +2082,6 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
         householdId={household._id}
         open={addTaskOpen}
         onOpenChange={setAddTaskOpen}
-        onTaskAdded={() => {
-          void fetchTasks();
-        }}
         distributionMethod={distribution}
         taskMembers={taskMembers}
       />
@@ -1849,9 +2091,6 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
         householdId={household._id}
         open={addRecurringTaskOpen}
         onOpenChange={setAddRecurringTaskOpen}
-        onCreated={() => {
-          void fetchRecurringTasks();
-        }}
         distributionMethod={distribution}
         taskMembers={taskMembers}
       />
@@ -1861,10 +2100,7 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
         open={rotationConfigOpen}
         onOpenChange={setRotationConfigOpen}
         taskMembers={taskMembers}
-        onConfirm={async (startMemberId) => {
-          const rotation = await taskApi.setRotation(household._id, startMemberId);
-          setRotationStatus(rotation);
-        }}
+        onConfirm={async (startMemberId) => { await setRotationMutation.mutateAsync(startMemberId); }}
       />
 
       {/* Add / Edit Expense Sheet */}
@@ -1875,7 +2111,26 @@ export default function CoupleDashboard({ household, currentUserId, onHouseholdU
         }}
         household={household}
         expense={editingExpense ?? undefined}
-        onSaved={() => { void fetchExpenses(); void fetchRecurringExpenses(); }}
+      />
+
+      {/* Add Goal Sheet */}
+      <AddGoalForm
+        householdId={household._id}
+        open={addGoalOpen}
+        onOpenChange={setAddGoalOpen}
+        currency={currency}
+      />
+
+      {/* Add Contribution Sheet */}
+      <AddContributionDialog
+        householdId={household._id}
+        goalId={contributionTarget?._id ?? ''}
+        goalName={contributionTarget?.name ?? ''}
+        open={contributionTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setContributionTarget(null);
+        }}
+        currency={currency}
       />
     </div>
   );

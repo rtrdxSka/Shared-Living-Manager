@@ -15,14 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { recurringTaskApi } from '@/api/recurring-task.api';
+import { useCreateRecurringTask } from '@/hooks/queries';
 import type { RecurrenceInterval } from '@/types/recurring-task.types';
 
 interface AddRecurringTaskFormProps {
   householdId: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onCreated: () => void;
   distributionMethod?: string;
   taskMembers?: { _id: string; nickname: string }[];
 }
@@ -31,7 +30,6 @@ export default function AddRecurringTaskForm({
   householdId,
   open,
   onOpenChange,
-  onCreated,
   distributionMethod,
   taskMembers = [],
 }: AddRecurringTaskFormProps) {
@@ -39,8 +37,9 @@ export default function AddRecurringTaskForm({
   const [notes, setNotes] = useState('');
   const [interval, setInterval] = useState<RecurrenceInterval>('weekly');
   const [assignedToMemberId, setAssignedToMemberId] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const createRecurringTaskMutation = useCreateRecurringTask(householdId);
 
   const showAssigneeSelect = distributionMethod === 'fixed' && taskMembers.length > 0;
 
@@ -56,25 +55,21 @@ export default function AddRecurringTaskForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
     try {
-      await recurringTaskApi.create(householdId, {
+      await createRecurringTaskMutation.mutateAsync({
         title: title.trim(),
         ...(notes.trim() && { notes: notes.trim() }),
         interval,
         ...(showAssigneeSelect && assignedToMemberId && { assignedToMemberId }),
       });
-      onCreated();
       onOpenChange(false);
     } catch {
       setError('Failed to create recurring task. Please try again.');
-    } finally {
-      setSubmitting(false);
     }
   }
 
-  const canSubmit = title.trim().length > 0 && !submitting;
+  const canSubmit = title.trim().length > 0 && !createRecurringTaskMutation.isPending;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -92,7 +87,7 @@ export default function AddRecurringTaskForm({
               maxLength={100}
               placeholder="e.g. Take out trash"
               required
-              disabled={submitting}
+              disabled={createRecurringTaskMutation.isPending}
             />
           </div>
 
@@ -103,7 +98,7 @@ export default function AddRecurringTaskForm({
               onChange={(e) => setNotes(e.target.value)}
               maxLength={500}
               placeholder="Any details…"
-              disabled={submitting}
+              disabled={createRecurringTaskMutation.isPending}
             />
           </div>
 
@@ -112,7 +107,7 @@ export default function AddRecurringTaskForm({
             <Select
               value={interval}
               onValueChange={(v) => setInterval(v as RecurrenceInterval)}
-              disabled={submitting}
+              disabled={createRecurringTaskMutation.isPending}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -130,7 +125,7 @@ export default function AddRecurringTaskForm({
               <Select
                 value={assignedToMemberId || '__none__'}
                 onValueChange={(v) => setAssignedToMemberId(v === '__none__' ? '' : v)}
-                disabled={submitting}
+                disabled={createRecurringTaskMutation.isPending}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Unassigned" />
@@ -148,7 +143,7 @@ export default function AddRecurringTaskForm({
           {error && <p className="text-xs text-destructive">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Recurring Task'}
+            {createRecurringTaskMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Recurring Task'}
           </Button>
         </form>
       </SheetContent>

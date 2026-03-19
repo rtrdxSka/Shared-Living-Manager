@@ -11,8 +11,7 @@ import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { expenseApi } from '@/api/expense.api';
-import { recurringExpenseApi } from '@/api/recurring-expense.api';
+import { useAddExpense, useUpdateExpense, useCreateRecurringExpense } from '@/hooks/queries';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
 import { RECURRENCE_INTERVALS, PAYER_MODES } from '@/types/recurring-expense.types';
 import type { HouseholdResponse } from '@/types/household.types';
@@ -24,7 +23,6 @@ interface AddExpenseFormProps {
   onOpenChange: (o: boolean) => void;
   household: HouseholdResponse;
   expense?: ExpenseResponse;
-  onSaved: () => void;
 }
 
 const selectClass =
@@ -39,7 +37,6 @@ export default function AddExpenseForm({
   onOpenChange,
   household,
   expense,
-  onSaved,
 }: AddExpenseFormProps) {
   const isEditMode = expense !== undefined;
   const payableMembers = household.members.filter(
@@ -50,16 +47,20 @@ export default function AddExpenseForm({
   const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
   const [category, setCategory] = useState(expense?.category ?? EXPENSE_TYPES[0]);
   const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : todayISO());
-  // Optional payer — default to "" (not paid yet) for new expenses; pre-fill for edit
   const [paidByUserId, setPaidByUserId] = useState(expense?.paidByUserId ?? '');
   const [notes, setNotes] = useState(expense?.notes ?? '');
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Recurring state (not available in edit mode)
   const [isRecurring, setIsRecurring] = useState(false);
   const [interval, setInterval] = useState<RecurrenceInterval>('monthly');
   const [payerMode, setPayerMode] = useState<PayerMode>('open_to_claim');
+
+  const addExpenseMutation = useAddExpense(household._id);
+  const updateExpenseMutation = useUpdateExpense(household._id);
+  const createRecurringMutation = useCreateRecurringExpense(household._id);
+
+  const submitting = addExpenseMutation.isPending || updateExpenseMutation.isPending || createRecurringMutation.isPending;
 
   // Re-populate form whenever the expense being edited changes
   useEffect(() => {
@@ -74,8 +75,7 @@ export default function AddExpenseForm({
     }
   }, [expense?._id]);
 
-  // Reset all fields when the sheet is dismissed so stale data never leaks
-  // into the next open cycle (whether for a new expense or a different edit).
+  // Reset all fields when the sheet is dismissed
   useEffect(() => {
     if (!open) resetForm();
   }, [open]);
@@ -95,20 +95,22 @@ export default function AddExpenseForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
     try {
       if (isEditMode) {
-        await expenseApi.updateExpense(household._id, expense._id, {
-          description: description.trim(),
-          amount: parseFloat(amount),
-          category,
-          date,
-          paidByUserId: paidByUserId || null,
-          notes: notes.trim() || undefined,
+        await updateExpenseMutation.mutateAsync({
+          expenseId: expense._id,
+          input: {
+            description: description.trim(),
+            amount: parseFloat(amount),
+            category,
+            date,
+            paidByUserId: paidByUserId || null,
+            notes: notes.trim() || undefined,
+          },
         });
       } else if (isRecurring) {
-        await recurringExpenseApi.create(household._id, {
+        await createRecurringMutation.mutateAsync({
           description: description.trim(),
           amount: parseFloat(amount),
           category,
@@ -126,9 +128,8 @@ export default function AddExpenseForm({
           ...(paidByUserId && { paidByUserId }),
           ...(notes.trim() && { notes: notes.trim() }),
         };
-        await expenseApi.addExpense(household._id, input);
+        await addExpenseMutation.mutateAsync(input);
       }
-      onSaved();
       if (!isEditMode) resetForm();
       onOpenChange(false);
     } catch {
@@ -139,8 +140,6 @@ export default function AddExpenseForm({
             ? 'Failed to create recurring template. Please try again.'
             : 'Failed to add expense. Please try again.'
       );
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -149,10 +148,8 @@ export default function AddExpenseForm({
     description.trim() &&
     amount &&
     !submitting &&
-    // When recurring + fixed payer mode, a payer must be selected
     !(isRecurring && payerMode === 'fixed' && !paidByUserId);
 
-  // Determine whether to show the "Paid by" dropdown
   const showPaidBy = isEditMode || (!isRecurring) || (isRecurring && payerMode === 'fixed');
   const paidByRequired = isRecurring && payerMode === 'fixed';
 
