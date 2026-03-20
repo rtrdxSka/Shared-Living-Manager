@@ -287,7 +287,7 @@ function MockControls({
             onChange={setTaskLevel}
           />
 
-          {taskLevel !== 'disabled' && (
+          {taskLevel === 'full' && (
             <ToggleGroup<DistributionMethod>
               label="Distribution"
               options={[
@@ -874,7 +874,7 @@ function RecentActivityCard({
                 <div key={task._id} className="flex items-center gap-2">
                   <div className="h-4 w-4 shrink-0 rounded border-2 border-border" />
                   <span className="flex-1 text-sm">{task.title}</span>
-                  {task.assignedToNickname && (
+                  {taskLevel === 'full' && task.assignedToNickname && (
                     <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       {task.assignedToNickname}
                     </span>
@@ -1434,6 +1434,7 @@ function TasksCard({
   onAssignTask,
   onConfigureRotation,
   currentUserId,
+  currentUserMemberId,
   recurringTasks,
   recurringTasksLoading,
   onAddRecurringTask,
@@ -1452,6 +1453,7 @@ function TasksCard({
   onAssignTask: (taskId: string, memberId: string | null) => Promise<void>;
   onConfigureRotation: () => void;
   currentUserId: string;
+  currentUserMemberId: string;
   recurringTasks: RecurringTaskResponse[];
   recurringTasksLoading: boolean;
   onAddRecurringTask: () => void;
@@ -1488,10 +1490,12 @@ function TasksCard({
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-base font-semibold">Tasks</CardTitle>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddRecurringTask}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            Recurring
-          </Button>
+          {taskLevel === 'full' && (
+            <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddRecurringTask}>
+              <RefreshCw className="h-3.5 w-3.5" />
+              Recurring
+            </Button>
+          )}
           <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddTask}>
             <Plus className="h-3.5 w-3.5" />
             Add
@@ -1596,51 +1600,109 @@ function TasksCard({
                 </div>
 
                 {/* Completed by or assigned to */}
-                {task.isCompleted && task.completedByNickname ? (
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    Done by {task.completedByNickname}
-                  </span>
-                ) : distribution === 'rotation' && task.assignedToNickname && !task.isCompleted ? (
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    {task.assignedToNickname}
-                  </span>
-                ) : distribution === 'fixed' && !task.isCompleted ? (
-                  assigningTaskId === task._id ? (
-                    <Select
-                      defaultValue={task.assignedToMemberId ?? '__none__'}
-                      onValueChange={(val) => {
-                        const resolved = val === '__none__' ? null : val;
-                        void onAssignTask(task._id, resolved).finally(() => setAssigningTaskId(null));
-                      }}
-                      onOpenChange={(open) => { if (!open) setAssigningTaskId(null); }}
-                      defaultOpen
-                    >
-                      <SelectTrigger className="h-7 w-36 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Unassign</SelectItem>
-                        {taskMembers.map((m) => (
-                          <SelectItem key={m._id} value={m._id}>{m.nickname}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : task.assignedToNickname ? (
-                    <button
-                      onClick={() => setAssigningTaskId(task._id)}
-                      className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted/70"
-                    >
-                      {task.assignedToNickname}
-                    </button>
+                {taskLevel === 'full' ? (
+                  // ── Full mode ──
+                  task.isCompleted ? (
+                    <div className="flex shrink-0 flex-col items-end gap-0.5">
+                      {task.assignedToNickname && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          {task.assignedToNickname}
+                        </span>
+                      )}
+                      {task.completedByNickname && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          Done by {task.completedByNickname}
+                        </span>
+                      )}
+                    </div>
                   ) : (
-                    <button
-                      onClick={() => setAssigningTaskId(task._id)}
-                      className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      + Assign
-                    </button>
+                    // Not completed → existing assignee logic
+                    distribution === 'rotation' && task.assignedToNickname ? (
+                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {task.assignedToNickname}
+                      </span>
+                    ) : distribution === 'fixed' ? (
+                      assigningTaskId === task._id ? (
+                        <Select
+                          defaultValue={task.assignedToMemberId ?? '__none__'}
+                          onValueChange={(val) => {
+                            const resolved = val === '__none__' ? null : val;
+                            void onAssignTask(task._id, resolved).finally(() => setAssigningTaskId(null));
+                          }}
+                          onOpenChange={(open) => { if (!open) setAssigningTaskId(null); }}
+                          defaultOpen
+                        >
+                          <SelectTrigger className="h-7 w-36 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Unassign</SelectItem>
+                            {taskMembers.map((m) => (
+                              <SelectItem key={m._id} value={m._id}>{m.nickname}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : task.assignedToNickname ? (
+                        <button
+                          onClick={() => setAssigningTaskId(task._id)}
+                          className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted/70"
+                        >
+                          {task.assignedToNickname}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setAssigningTaskId(task._id)}
+                          className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          + Assign
+                        </button>
+                      )
+                    ) : distribution === 'voluntary' ? (
+                      // Voluntary: claim/unclaim
+                      task.assignedToNickname ? (
+                        task.assignedToMemberId === currentUserMemberId ? (
+                          // Assigned to me → show name + unclaim
+                          <button
+                            onClick={() => void onAssignTask(task._id, null)}
+                            className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted/70"
+                            title="Unclaim"
+                          >
+                            {task.assignedToNickname} ✕
+                          </button>
+                        ) : (
+                          // Assigned to someone else → read-only badge
+                          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                            {task.assignedToNickname}
+                          </span>
+                        )
+                      ) : (
+                        // Unassigned → claim button
+                        <button
+                          onClick={() => void onAssignTask(task._id, currentUserMemberId)}
+                          className="shrink-0 text-xs text-primary hover:underline"
+                        >
+                          Claim
+                        </button>
+                      )
+                    ) : null
                   )
-                ) : null}
+                ) : (
+                  // ── Basic mode ──
+                  task.isCompleted ? (
+                    <div className="flex shrink-0 flex-col items-end gap-0.5">
+                      {task.assignedToNickname && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          {task.assignedToNickname}
+                        </span>
+                      )}
+                      {task.completedByNickname && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          Done by {task.completedByNickname}
+                        </span>
+                      )}
+                    </div>
+                  ) : null
+                )}
 
                 {getDueDateStatus(task.dueDate, task.isCompleted) === 'overdue' && (
                   <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">
@@ -1683,7 +1745,7 @@ function TasksCard({
         )}
 
         {/* Recurring Tasks subsection */}
-        {(recurringTasksLoading || recurringTasks.length > 0) && (
+        {taskLevel === 'full' && (recurringTasksLoading || recurringTasks.length > 0) && (
           <div className="mt-4 border-t border-border pt-4">
             <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Recurring</p>
             {recurringTasksLoading ? (
@@ -1783,7 +1845,7 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
 
   const { data: recurringTasksData, isLoading: recurringTasksLoading } = useRecurringTasks(
     household._id,
-    activeTab === 'tasks'
+    activeTab === 'tasks' && taskLevel === 'full'
   );
   const recurringTasks = recurringTasksData ?? [];
 
@@ -1817,6 +1879,7 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
   const myNickname = myMember?.nickname ?? 'You';
   const partnerNickname = partnerMember?.nickname ?? 'Partner';
   const currency = household.settings.currency ?? MOCK_CURRENCY;
+  const myMemberId = myMember?._id ?? '';
   const isAdmin = myMember?.role === 'owner' || myMember?.role === 'admin';
   const myParticipatesInFinances = myMember?.participatesInFinances ?? false;
   const hasFinancialPartner = partnerMember != null;
@@ -1888,9 +1951,11 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
     financeMode === 'split'
       ? `Split: ${splitMethod === 'equal' ? 'Equal' : splitMethod === 'income_based' ? 'Income-based' : 'Custom'}`
       : 'Joint finances',
-    taskLevel !== 'disabled'
+    taskLevel === 'full'
       ? `Tasks: ${distribution.charAt(0).toUpperCase() + distribution.slice(1)}`
-      : 'Tasks: Off',
+      : taskLevel === 'basic'
+        ? 'Tasks: Basic'
+        : 'Tasks: Off',
   ].join(' · ');
 
   const overdueCount = tasks.filter(
@@ -2050,6 +2115,7 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
             }}
             onConfigureRotation={() => setRotationConfigOpen(true)}
             currentUserId={currentUserId}
+            currentUserMemberId={myMemberId}
             recurringTasks={recurringTasks}
             recurringTasksLoading={recurringTasksLoading}
             onAddRecurringTask={() => setAddRecurringTaskOpen(true)}
@@ -2082,8 +2148,8 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
         householdId={household._id}
         open={addTaskOpen}
         onOpenChange={setAddTaskOpen}
-        distributionMethod={distribution}
-        taskMembers={taskMembers}
+        distributionMethod={taskLevel === 'full' ? distribution : undefined}
+        taskMembers={taskLevel === 'full' ? taskMembers : []}
       />
 
       {/* Add Recurring Task Sheet */}

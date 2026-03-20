@@ -366,7 +366,8 @@ export const baseStepTaskPreferencesSchema = z.object({
 
   taskDistributionMethod: z
     .enum(TASK_DISTRIBUTION_METHODS)
-    .or(z.literal('')),
+    .or(z.literal(''))
+    .optional(),
 });
 
 /**
@@ -383,7 +384,8 @@ export function createStepTaskPreferencesSchema(livingArrangement: string) {
 
       taskDistributionMethod: z
         .enum(TASK_DISTRIBUTION_METHODS)
-        .or(z.literal('')),
+        .or(z.literal(''))
+        .optional(),
     })
     .superRefine((data, ctx) => {
       const needsDistribution = shouldShowDistributionMethod(

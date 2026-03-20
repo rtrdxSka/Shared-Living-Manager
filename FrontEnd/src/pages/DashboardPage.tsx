@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Copy, Check, Loader2, LayoutDashboard } from 'lucide-react';
 
 import {
@@ -78,6 +78,17 @@ export default function DashboardPage() {
 
           {error && (
             <p className="text-center text-sm text-destructive">Failed to load household information.</p>
+          )}
+
+          {!resolved && !isLoading && !error && (
+            <div className="space-y-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                You're not part of a household yet.
+              </p>
+              <Button asChild className="h-11 rounded-xl px-6 shadow-sm">
+                <Link to="/get-started">Get Started</Link>
+              </Button>
+            </div>
           )}
 
           {resolved && (
