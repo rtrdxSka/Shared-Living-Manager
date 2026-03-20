@@ -109,10 +109,7 @@ class TaskService {
       let assignedToMemberId: string | undefined;
       let assignedToNickname: string | undefined;
 
-      if (isRotation && task.assignedToMemberId) {
-        assignedToMemberId = task.assignedToMemberId.toString();
-        assignedToNickname = memberMap.get(assignedToMemberId);
-      } else if (method === 'fixed' && task.assignedToMemberId) {
+      if (task.assignedToMemberId) {
         assignedToMemberId = task.assignedToMemberId.toString();
         assignedToNickname = memberMap.get(assignedToMemberId);
       }
@@ -158,7 +155,18 @@ class TaskService {
     await task.save();
 
     const completedByNickname = task.isCompleted ? requesterMember.nickname : undefined;
-    return this.formatTaskResponse(task, undefined, undefined, completedByNickname);
+
+    let assignedToMemberId: string | undefined;
+    let assignedToNickname: string | undefined;
+    if (task.assignedToMemberId) {
+      assignedToMemberId = task.assignedToMemberId.toString();
+      const assignedMember = household.members.find(
+        (m) => m._id.toString() === assignedToMemberId
+      );
+      assignedToNickname = assignedMember?.nickname;
+    }
+
+    return this.formatTaskResponse(task, assignedToMemberId, assignedToNickname, completedByNickname);
   }
 
   // ── Creator or admin can delete ───────────────────────────────────────
