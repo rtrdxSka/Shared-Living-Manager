@@ -11,6 +11,7 @@ import type {
   Currency,
   OnboardingSurveyData,
 } from './onboarding.types';
+import type { ContributionTargetMode } from './joint-account.types';
 
 // ── Household Role ────────────────────────────────────────────────────
 
@@ -42,6 +43,10 @@ export interface HouseholdSettings {
   currency: Currency;
   taskManagementEnabled: TaskManagementLevel;
   taskDistributionMethod?: TaskDistributionMethod;
+  jointAccountConfig?: {
+    monthlyTarget?: number;
+    targetMode?: ContributionTargetMode;
+  };
 }
 
 export interface UpdateHouseholdSettingsInput {

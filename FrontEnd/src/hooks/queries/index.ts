@@ -43,3 +43,10 @@ export {
   useAddContribution,
   useRemoveContribution,
 } from './useGoalQueries';
+
+export {
+  useJointAccountSummary,
+  useAddJointTransaction,
+  useDeleteJointTransaction,
+  useUpdateJointAccountConfig,
+} from './useJointAccountQueries';

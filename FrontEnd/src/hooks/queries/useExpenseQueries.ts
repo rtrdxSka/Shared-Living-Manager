@@ -22,6 +22,10 @@ export function useAddExpense(householdId: string) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
       });
+      // Expenses affect joint account balance
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.jointAccount.all(householdId),
+      });
     },
   });
 }
@@ -41,6 +45,10 @@ export function useUpdateExpense(householdId: string) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
       });
+      // Expenses affect joint account balance
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.jointAccount.all(householdId),
+      });
     },
   });
 }
@@ -54,6 +62,10 @@ export function useDeleteExpense(householdId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+      });
+      // Expenses affect joint account balance
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.jointAccount.all(householdId),
       });
     },
   });

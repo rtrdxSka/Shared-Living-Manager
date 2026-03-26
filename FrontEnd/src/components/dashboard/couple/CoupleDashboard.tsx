@@ -10,6 +10,7 @@ import type { RecurringTaskResponse } from '@/types/recurring-task.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
 import type { GoalResponse, GoalStatus } from '@/types/goal.types';
+import type { JointAccountSummaryResponse } from '@/types/joint-account.types';
 import {
   useExpenses,
   useDeleteExpense,
@@ -30,6 +31,8 @@ import {
   useRemoveContribution,
   useUpdateSettings,
   useRecordSettlement,
+  useJointAccountSummary,
+  useDeleteJointTransaction,
 } from '@/hooks/queries';
 import IncomeEntryCard from '@/components/dashboard/shared/IncomeEntryCard';
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
@@ -37,6 +40,8 @@ import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
 import AddGoalForm from '@/components/dashboard/shared/AddGoalForm';
 import AddContributionDialog from '@/components/dashboard/shared/AddContributionDialog';
 import AddRecurringTaskForm from '@/components/dashboard/shared/AddRecurringTaskForm';
+import AddTransactionForm from '@/components/dashboard/shared/AddTransactionForm';
+import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -47,7 +52,7 @@ type FinanceMode = 'joint' | 'split';
 type SplitMethod = 'equal' | 'income_based' | 'custom';
 type TaskLevel = 'full' | 'basic' | 'disabled';
 type DistributionMethod = 'rotation' | 'fixed' | 'voluntary';
-type Tab = 'overview' | 'expenses' | 'tasks' | 'goals';
+type Tab = 'overview' | 'expenses' | 'tasks' | 'goals' | 'account';
 
 // ── Mock Data ──────────────────────────────────────────────────────────────
 
@@ -1786,6 +1791,303 @@ function TasksCard({
   );
 }
 
+// ── Joint Account Overview Card (compact, shown in overview tab) ───────────
+
+function JointAccountOverviewCard({
+  jointAccount,
+  currency,
+  onViewAccount,
+  onAddFunds,
+}: {
+  jointAccount: JointAccountSummaryResponse;
+  currency: string;
+  onViewAccount: () => void;
+  onAddFunds: () => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Joint Account Balance</p>
+              <p className={`text-xl font-bold ${jointAccount.balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {fmt(jointAccount.balance)} {currency}
+              </p>
+            </div>
+            {jointAccount.monthlyTarget != null && (
+              <div className="border-l border-border pl-4">
+                <p className="text-xs text-muted-foreground">Deposits this month</p>
+                <p className="text-sm font-semibold">
+                  {fmt(jointAccount.monthlyDeposits)} / {fmt(jointAccount.monthlyTarget)} {currency}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onAddFunds}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add Funds
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onViewAccount}>
+              View Account
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Joint Account Tab ─────────────────────────────────────────────────────
+
+function JointAccountTab({
+  jointAccount,
+  jointAccountLoading,
+  accountMonth,
+  onAccountMonthChange,
+  currency,
+  isAdmin,
+  currentUserId,
+  onAddTransaction,
+  onConfigureTarget,
+  onDeleteTransaction,
+}: {
+  jointAccount: JointAccountSummaryResponse | null;
+  jointAccountLoading: boolean;
+  accountMonth: string;
+  onAccountMonthChange: (m: string) => void;
+  currency: string;
+  isAdmin: boolean;
+  currentUserId: string;
+  onAddTransaction: () => void;
+  onConfigureTarget: () => void;
+  onDeleteTransaction: (txId: string) => Promise<void>;
+}) {
+  if (jointAccountLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Month navigation helpers
+  const prevMonth = () => {
+    const [y, m] = accountMonth.split('-').map(Number);
+    const d = new Date(Date.UTC(y, m - 2, 1));
+    onAccountMonthChange(
+      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    );
+  };
+  const nextMonth = () => {
+    const [y, m] = accountMonth.split('-').map(Number);
+    const d = new Date(Date.UTC(y, m, 1));
+    onAccountMonthChange(
+      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    );
+  };
+  const monthLabel = (() => {
+    const [y, m] = accountMonth.split('-').map(Number);
+    return new Date(y, m - 1).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
+  })();
+
+  const balance = jointAccount?.balance ?? 0;
+  const mDeposits = jointAccount?.monthlyDeposits ?? 0;
+  const mWithdrawals = jointAccount?.monthlyWithdrawals ?? 0;
+  const mExpenses = jointAccount?.monthlyExpenses ?? 0;
+  const mNet = jointAccount?.monthlyNet ?? 0;
+  const monthlyTarget = jointAccount?.monthlyTarget;
+  const breakdown = jointAccount?.memberBreakdown ?? [];
+  const transactions = jointAccount?.transactions ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Balance Card */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Joint Account Balance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className={`text-2xl font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {fmt(balance)} {currency}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={onAddTransaction}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add Transaction
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* This Month Card */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              This Month
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Deposits</span>
+              <span className="font-medium text-emerald-600">+{fmt(mDeposits)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Withdrawals</span>
+              <span className="font-medium text-amber-600">-{fmt(mWithdrawals)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Expenses</span>
+              <span className="font-medium text-red-600">-{fmt(mExpenses)}</span>
+            </div>
+            <div className="border-t border-border pt-1">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Net</span>
+                <span className={mNet >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                  {mNet >= 0 ? '+' : ''}{fmt(mNet)} {currency}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Target Card */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {monthlyTarget != null ? 'Contribution Target' : 'Target'}
+              </CardTitle>
+              {isAdmin && (
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onConfigureTarget}>
+                  {monthlyTarget != null ? 'Edit' : 'Set Target'}
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {monthlyTarget != null ? (
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-lg font-bold">
+                    {fmt(mDeposits)} / {fmt(monthlyTarget)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">{currency}</span>
+                </div>
+                {/* Progress bar */}
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${Math.min(100, (mDeposits / monthlyTarget) * 100)}%` }}
+                  />
+                </div>
+                {/* Per-member breakdown */}
+                <div className="space-y-1 pt-1">
+                  {breakdown.map((mb) => (
+                    <div key={mb.memberId} className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{mb.nickname}</span>
+                      <span className="font-medium">
+                        {fmt(mb.deposits)}{mb.targetAmount != null ? ` / ${fmt(mb.targetAmount)}` : ''} {currency}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {isAdmin ? 'Set a monthly contribution target to track progress.' : 'No contribution target set.'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Transaction History */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold">Transaction History</CardTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={prevMonth}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-[120px] text-center text-sm font-medium">{monthLabel}</span>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={nextMonth}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {transactions.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No transactions this month
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {transactions.map((tx) => {
+                const isDeposit = tx.type === 'deposit';
+                const canDelete = tx.userId === currentUserId || isAdmin;
+                return (
+                  <div
+                    key={tx._id}
+                    className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                          isDeposit
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                            : 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                        }`}
+                      >
+                        {isDeposit ? 'Deposit' : 'Withdrawal'}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {isDeposit ? '+' : '-'}{fmt(tx.amount)} {currency}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {tx.memberNickname}
+                          {tx.note ? ` · ${tx.note}` : ''}
+                          {' · '}
+                          {new Date(tx.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => void onDeleteTransaction(tx._id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 
 interface CoupleDashboardProps {
@@ -1825,6 +2127,12 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
   const [editingExpense, setEditingExpense] = useState<ExpenseResponse | null>(null);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [contributionTarget, setContributionTarget] = useState<GoalResponse | null>(null);
+  const [addTransactionOpen, setAddTransactionOpen] = useState(false);
+  const [jointAccountConfigOpen, setJointAccountConfigOpen] = useState(false);
+  const [accountMonth, setAccountMonth] = useState<string>(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   // ── Query hooks ────────────────────────────────────────────────────────
   const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, currentMonth);
@@ -1855,6 +2163,13 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
   );
   const goals = goalsData ?? [];
 
+  const { data: jointAccountData, isLoading: jointAccountLoading } = useJointAccountSummary(
+    household._id,
+    accountMonth,
+    activeTab === 'account' || activeTab === 'overview'
+  );
+  const jointAccount: JointAccountSummaryResponse | null = jointAccountData ?? null;
+
   // ── Mutation hooks ─────────────────────────────────────────────────────
   const deleteExpenseMutation = useDeleteExpense(household._id);
   const claimExpenseMutation = useClaimExpense(household._id);
@@ -1870,6 +2185,7 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
   const removeContributionMutation = useRemoveContribution(household._id);
   const updateSettingsMutation = useUpdateSettings(household._id);
   const settleMutation = useRecordSettlement(household._id);
+  const deleteJointTxMutation = useDeleteJointTransaction(household._id);
 
   // Derived member data
   const myMember = household.members.find((m) => m.userId === currentUserId);
@@ -2025,6 +2341,18 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
               {tab.id === 'tasks' && overdueCount > 0 ? `Tasks (${overdueCount})` : tab.label}
             </button>
           ))}
+          {financeMode === 'joint' && (
+            <button
+              onClick={() => setActiveTab('account')}
+              className={`px-4 py-2 text-sm transition-colors ${
+                activeTab === 'account'
+                  ? 'border-b-2 border-primary font-medium text-foreground'
+                  : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Account
+            </button>
+          )}
         </div>
 
         {/* Tab Content */}
@@ -2047,6 +2375,14 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
               myParticipatesInFinances={myParticipatesInFinances}
               hasFinancialPartner={hasFinancialPartner}
             />
+            {financeMode === 'joint' && jointAccount && (
+              <JointAccountOverviewCard
+                jointAccount={jointAccount}
+                currency={currency}
+                onViewAccount={() => setActiveTab('account')}
+                onAddFunds={() => setAddTransactionOpen(true)}
+              />
+            )}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <GoalsCard
                 goals={goals}
@@ -2141,6 +2477,21 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
             }}
           />
         )}
+
+        {activeTab === 'account' && financeMode === 'joint' && (
+          <JointAccountTab
+            jointAccount={jointAccount}
+            jointAccountLoading={jointAccountLoading}
+            accountMonth={accountMonth}
+            onAccountMonthChange={setAccountMonth}
+            currency={currency}
+            isAdmin={isAdmin}
+            currentUserId={currentUserId}
+            onAddTransaction={() => setAddTransactionOpen(true)}
+            onConfigureTarget={() => setJointAccountConfigOpen(true)}
+            onDeleteTransaction={async (txId) => { await deleteJointTxMutation.mutateAsync(txId); }}
+          />
+        )}
       </div>
 
       {/* Add Task Sheet */}
@@ -2197,6 +2548,24 @@ export default function CoupleDashboard({ household, currentUserId }: CoupleDash
           if (!o) setContributionTarget(null);
         }}
         currency={currency}
+      />
+
+      {/* Add Transaction Sheet */}
+      <AddTransactionForm
+        householdId={household._id}
+        open={addTransactionOpen}
+        onOpenChange={setAddTransactionOpen}
+        currency={currency}
+      />
+
+      {/* Joint Account Config Sheet */}
+      <JointAccountConfigDialog
+        householdId={household._id}
+        open={jointAccountConfigOpen}
+        onOpenChange={setJointAccountConfigOpen}
+        currency={currency}
+        currentTarget={jointAccount?.monthlyTarget}
+        currentMode={jointAccount?.targetMode}
       />
     </div>
   );

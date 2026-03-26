@@ -28,4 +28,9 @@ export const queryKeys = {
     detail: (householdId: string, goalId: string) =>
       ['goals', householdId, goalId] as const,
   },
+  jointAccount: {
+    all: (householdId: string) => ['jointAccount', householdId] as const,
+    summary: (householdId: string, month: string) =>
+      ['jointAccount', householdId, 'summary', month] as const,
+  },
 } as const;
