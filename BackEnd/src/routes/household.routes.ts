@@ -8,6 +8,7 @@ import recurringExpenseRouter from './recurring-expense.routes';
 import taskRouter from './task.routes';
 import recurringTaskRouter from './recurring-task.routes';
 import goalRouter from './goal.routes';
+import jointAccountRouter from './joint-account.routes';
 
 const router = Router();
 
@@ -76,5 +77,6 @@ router.use('/:id/recurring-expenses', recurringExpenseRouter);
 router.use('/:id/tasks', taskRouter);
 router.use('/:id/recurring-tasks', recurringTaskRouter);
 router.use('/:id/goals', goalRouter);
+router.use('/:id/joint-account', jointAccountRouter);
 
 export default router;

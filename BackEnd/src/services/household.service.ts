@@ -252,7 +252,7 @@ class HouseholdService {
 
   // ── Private helpers ─────────────────────────────────────────────────
 
-  private formatHouseholdResponse(household: IHousehold): IHouseholdResponse {
+  formatHouseholdResponse(household: IHousehold): IHouseholdResponse {
     return {
       _id: household._id.toString(),
       name: household.name,

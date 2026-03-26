@@ -14,6 +14,7 @@ import {
   CURRENCIES,
   HOUSEHOLD_ROLES,
 } from '../types/household.types';
+import { CONTRIBUTION_TARGET_MODES } from '../types/joint-account.types';
 
 // ── Member subdocument schema ─────────────────────────────────────────
 
@@ -166,6 +167,27 @@ const settingsSchema = new Schema(
     },
     taskRotationConfig: {
       type: taskRotationConfigSchema,
+      default: undefined,
+    },
+    jointAccountConfig: {
+      type: new Schema(
+        {
+          monthlyTarget: {
+            type: Number,
+            min: [0.01, 'Monthly target must be at least 0.01'],
+            default: undefined,
+          },
+          targetMode: {
+            type: String,
+            enum: {
+              values: CONTRIBUTION_TARGET_MODES,
+              message: 'Invalid contribution target mode',
+            },
+            default: undefined,
+          },
+        },
+        { _id: false }
+      ),
       default: undefined,
     },
   },

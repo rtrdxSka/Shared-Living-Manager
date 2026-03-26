@@ -1,4 +1,5 @@
 import { Document, Types } from 'mongoose';
+import type { IJointAccountConfig } from './joint-account.types';
 
 // ── Living Arrangement ─────────────────────────────────────────────────
 
@@ -162,6 +163,7 @@ export interface IHouseholdSettings {
   taskManagementEnabled: TaskManagementLevel;
   taskDistributionMethod?: TaskDistributionMethod;
   taskRotationConfig?: ITaskRotationConfig;
+  jointAccountConfig?: IJointAccountConfig;
 }
 
 export interface ISetRotationInput {

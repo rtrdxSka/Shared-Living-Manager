@@ -1,0 +1,55 @@
+import { body, param, query, ValidationChain } from 'express-validator';
+import { TRANSACTION_TYPES, CONTRIBUTION_TARGET_MODES } from '../types/joint-account.types';
+
+const householdIdParam: ValidationChain = param('id')
+  .isMongoId()
+  .withMessage('Invalid household ID');
+
+export const getSummaryValidation: ValidationChain[] = [
+  householdIdParam,
+
+  query('month')
+    .optional()
+    .matches(/^\d{4}-\d{2}$/)
+    .withMessage('Month must be in YYYY-MM format'),
+];
+
+export const addTransactionValidation: ValidationChain[] = [
+  householdIdParam,
+
+  body('type')
+    .isIn([...TRANSACTION_TYPES])
+    .withMessage(`Type must be one of: ${TRANSACTION_TYPES.join(', ')}`),
+
+  body('amount')
+    .isFloat({ min: 0.01 })
+    .withMessage('Amount must be at least 0.01'),
+
+  body('note')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Note cannot exceed 200 characters'),
+];
+
+export const deleteTransactionValidation: ValidationChain[] = [
+  householdIdParam,
+
+  param('txId')
+    .isMongoId()
+    .withMessage('Invalid transaction ID'),
+];
+
+export const updateConfigValidation: ValidationChain[] = [
+  householdIdParam,
+
+  body('monthlyTarget')
+    .optional({ values: 'null' })
+    .isFloat({ min: 0.01 })
+    .withMessage('Monthly target must be at least 0.01'),
+
+  body('targetMode')
+    .optional()
+    .isIn([...CONTRIBUTION_TARGET_MODES])
+    .withMessage(`Target mode must be one of: ${CONTRIBUTION_TARGET_MODES.join(', ')}`),
+];
