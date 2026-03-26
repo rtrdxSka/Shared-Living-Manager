@@ -18,5 +18,13 @@ export function startRecurringTaskScheduler(): void {
     });
   });
 
+  // Run at 00:01 every day — generate daily instances
+  cron.schedule('1 0 * * *', () => {
+    console.log('[Scheduler] Generating daily recurring tasks...');
+    recurringTaskService.generateInstances('daily').catch((err) => {
+      console.error('[Scheduler] Error generating daily task instances:', err);
+    });
+  });
+
   console.log('[Scheduler] Recurring task scheduler started');
 }

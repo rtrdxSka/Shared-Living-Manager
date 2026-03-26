@@ -1,6 +1,6 @@
 import { Document, Types } from 'mongoose';
 
-export const RECURRENCE_INTERVALS = ['monthly', 'weekly'] as const;
+export const RECURRENCE_INTERVALS = ['daily', 'weekly', 'monthly'] as const;
 export type RecurrenceInterval = typeof RECURRENCE_INTERVALS[number];
 
 export interface IRecurringTask extends Document {

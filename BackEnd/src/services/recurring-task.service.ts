@@ -172,11 +172,14 @@ class RecurringTaskService {
         let periodStart: Date;
         if (interval === 'monthly') {
           periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-        } else {
+        } else if (interval === 'weekly') {
           // weekly — start of current week (Monday)
           const day = now.getUTCDay();
           const diff = day === 0 ? -6 : 1 - day;
           periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diff));
+        } else {
+          // daily — current UTC date at midnight
+          periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
         }
 
         // Idempotency check
