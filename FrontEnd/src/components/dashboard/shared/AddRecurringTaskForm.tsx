@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCreateRecurringTask } from '@/hooks/queries';
-import type { RecurrenceInterval } from '@/types/recurring-task.types';
+import { RECURRENCE_INTERVALS, type RecurrenceInterval } from '@/types/recurring-task.types';
 
 interface AddRecurringTaskFormProps {
   householdId: string;
@@ -113,8 +113,11 @@ export default function AddRecurringTaskForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
+                {RECURRENCE_INTERVALS.map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
