@@ -12,8 +12,8 @@ export const addExpenseValidation: ValidationChain[] = [
     .withMessage('Description must be between 1 and 100 characters'),
 
   body('amount')
-    .isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
+    .isFloat({ min: 0.01, max: 1_000_000 })
+    .withMessage('Amount must be between 0.01 and 1,000,000'),
 
   body('category')
     .isIn([...EXPENSE_TYPES])
@@ -58,8 +58,8 @@ export const updateExpenseValidation: ValidationChain[] = [
   ...expenseIdValidation,
   body('description').optional().trim().isLength({ min: 1, max: 100 })
     .withMessage('Description must be between 1 and 100 characters'),
-  body('amount').optional().isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
+  body('amount').optional().isFloat({ min: 0.01, max: 1_000_000 })
+    .withMessage('Amount must be between 0.01 and 1,000,000'),
   body('category').optional().isIn([...EXPENSE_TYPES])
     .withMessage('Invalid expense category'),
   body('date').optional().isISO8601().withMessage('Date must be a valid ISO 8601 date')

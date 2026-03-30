@@ -36,5 +36,10 @@ const expenseSchema = new Schema<IExpense>(
 expenseSchema.index({ householdId: 1, date: -1 });
 // Support category filter on top
 expenseSchema.index({ householdId: 1, category: 1, date: -1 });
+// Prevent duplicate recurring expense instances for the same period
+expenseSchema.index(
+  { recurringExpenseId: 1, date: 1 },
+  { unique: true, partialFilterExpression: { recurringExpenseId: { $exists: true } } }
+);
 
 export const Expense = model<IExpense>('Expense', expenseSchema);

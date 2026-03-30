@@ -27,5 +27,10 @@ const taskSchema = new Schema<ITask>(
 
 taskSchema.index({ householdId: 1, createdAt: -1 });
 taskSchema.index({ householdId: 1, isCompleted: 1 });
+// Prevent duplicate recurring task instances for the same period
+taskSchema.index(
+  { recurringTaskId: 1, dueDate: 1 },
+  { unique: true, partialFilterExpression: { recurringTaskId: { $exists: true } } }
+);
 
 export const Task = model<ITask>('Task', taskSchema);

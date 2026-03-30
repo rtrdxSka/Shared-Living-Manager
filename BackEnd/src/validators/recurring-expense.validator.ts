@@ -16,8 +16,8 @@ export const createRecurringExpenseValidation: ValidationChain[] = [
     .withMessage('Description must be between 1 and 100 characters'),
 
   body('amount')
-    .isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
+    .isFloat({ min: 0.01, max: 1_000_000 })
+    .withMessage('Amount must be between 0.01 and 1,000,000'),
 
   body('category')
     .isIn([...EXPENSE_TYPES])
@@ -62,8 +62,8 @@ export const updateRecurringExpenseValidation: ValidationChain[] = [
 
   body('amount')
     .optional()
-    .isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
+    .isFloat({ min: 0.01, max: 1_000_000 })
+    .withMessage('Amount must be between 0.01 and 1,000,000'),
 
   body('category')
     .optional()

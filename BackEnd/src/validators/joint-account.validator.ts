@@ -22,8 +22,8 @@ export const addTransactionValidation: ValidationChain[] = [
     .withMessage(`Type must be one of: ${TRANSACTION_TYPES.join(', ')}`),
 
   body('amount')
-    .isFloat({ min: 0.01 })
-    .withMessage('Amount must be at least 0.01'),
+    .isFloat({ min: 0.01, max: 1_000_000 })
+    .withMessage('Amount must be between 0.01 and 1,000,000'),
 
   body('note')
     .optional()
@@ -45,8 +45,8 @@ export const updateConfigValidation: ValidationChain[] = [
 
   body('monthlyTarget')
     .optional({ values: 'null' })
-    .isFloat({ min: 0.01 })
-    .withMessage('Monthly target must be at least 0.01'),
+    .isFloat({ min: 0.01, max: 1_000_000 })
+    .withMessage('Monthly target must be between 0.01 and 1,000,000'),
 
   body('targetMode')
     .optional()

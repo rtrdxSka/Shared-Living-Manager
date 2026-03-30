@@ -39,8 +39,11 @@ class RecurringTaskService {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
+    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    if (!requesterMember.participatesInTasks) {
+      throw ForbiddenError('You do not participate in household tasks');
+    }
 
     let assignedToNickname: string | undefined;
     if (input.assignedToMemberId) {
@@ -148,13 +151,14 @@ class RecurringTaskService {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
+    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
 
     const template = await RecurringTask.findOne({ _id: recurringTaskId, householdId: household._id });
     if (!template) throw NotFoundError('Recurring task not found');
 
-    if (template.createdByUserId.toString() !== userId) {
+    const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+    if (template.createdByUserId.toString() !== userId && !isAdminOrOwner) {
       throw ForbiddenError('You can only deactivate recurring tasks you created');
     }
 
@@ -223,6 +227,7 @@ class RecurringTaskService {
           createdByUserId: template.createdByUserId,
           title: template.title,
           ...(template.notes && { notes: template.notes }),
+          dueDate: periodStart,
           recurringTaskId: template._id,
           ...(assignedToMemberId && { assignedToMemberId }),
         });

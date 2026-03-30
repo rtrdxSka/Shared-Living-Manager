@@ -10,7 +10,7 @@ import {
   IJointAccountMemberBreakdown,
 } from '../types/joint-account.types';
 import { IHouseholdMember, IHouseholdResponse } from '../types/household.types';
-import { NotFoundError, ForbiddenError } from '../utils/error';
+import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { householdService } from './household.service';
 
 class JointAccountService {
@@ -165,6 +165,14 @@ class JointAccountService {
       throw ForbiddenError('You do not participate in household finances');
     }
 
+    // Prevent withdrawals that exceed the current balance
+    if (input.type === 'withdrawal') {
+      const balance = await this.computeBalance(household._id as Types.ObjectId);
+      if (input.amount > balance) {
+        throw BadRequestError(`Insufficient balance. Current balance: ${balance.toFixed(2)}`);
+      }
+    }
+
     const transaction = await JointAccountTransaction.create({
       householdId: household._id,
       memberId: requesterMember._id,
@@ -196,6 +204,9 @@ class JointAccountService {
       (m) => m.userId?.toString() === userId
     );
     if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    if (!requesterMember.participatesInFinances) {
+      throw ForbiddenError('You do not participate in household finances');
+    }
 
     const transaction = await JointAccountTransaction.findOne({
       _id: transactionId,
@@ -270,6 +281,23 @@ class JointAccountService {
       start: new Date(Date.UTC(year, monthIndex, 1)),
       end: new Date(Date.UTC(year, monthIndex + 1, 1)),
     };
+  }
+
+  private async computeBalance(householdId: Types.ObjectId): Promise<number> {
+    const txTotals = await JointAccountTransaction.aggregate<{ _id: string; total: number }>([
+      { $match: { householdId } },
+      { $group: { _id: '$type', total: { $sum: '$amount' } } },
+    ]);
+    const deposits = txTotals.find((t) => t._id === 'deposit')?.total ?? 0;
+    const withdrawals = txTotals.find((t) => t._id === 'withdrawal')?.total ?? 0;
+
+    const expenseAgg = await Expense.aggregate<{ _id: null; total: number }>([
+      { $match: { householdId } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    const expenses = expenseAgg[0]?.total ?? 0;
+
+    return Math.round((deposits - withdrawals - expenses) * 100) / 100;
   }
 
   private computeMemberTargets(

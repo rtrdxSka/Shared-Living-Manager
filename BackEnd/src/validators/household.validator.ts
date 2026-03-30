@@ -346,8 +346,8 @@ export const updateMemberIncomeValidation: ValidationChain[] = [
     .withMessage('Invalid household ID'),
 
   body('monthlyIncome')
-    .isFloat({ min: 0 })
-    .withMessage('Income must be a non-negative number'),
+    .isFloat({ min: 0, max: 1_000_000 })
+    .withMessage('Income must be between 0 and 1,000,000'),
 ];
 
 // ── Record Settlement Validation ──────────────────────────────────────
@@ -355,5 +355,5 @@ export const updateMemberIncomeValidation: ValidationChain[] = [
 export const recordSettlementValidation: ValidationChain[] = [
   param('id').isMongoId().withMessage('Invalid household ID'),
   body('month').matches(/^\d{4}-(0[1-9]|1[0-2])$/).withMessage('Month must be in YYYY-MM format'),
-  body('amount').isFloat({ min: 0 }).withMessage('Amount must be a non-negative number'),
+  body('amount').isFloat({ min: 0.01, max: 1_000_000 }).withMessage('Amount must be between 0.01 and 1,000,000'),
 ];

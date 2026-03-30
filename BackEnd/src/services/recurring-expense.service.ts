@@ -52,6 +52,13 @@ class RecurringExpenseService {
       if (!input.fixedPayerUserId) {
         throw BadRequestError('fixedPayerUserId is required when payerMode is fixed');
       }
+
+      // Regular members can only set themselves as the fixed payer
+      const isAdminOrOwner = member.role === 'owner' || member.role === 'admin';
+      if (input.fixedPayerUserId !== userId && !isAdminOrOwner) {
+        throw ForbiddenError('You can only set yourself as the fixed payer');
+      }
+
       const payerMember = household.members.find(
         (m) => m.userId?.toString() === input.fixedPayerUserId && m.participatesInFinances
       );
@@ -113,14 +120,25 @@ class RecurringExpenseService {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
+    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
 
     const template = await RecurringExpense.findOne({ _id: recurringId, householdId: household._id });
     if (!template) throw NotFoundError('Recurring expense not found');
 
-    if (template.createdByUserId.toString() !== userId) {
+    const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+    if (template.createdByUserId.toString() !== userId && !isAdminOrOwner) {
       throw ForbiddenError('You can only edit recurring expenses you created');
+    }
+
+    // Financial fields (amount, payerMode, fixedPayerUserId, interval) require admin/owner
+    const hasFinancialChange =
+      input.amount !== undefined ||
+      input.payerMode !== undefined ||
+      input.fixedPayerUserId !== undefined ||
+      input.interval !== undefined;
+    if (hasFinancialChange && !isAdminOrOwner) {
+      throw ForbiddenError('Only admins can modify financial fields (amount, payer, interval)');
     }
 
     // Determine effective payerMode after potential update
@@ -172,13 +190,14 @@ class RecurringExpenseService {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
+    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
 
     const template = await RecurringExpense.findOne({ _id: recurringId, householdId: household._id });
     if (!template) throw NotFoundError('Recurring expense not found');
 
-    if (template.createdByUserId.toString() !== userId) {
+    const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+    if (template.createdByUserId.toString() !== userId && !isAdminOrOwner) {
       throw ForbiddenError('You can only deactivate recurring expenses you created');
     }
 

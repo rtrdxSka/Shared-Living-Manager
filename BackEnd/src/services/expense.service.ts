@@ -30,6 +30,12 @@ class ExpenseService {
     // 3. Optionally verify payer when provided
     let payerNickname: string | undefined;
     if (input.paidByUserId) {
+      // Only the requester can claim payment for themselves, unless they are admin/owner
+      const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+      if (input.paidByUserId !== requestingUserId && !isAdminOrOwner) {
+        throw ForbiddenError('You can only set yourself as the payer');
+      }
+
       const payerMember = household.members.find(
         (m) => m.userId?.toString() === input.paidByUserId && m.participatesInFinances
       );
@@ -155,6 +161,10 @@ class ExpenseService {
       throw NotFoundError('Expense not found');
     }
 
+    if (expense.isResolved) {
+      throw ForbiddenError('Cannot delete a resolved expense');
+    }
+
     if (expense.createdByUserId.toString() !== requestingUserId) {
       throw ForbiddenError('You can only delete expenses you created');
     }
@@ -188,6 +198,10 @@ class ExpenseService {
       throw NotFoundError('Expense not found');
     }
 
+    if (expense.isResolved) {
+      throw ForbiddenError('Cannot modify a resolved expense');
+    }
+
     if (expense.createdByUserId.toString() !== requestingUserId) {
       throw ForbiddenError('You can only edit expenses you created');
     }
@@ -201,6 +215,12 @@ class ExpenseService {
       if (input.paidByUserId === null) {
         expense.paidByUserId = undefined;
       } else {
+        // Only the requester can claim payment for themselves, unless they are admin/owner
+        const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+        if (input.paidByUserId !== requestingUserId && !isAdminOrOwner) {
+          throw ForbiddenError('You can only set yourself as the payer');
+        }
+
         const payerMember = household.members.find(
           (m) => m.userId?.toString() === input.paidByUserId && m.participatesInFinances
         );

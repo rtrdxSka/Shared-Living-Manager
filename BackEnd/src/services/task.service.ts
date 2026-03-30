@@ -198,7 +198,7 @@ class TaskService {
     await task.deleteOne();
   }
 
-  // ── Any member can assign/unassign ───────────────────────────────────
+  // ── Assign / unassign task ────────────────────────────────────────────
 
   async assignTask(
     householdId: string,
@@ -218,7 +218,14 @@ class TaskService {
     const task = await Task.findOne({ _id: taskId, householdId: household._id });
     if (!task) throw NotFoundError('Task not found');
 
+    const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+
     if (input.assignedToMemberId !== null) {
+      // Regular members can only assign tasks to themselves
+      if (!isAdminOrOwner && input.assignedToMemberId !== requesterMember._id.toString()) {
+        throw ForbiddenError('You can only assign tasks to yourself');
+      }
+
       const assignee = household.members.find(
         (m) => m._id.toString() === input.assignedToMemberId
       );
@@ -228,6 +235,10 @@ class TaskService {
       }
       task.assignedToMemberId = new Types.ObjectId(input.assignedToMemberId);
     } else {
+      // Regular members can only unassign tasks currently assigned to themselves
+      if (!isAdminOrOwner && task.assignedToMemberId?.toString() !== requesterMember._id.toString()) {
+        throw ForbiddenError('You can only unassign tasks assigned to yourself');
+      }
       task.assignedToMemberId = undefined;
     }
 
