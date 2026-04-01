@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { extractApiError } from '@/utils/extractApiError';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,8 +37,8 @@ export default function IncomeEntryCard({ household, currentUserId }: IncomeEntr
     setError(null);
     try {
       await updateIncomeMutation.mutateAsync(parsed);
-    } catch {
-      setError('Failed to save income. Please try again.');
+    } catch (error) {
+      setError(extractApiError(error, 'Failed to save income. Please try again.'));
     }
   };
 
@@ -65,6 +66,7 @@ export default function IncomeEntryCard({ household, currentUserId }: IncomeEntr
                 type="number"
                 min={0}
                 step={1}
+                max={1000000}
                 placeholder="0"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}

@@ -20,7 +20,7 @@ export default function Navbar() {
 
   const dashboardLink =
     isAuthenticated && user && user.households.length > 0
-      ? '/dashboard'
+      ? '/dashboard/overview'
       : '/get-started';
 
   // Close mobile sheet when resizing past the md breakpoint

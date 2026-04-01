@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { extractApiError } from '@/utils/extractApiError';
 import {
   Sheet,
   SheetContent,
@@ -23,6 +24,8 @@ interface AddExpenseFormProps {
   onOpenChange: (o: boolean) => void;
   household: HouseholdResponse;
   expense?: ExpenseResponse;
+  isAdmin: boolean;
+  currentUserId: string;
 }
 
 const selectClass =
@@ -37,11 +40,16 @@ export default function AddExpenseForm({
   onOpenChange,
   household,
   expense,
+  isAdmin,
+  currentUserId,
 }: AddExpenseFormProps) {
   const isEditMode = expense !== undefined;
   const payableMembers = household.members.filter(
     (m) => m.participatesInFinances && m.userId
   );
+  const dropdownMembers = isAdmin
+    ? payableMembers
+    : payableMembers.filter((m) => m.userId === currentUserId);
 
   const [description, setDescription] = useState(expense?.description ?? '');
   const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
@@ -132,14 +140,15 @@ export default function AddExpenseForm({
       }
       if (!isEditMode) resetForm();
       onOpenChange(false);
-    } catch {
-      setError(
+    } catch (error) {
+      setError(extractApiError(
+        error,
         isEditMode
           ? 'Failed to update expense. Please try again.'
           : isRecurring
             ? 'Failed to create recurring template. Please try again.'
             : 'Failed to add expense. Please try again.'
-      );
+      ));
     }
   }
 
@@ -185,6 +194,7 @@ export default function AddExpenseForm({
               type="number"
               min="0.01"
               step="0.01"
+              max="1000000"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
@@ -311,7 +321,7 @@ export default function AddExpenseForm({
                 </SelectTrigger>
                 <SelectContent>
                   {!paidByRequired && <SelectItem value="__none__">Not paid yet</SelectItem>}
-                  {payableMembers.map((m) => (
+                  {dropdownMembers.map((m) => (
                     <SelectItem key={m.userId} value={m.userId!}>{m.nickname}</SelectItem>
                   ))}
                 </SelectContent>

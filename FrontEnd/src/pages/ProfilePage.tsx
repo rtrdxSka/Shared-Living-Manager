@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertCircle, CheckCircle2, AlertTriangle, User } from 'lucide-react';
 import axios from 'axios';
+import { extractApiError } from '@/utils/extractApiError';
 
 import { createProfileSchema, type ProfileFormData } from '@/schemas/user.schemas';
 import { changePasswordSchema, type ChangePasswordFormData } from '@/schemas/user.schemas';
@@ -55,8 +56,8 @@ function VerificationBanner({ wasRedirected }: { wasRedirected: boolean }) {
     try {
       await authApi.resendVerification();
       setMessage('Verification email sent. Please check your inbox.');
-    } catch {
-      setMessage('Failed to send verification email. Please try again.');
+    } catch (error) {
+      setMessage(extractApiError(error, 'Failed to send verification email. Please try again.'));
     } finally {
       setIsLoading(false);
     }

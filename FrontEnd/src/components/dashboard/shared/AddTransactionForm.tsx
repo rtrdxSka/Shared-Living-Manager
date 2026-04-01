@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import { extractApiError } from '@/utils/extractApiError';
 import {
   Sheet,
   SheetContent,
@@ -50,8 +51,8 @@ export default function AddTransactionForm({
         ...(note.trim() && { note: note.trim() }),
       });
       onOpenChange(false);
-    } catch {
-      setError('Failed to add transaction. Please try again.');
+    } catch (error) {
+      setError(extractApiError(error, 'Failed to add transaction. Please try again.'));
     }
   }
 
@@ -105,6 +106,7 @@ export default function AddTransactionForm({
               type="number"
               step="0.01"
               min="0.01"
+              max="1000000"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="e.g. 500"

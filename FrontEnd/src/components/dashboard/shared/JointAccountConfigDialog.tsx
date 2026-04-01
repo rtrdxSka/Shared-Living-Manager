@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import { extractApiError } from '@/utils/extractApiError';
 import {
   Sheet,
   SheetContent,
@@ -52,8 +53,8 @@ export default function JointAccountConfigDialog({
         targetMode,
       });
       onOpenChange(false);
-    } catch {
-      setError('Failed to update configuration. Please try again.');
+    } catch (error) {
+      setError(extractApiError(error, 'Failed to update configuration. Please try again.'));
     }
   }
 
@@ -62,8 +63,8 @@ export default function JointAccountConfigDialog({
     try {
       await updateConfigMutation.mutateAsync({ monthlyTarget: null });
       onOpenChange(false);
-    } catch {
-      setError('Failed to clear target. Please try again.');
+    } catch (error) {
+      setError(extractApiError(error, 'Failed to clear target. Please try again.'));
     }
   }
 
@@ -84,6 +85,7 @@ export default function JointAccountConfigDialog({
               type="number"
               step="0.01"
               min="0.01"
+              max="1000000"
               value={monthlyTarget}
               onChange={(e) => setMonthlyTarget(e.target.value)}
               placeholder="e.g. 1000"
