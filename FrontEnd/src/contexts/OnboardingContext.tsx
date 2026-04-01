@@ -69,7 +69,12 @@ function loadFromStorage(): PersistedData | null {
 
 function saveToStorage(data: PersistedData): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    // Strip email fields to avoid persisting PII (member emails) in localStorage
+    const raw = JSON.stringify(data, (key, value) => {
+      if (key === 'email') return undefined;
+      return value;
+    });
+    localStorage.setItem(STORAGE_KEY, raw);
   } catch {
     // Storage full or unavailable — fail silently
   }

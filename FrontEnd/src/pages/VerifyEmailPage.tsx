@@ -33,6 +33,9 @@ export default function VerifyEmailPage() {
     if (hasVerified.current) return;
     hasVerified.current = true;
 
+    // Remove token from URL so it doesn't linger in browser history
+    window.history.replaceState(null, '', window.location.pathname);
+
     const verify = async () => {
       try {
         await authApi.verifyEmail(token);

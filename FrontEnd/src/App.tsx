@@ -77,7 +77,7 @@ export default function App() {
             </Routes>
           </ThemeProvider>
         </AuthProvider>
-        <ReactQueryDevtools initialIsOpen={false} />
+        {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
       </QueryClientProvider>
     </BrowserRouter>
   );
