@@ -11,7 +11,7 @@ import {
   IUpdateHouseholdSettingsInput,
   determineUIMode,
 } from '../types/household.types';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../utils/error';
 
 class HouseholdService {
@@ -80,23 +80,40 @@ class HouseholdService {
       ...(input.taskDistributionMethod && { taskDistributionMethod: input.taskDistributionMethod }),
     };
 
-    // 6. Create household document
-    // TODO: wrap in MongoDB transaction for production
-    const household = await Household.create({
-      name: input.householdName,
-      livingArrangement: input.livingArrangement,
-      ...(input.livingArrangementOther && { livingArrangementOther: input.livingArrangementOther }),
-      totalMembers: input.totalMembers,
-      uiMode,
-      members: [creatorMember, ...placeholderMembers],
-      settings,
-      createdBy: user._id,
-    });
+    // 6. Create household and link user atomically
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // 7. Update user: link household
-    user.households.push(household._id);
-    user.activeHousehold = household._id;
-    await user.save();
+    let household;
+    try {
+      const [created] = await Household.create(
+        [
+          {
+            name: input.householdName,
+            livingArrangement: input.livingArrangement,
+            ...(input.livingArrangementOther && { livingArrangementOther: input.livingArrangementOther }),
+            totalMembers: input.totalMembers,
+            uiMode,
+            members: [creatorMember, ...placeholderMembers],
+            settings,
+            createdBy: user._id,
+          },
+        ],
+        { session }
+      );
+      household = created;
+
+      user.households.push(household._id);
+      user.activeHousehold = household._id;
+      await user.save({ session });
+
+      await session.commitTransaction();
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
 
     return this.formatHouseholdResponse(household);
   }
@@ -138,17 +155,28 @@ class HouseholdService {
       );
     }
 
-    // 5. Link user to placeholder slot
-    placeholder.userId = user._id;
-    placeholder.joinedAt = new Date();
-    await household.save();
+    // 5. Link user to placeholder slot and update user atomically
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // 6. Update user: link household
-    user.households.push(household._id);
-    if (!user.activeHousehold) {
-      user.activeHousehold = household._id;
+    try {
+      placeholder.userId = user._id;
+      placeholder.joinedAt = new Date();
+      await household.save({ session });
+
+      user.households.push(household._id);
+      if (!user.activeHousehold) {
+        user.activeHousehold = household._id;
+      }
+      await user.save({ session });
+
+      await session.commitTransaction();
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
     }
-    await user.save();
 
     return this.formatHouseholdResponse(household);
   }

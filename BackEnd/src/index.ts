@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { connectDatabase } from './config/database';
 import authRoutes from './routes/auth.routes';
@@ -19,6 +20,7 @@ const PORT = process.env.PORT || 5000;
 
 // ── Security middleware ───────────────────────────────────────────────
 app.use(helmet());
+app.use(cookieParser());
 
 // ── CORS configuration ───────────────────────────────────────────────
 app.use(
@@ -35,7 +37,7 @@ app.use(express.urlencoded({ extended: true }));
 // ── Rate limiting ─────────────────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20000, // 20 requests per window per IP
+  max: 20, // 20 requests per window per IP
   message: {
     status: 'error',
     message: 'Too many requests, please try again later',
@@ -56,7 +58,7 @@ app.get('/health', (_req, res) => {
 // ── Rate limiting (general API) ───────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10000, // 100 requests per window per IP
+  max: 100, // 100 requests per window per IP
   message: {
     status: 'error',
     message: 'Too many requests, please try again later',

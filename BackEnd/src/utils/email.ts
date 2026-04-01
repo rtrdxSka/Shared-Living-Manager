@@ -1,5 +1,14 @@
 import { Resend } from 'resend';
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 let resendClient: Resend | null = null;
 
 const getResendClient = (): Resend => {
@@ -41,7 +50,7 @@ export const sendVerificationEmail = async (
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #27272a;">
         <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 8px;">Verify your email</h2>
         <p style="font-size: 14px; color: #52525b; margin: 0 0 24px;">
-          Hi ${firstName}, please verify your email address to complete your registration.
+          Hi ${escapeHtml(firstName)}, please verify your email address to complete your registration.
         </p>
         <a href="${verificationUrl}" style="display: inline-block; background: #18181b; color: #fafafa; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 500;">
           Verify Email
@@ -70,7 +79,7 @@ export const sendPasswordResetEmail = async (
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #27272a;">
         <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 8px;">Reset your password</h2>
         <p style="font-size: 14px; color: #52525b; margin: 0 0 24px;">
-          Hi ${firstName}, we received a request to reset your password.
+          Hi ${escapeHtml(firstName)}, we received a request to reset your password.
         </p>
         <a href="${resetUrl}" style="display: inline-block; background: #18181b; color: #fafafa; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 500;">
           Reset Password

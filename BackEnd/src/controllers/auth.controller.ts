@@ -1,10 +1,16 @@
-import { Response, NextFunction } from 'express';
-
-
+import { Response, NextFunction, CookieOptions } from 'express';
 
 import { AuthRequest } from '../middleware/auth';
 import { authService } from '../services/auth.service';
 import { ILoginInput, IRegisterInput } from '../types/user.types';
+
+const REFRESH_COOKIE: CookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  path: '/api/auth',
+};
 
 class AuthController {
   // POST /api/auth/register
@@ -23,9 +29,13 @@ class AuthController {
 
       const result = await authService.register(input);
 
+      res.cookie('refreshToken', result.tokens.refreshToken, REFRESH_COOKIE);
       res.status(201).json({
         status: 'success',
-        data: result,
+        data: {
+          user: result.user,
+          tokens: { accessToken: result.tokens.accessToken },
+        },
       });
     } catch (error) {
       next(error);
@@ -46,9 +56,13 @@ class AuthController {
 
       const result = await authService.login(input);
 
+      res.cookie('refreshToken', result.tokens.refreshToken, REFRESH_COOKIE);
       res.status(200).json({
         status: 'success',
-        data: result,
+        data: {
+          user: result.user,
+          tokens: { accessToken: result.tokens.accessToken },
+        },
       });
     } catch (error) {
       next(error);
@@ -62,13 +76,19 @@ class AuthController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { refreshToken } = req.body;
+      const refreshToken = req.cookies?.refreshToken as string | undefined;
+      if (!refreshToken) {
+        res.status(401).json({ status: 'error', message: 'No refresh token' });
+        return;
+      }
 
       const tokens = await authService.refreshToken(refreshToken);
 
+      // Rotate refresh token cookie
+      res.cookie('refreshToken', tokens.refreshToken, REFRESH_COOKIE);
       res.status(200).json({
         status: 'success',
-        data: { tokens },
+        data: { tokens: { accessToken: tokens.accessToken } },
       });
     } catch (error) {
       next(error);
@@ -89,6 +109,7 @@ class AuthController {
 
       await authService.logout(req.user.userId);
 
+      res.clearCookie('refreshToken', { path: '/api/auth' });
       res.status(200).json({
         status: 'success',
         message: 'Logged out successfully',
