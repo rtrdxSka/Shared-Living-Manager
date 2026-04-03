@@ -31,6 +31,9 @@ export interface JointAccountSummaryResponse {
   targetMode?: ContributionTargetMode;
   memberBreakdown: JointAccountMemberBreakdown[];
   transactions: JointAccountTransactionResponse[];
+  transactionTotal: number;
+  transactionPage: number;
+  transactionTotalPages: number;
 }
 
 export interface AddTransactionInput {

@@ -7,18 +7,23 @@ import type {
   AddContributionInput,
   GoalStatus,
 } from '@/types/goal.types';
+import type { PaginationMeta } from '@/types/pagination.types';
+
+export interface GoalListResult extends PaginationMeta {
+  goals: GoalResponse[];
+}
 
 export const goalApi = {
   async listGoals(
     householdId: string,
     status?: GoalStatus
-  ): Promise<GoalResponse[]> {
+  ): Promise<GoalListResult> {
     const params = status ? { status } : undefined;
-    const { data } = await api.get<ApiSuccessResponse<{ goals: GoalResponse[] }>>(
+    const { data } = await api.get<ApiSuccessResponse<GoalListResult>>(
       `/households/${householdId}/goals`,
       { params }
     );
-    return data.data.goals;
+    return data.data;
   },
 
   async getGoal(householdId: string, goalId: string): Promise<GoalResponse> {

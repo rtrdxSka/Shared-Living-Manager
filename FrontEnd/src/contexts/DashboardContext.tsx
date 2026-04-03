@@ -157,7 +157,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const rotationStatus = tasksData?.rotation ?? null;
 
   const { data: goalsData, isLoading: goalsLoading } = useGoals(household._id);
-  const goals = goalsData ?? [];
+  const goals = goalsData?.goals ?? [];
 
   // ── Mutations ─────────────────────────────────────────────────────────
   const deleteExpenseMutation = useDeleteExpense(household._id);

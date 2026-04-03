@@ -51,7 +51,7 @@ export default function ExpensesPage() {
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, currentMonth);
-  const expenses = expensesData ?? [];
+  const expenses = expensesData?.expenses ?? [];
 
   const { data: recurringExpensesData, isLoading: recurringLoading } = useRecurringExpenses(
     household._id,

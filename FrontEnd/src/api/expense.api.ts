@@ -1,6 +1,11 @@
 import api from '@/utils/axios';
 import type { ApiSuccessResponse } from '@/types/auth.types';
 import type { ExpenseResponse, AddExpenseInput, UpdateExpenseInput } from '@/types/expense.types';
+import type { PaginationMeta } from '@/types/pagination.types';
+
+export interface ExpenseListResult extends PaginationMeta {
+  expenses: ExpenseResponse[];
+}
 
 export const expenseApi = {
   async addExpense(householdId: string, input: AddExpenseInput): Promise<ExpenseResponse> {
@@ -45,14 +50,14 @@ export const expenseApi = {
     householdId: string,
     month?: string,
     category?: string
-  ): Promise<ExpenseResponse[]> {
+  ): Promise<ExpenseListResult> {
     const params: Record<string, string> = {};
     if (month) params.month = month;
     if (category && category !== 'all') params.category = category;
-    const { data } = await api.get<ApiSuccessResponse<{ expenses: ExpenseResponse[] }>>(
+    const { data } = await api.get<ApiSuccessResponse<ExpenseListResult>>(
       `/households/${householdId}/expenses`,
       { params }
     );
-    return data.data.expenses;
+    return data.data;
   },
 };

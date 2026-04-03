@@ -39,7 +39,7 @@ export default function OverviewPage() {
   const currentMonth = currentMonthString();
 
   const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, currentMonth);
-  const expenses = expensesData ?? [];
+  const expenses = expensesData?.expenses ?? [];
 
   const { data: jointAccountData } = useJointAccountSummary(
     household._id,
