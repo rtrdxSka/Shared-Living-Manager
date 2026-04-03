@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { goalService } from '../services/goal.service';
-import { IAddGoalInput, IUpdateGoalInput, IAddContributionInput, GoalStatus } from '../types/goal.types';
+import { IAddGoalInput, IUpdateGoalInput, IAddContributionInput, GoalStatus, IListGoalsInput } from '../types/goal.types';
 
 class GoalController {
   // POST /api/households/:id/goals
@@ -32,11 +32,23 @@ class GoalController {
       }
 
       const householdId = req.params.id as string;
-      const status = req.query.status as GoalStatus | undefined;
+      const input: IListGoalsInput = {
+        status: req.query.status as GoalStatus | undefined,
+        page: req.query.page as unknown as number | undefined,
+        limit: req.query.limit as unknown as number | undefined,
+      };
 
-      const goals = await goalService.listGoals(householdId, req.user.userId, status);
+      const result = await goalService.listGoals(householdId, req.user.userId, input);
 
-      res.status(200).json({ status: 'success', data: { goals } });
+      res.status(200).json({
+        status: 'success',
+        data: {
+          goals: result.items,
+          total: result.total,
+          page: result.page,
+          totalPages: result.totalPages,
+        },
+      });
     } catch (error) {
       next(error);
     }

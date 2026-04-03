@@ -1,7 +1,8 @@
 import { Types } from 'mongoose';
 import { Household } from '../models/household.model';
 import { Task } from '../models/task.model';
-import { ITask, IAddTaskInput, ITaskResponse, IRotationStatus, IAssignTaskInput } from '../types/task.types';
+import { ITask, IAddTaskInput, ITaskResponse, IRotationStatus, IAssignTaskInput, IListTasksInput } from '../types/task.types';
+import { parsePaginationParams } from '../utils/pagination';
 import { IHouseholdMember, ITaskRotationConfig, ISetRotationInput } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 
@@ -73,15 +74,21 @@ class TaskService {
 
   async listTasks(
     householdId: string,
-    userId: string
-  ): Promise<{ tasks: ITaskResponse[]; rotation?: IRotationStatus }> {
+    userId: string,
+    input: IListTasksInput = {}
+  ): Promise<{ tasks: ITaskResponse[]; total: number; page: number; totalPages: number; rotation?: IRotationStatus }> {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
     const isMember = household.members.some((m) => m.userId?.toString() === userId);
     if (!isMember) throw ForbiddenError('You are not a member of this household');
 
-    const tasks = await Task.find({ householdId: household._id }).sort({ createdAt: -1 });
+    const { page, limit, skip } = parsePaginationParams(input);
+    const filter = { householdId: household._id };
+    const [tasks, total] = await Promise.all([
+      Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Task.countDocuments(filter),
+    ]);
 
     // Build member ID → nickname map for completedByMemberId lookups
     const memberMap = new Map<string, string>();
@@ -124,7 +131,7 @@ class TaskService {
       );
     });
 
-    return { tasks: taskResponses, ...(rotation && { rotation }) };
+    return { tasks: taskResponses, total, page, totalPages: Math.ceil(total / limit) || 1, ...(rotation && { rotation }) };
   }
 
   async toggleComplete(

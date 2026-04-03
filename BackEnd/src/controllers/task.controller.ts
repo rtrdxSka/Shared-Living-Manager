@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { taskService } from '../services/task.service';
-import { IAddTaskInput, IAssignTaskInput } from '../types/task.types';
+import { IAddTaskInput, IAssignTaskInput, IListTasksInput } from '../types/task.types';
 import { ISetRotationInput } from '../types/household.types';
 
 class TaskController {
@@ -33,7 +33,11 @@ class TaskController {
       }
 
       const householdId = req.params.id as string;
-      const result = await taskService.listTasks(householdId, req.user.userId);
+      const input: IListTasksInput = {
+        page: req.query.page as unknown as number | undefined,
+        limit: req.query.limit as unknown as number | undefined,
+      };
+      const result = await taskService.listTasks(householdId, req.user.userId, input);
 
       res.status(200).json({ status: 'success', data: result });
     } catch (error) {

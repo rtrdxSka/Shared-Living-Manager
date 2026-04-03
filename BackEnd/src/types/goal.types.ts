@@ -1,4 +1,5 @@
 import { Document, Types } from 'mongoose';
+import { IPaginationInput } from './pagination.types';
 
 export type GoalCategory = 'savings' | 'travel' | 'home' | 'emergency' | 'other';
 export type GoalStatus = 'active' | 'completed' | 'abandoned';
@@ -27,6 +28,10 @@ export interface IGoal extends Document {
   contributions: IGoalContribution[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface IListGoalsInput extends IPaginationInput {
+  status?: GoalStatus;
 }
 
 export interface IAddGoalInput {

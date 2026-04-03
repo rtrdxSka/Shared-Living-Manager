@@ -168,33 +168,44 @@ class RecurringTaskService {
 
   async generateInstances(interval: RecurrenceInterval): Promise<void> {
     const templates = await RecurringTask.find({ interval, isActive: true });
+    if (templates.length === 0) return;
+
+    // Compute period start once — same for all templates of the same interval
+    const now = new Date();
+    let periodStart: Date;
+    if (interval === 'monthly') {
+      periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    } else if (interval === 'weekly') {
+      const day = now.getUTCDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diff));
+    } else {
+      // daily — current UTC date at midnight
+      periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    }
+
+    // Batch-fetch all needed households in one query
+    const uniqueHouseholdIds = [...new Set(templates.map((t) => t.householdId.toString()))];
+    const households = await Household.find({ _id: { $in: uniqueHouseholdIds } });
+    const householdMap = new Map(households.map((h) => [h._id.toString(), h]));
+
+    // Batch idempotency check — find all already-generated instances for this period
+    const templateIds = templates.map((t) => t._id);
+    const existingTasks = await Task.find({
+      recurringTaskId: { $in: templateIds },
+      createdAt: { $gte: periodStart },
+    }).select('recurringTaskId');
+    const existingSet = new Set(
+      existingTasks.map((t) => t.recurringTaskId!.toString())
+    );
 
     for (const template of templates) {
       try {
-        // Compute period start (UTC)
-        const now = new Date();
-        let periodStart: Date;
-        if (interval === 'monthly') {
-          periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-        } else if (interval === 'weekly') {
-          // weekly — start of current week (Monday)
-          const day = now.getUTCDay();
-          const diff = day === 0 ? -6 : 1 - day;
-          periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diff));
-        } else {
-          // daily — current UTC date at midnight
-          periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-        }
+        // Idempotency check via pre-fetched set
+        if (existingSet.has(template._id.toString())) continue;
 
-        // Idempotency check
-        const existing = await Task.findOne({
-          recurringTaskId: template._id,
-          createdAt: { $gte: periodStart },
-        });
-        if (existing) continue;
-
-        // Load household to determine distribution method and members
-        const household = await Household.findById(template.householdId);
+        // Household lookup via pre-fetched map
+        const household = householdMap.get(template.householdId.toString());
         if (!household) continue;
 
         // Verify creator is still a participating member

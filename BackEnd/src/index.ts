@@ -31,8 +31,8 @@ app.use(
 );
 
 // ── Body parsing ──────────────────────────────────────────────────────
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // ── Rate limiting ─────────────────────────────────────────────────────
 const authLimiter = rateLimit({

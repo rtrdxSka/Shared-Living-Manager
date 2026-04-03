@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { taskController } from '../controllers/task.controller';
-import { addTaskValidation, taskIdValidation, setRotationValidation, assignTaskValidation } from '../validators/task.validator';
-import { param } from 'express-validator';
+import { addTaskValidation, taskIdValidation, setRotationValidation, assignTaskValidation, listTasksValidation } from '../validators/task.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 
@@ -22,7 +21,7 @@ router.get(
   '/',
   authMiddleware,
   emailVerifiedMiddleware,
-  [param('id').isMongoId().withMessage('Invalid household ID')],
+  listTasksValidation,
   handleValidationErrors,
   taskController.listTasks.bind(taskController)
 );

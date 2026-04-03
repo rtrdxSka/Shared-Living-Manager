@@ -1,5 +1,6 @@
 import { body, param, query, ValidationChain } from 'express-validator';
 import { GOAL_CATEGORIES } from '../types/goal.types';
+import { paginationValidation } from './pagination.validator';
 
 const householdIdParam: ValidationChain = param('id')
   .isMongoId()
@@ -45,6 +46,8 @@ export const listGoalsValidation: ValidationChain[] = [
     .optional()
     .isIn(['active', 'completed', 'abandoned'])
     .withMessage('Status must be one of: active, completed, abandoned'),
+
+  ...paginationValidation,
 ];
 
 export const goalIdValidation: ValidationChain[] = [

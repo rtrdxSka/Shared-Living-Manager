@@ -1,5 +1,6 @@
 import { Document, Types } from 'mongoose';
 import { ExpenseType } from './household.types';
+import { IPaginationInput } from './pagination.types';
 
 export interface IExpense extends Document {
   _id: Types.ObjectId;
@@ -28,7 +29,7 @@ export interface IAddExpenseInput {
   paidByUserId?: string;
 }
 
-export interface IListExpensesInput {
+export interface IListExpensesInput extends IPaginationInput {
   month?: string;       // "YYYY-MM" — defaults to current month
   category?: ExpenseType;
 }

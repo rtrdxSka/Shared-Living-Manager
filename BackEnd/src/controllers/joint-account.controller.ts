@@ -14,11 +14,16 @@ class JointAccountController {
 
       const householdId = req.params.id as string;
       const month = req.query.month as string | undefined;
+      const paginationInput = {
+        page: req.query.page as unknown as number | undefined,
+        limit: req.query.limit as unknown as number | undefined,
+      };
 
       const summary = await jointAccountService.getSummary(
         householdId,
         req.user.userId,
-        month
+        month,
+        paginationInput
       );
 
       res.status(200).json({ status: 'success', data: { summary } });

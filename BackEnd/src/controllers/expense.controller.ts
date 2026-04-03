@@ -37,11 +37,21 @@ class ExpenseController {
       const input: IListExpensesInput = {
         month: req.query.month as string | undefined,
         category: req.query.category as ExpenseType | undefined,
+        page: req.query.page as unknown as number | undefined,
+        limit: req.query.limit as unknown as number | undefined,
       };
 
-      const expenses = await expenseService.listExpenses(householdId, req.user.userId, input);
+      const result = await expenseService.listExpenses(householdId, req.user.userId, input);
 
-      res.status(200).json({ status: 'success', data: { expenses } });
+      res.status(200).json({
+        status: 'success',
+        data: {
+          expenses: result.items,
+          total: result.total,
+          page: result.page,
+          totalPages: result.totalPages,
+        },
+      });
     } catch (error) {
       next(error);
     }

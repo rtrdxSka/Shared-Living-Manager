@@ -1,5 +1,6 @@
 import { body, param, query, ValidationChain } from 'express-validator';
 import { TRANSACTION_TYPES, CONTRIBUTION_TARGET_MODES } from '../types/joint-account.types';
+import { paginationValidation } from './pagination.validator';
 
 const householdIdParam: ValidationChain = param('id')
   .isMongoId()
@@ -12,6 +13,8 @@ export const getSummaryValidation: ValidationChain[] = [
     .optional()
     .matches(/^\d{4}-\d{2}$/)
     .withMessage('Month must be in YYYY-MM format'),
+
+  ...paginationValidation,
 ];
 
 export const addTransactionValidation: ValidationChain[] = [

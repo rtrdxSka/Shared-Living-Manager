@@ -8,10 +8,12 @@ import {
   IAddContributionInput,
   IGoalResponse,
   IGoalContributionResponse,
-  GoalStatus,
+  IListGoalsInput,
 } from '../types/goal.types';
 import { IHouseholdMember } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
+import { IPaginatedResult } from '../types/pagination.types';
+import { parsePaginationParams, buildPaginatedResult } from '../utils/pagination';
 
 class GoalService {
   // ── Any member ────────────────────────────────────────────────────────
@@ -43,8 +45,8 @@ class GoalService {
   async listGoals(
     householdId: string,
     userId: string,
-    status?: GoalStatus
-  ): Promise<IGoalResponse[]> {
+    input: IListGoalsInput = {}
+  ): Promise<IPaginatedResult<IGoalResponse>> {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
@@ -52,11 +54,16 @@ class GoalService {
     if (!isMember) throw ForbiddenError('You are not a member of this household');
 
     const filter: Record<string, unknown> = { householdId: household._id };
-    if (status) filter.status = status;
+    if (input.status) filter.status = input.status;
 
-    const goals = await Goal.find(filter).sort({ createdAt: -1 });
+    const { page, limit, skip } = parsePaginationParams(input);
+    const [goals, total] = await Promise.all([
+      Goal.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Goal.countDocuments(filter),
+    ]);
 
-    return goals.map((goal) => this.formatGoalResponse(goal, household.members));
+    const items = goals.map((goal) => this.formatGoalResponse(goal, household.members));
+    return buildPaginatedResult(items, total, page, limit);
   }
 
   async getGoal(

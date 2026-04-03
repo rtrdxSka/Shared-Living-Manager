@@ -3,6 +3,8 @@ import { Expense } from '../models/expense.model';
 import { IAddExpenseInput, IListExpensesInput, IExpenseResponse, IExpense, IUpdateExpenseInput } from '../types/expense.types';
 import { ExpenseType } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
+import { IPaginatedResult } from '../types/pagination.types';
+import { parsePaginationParams, buildPaginatedResult } from '../utils/pagination';
 
 class ExpenseService {
   async addExpense(
@@ -65,7 +67,7 @@ class ExpenseService {
     householdId: string,
     requestingUserId: string,
     input: IListExpensesInput
-  ): Promise<IExpenseResponse[]> {
+  ): Promise<IPaginatedResult<IExpenseResponse>> {
     // 1. Find household
     const household = await Household.findById(householdId);
     if (!household) {
@@ -83,7 +85,7 @@ class ExpenseService {
     // 3. Build month range
     const { start, end } = this.buildMonthRange(input.month);
 
-    // 4. Query expenses
+    // 4. Build query filter
     const query: {
       householdId: typeof household._id;
       date: { $gte: Date; $lt: Date };
@@ -97,9 +99,14 @@ class ExpenseService {
       query.category = input.category;
     }
 
-    const expenses = await Expense.find(query).sort({ date: -1 });
+    // 5. Paginate
+    const { page, limit, skip } = parsePaginationParams(input);
+    const [expenses, total] = await Promise.all([
+      Expense.find(query).sort({ date: -1 }).skip(skip).limit(limit),
+      Expense.countDocuments(query),
+    ]);
 
-    // 5. Build nickname map
+    // 6. Build nickname map
     const nicknameMap = new Map<string, string>();
     for (const member of household.members) {
       if (member.userId) {
@@ -107,8 +114,8 @@ class ExpenseService {
       }
     }
 
-    // 6. Map to response
-    return expenses.map((expense) =>
+    // 7. Map to response
+    const items = expenses.map((expense) =>
       this.formatExpenseResponse(
         expense,
         expense.paidByUserId
@@ -116,6 +123,8 @@ class ExpenseService {
           : undefined
       )
     );
+
+    return buildPaginatedResult(items, total, page, limit);
   }
 
   private buildMonthRange(month?: string): { start: Date; end: Date } {

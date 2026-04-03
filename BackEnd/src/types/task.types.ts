@@ -1,4 +1,5 @@
 import { Document, Types } from 'mongoose';
+import { IPaginationInput } from './pagination.types';
 
 export interface ITask extends Document {
   _id: Types.ObjectId;
@@ -41,6 +42,8 @@ export interface ITaskResponse {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface IListTasksInput extends IPaginationInput {}
 
 export interface IAssignTaskInput {
   assignedToMemberId: string | null;  // null = unassign

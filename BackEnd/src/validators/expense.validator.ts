@@ -1,5 +1,6 @@
 import { body, param, query, ValidationChain } from 'express-validator';
 import { EXPENSE_TYPES } from '../types/household.types';
+import { paginationValidation } from './pagination.validator';
 
 export const addExpenseValidation: ValidationChain[] = [
   param('id')
@@ -91,4 +92,6 @@ export const listExpensesValidation: ValidationChain[] = [
     .optional()
     .isIn([...EXPENSE_TYPES])
     .withMessage('Invalid expense category'),
+
+  ...paginationValidation,
 ];

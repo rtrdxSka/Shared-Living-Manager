@@ -78,4 +78,7 @@ export interface IJointAccountSummaryResponse {
   targetMode?: ContributionTargetMode;
   memberBreakdown: IJointAccountMemberBreakdown[];
   transactions: IJointAccountTransactionResponse[];
+  transactionTotal: number;
+  transactionPage: number;
+  transactionTotalPages: number;
 }

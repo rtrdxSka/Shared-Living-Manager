@@ -1,4 +1,12 @@
 import { body, param, ValidationChain } from 'express-validator';
+import { paginationValidation } from './pagination.validator';
+
+export const listTasksValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
+  ...paginationValidation,
+];
 
 export const addTaskValidation: ValidationChain[] = [
   param('id')

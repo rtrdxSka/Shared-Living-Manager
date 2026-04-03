@@ -12,6 +12,8 @@ import {
 import { IHouseholdMember, IHouseholdResponse } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { householdService } from './household.service';
+import { IPaginationInput } from '../types/pagination.types';
+import { parsePaginationParams } from '../utils/pagination';
 
 class JointAccountService {
   // ── Get Summary ──────────────────────────────────────────────────────
@@ -19,7 +21,8 @@ class JointAccountService {
   async getSummary(
     householdId: string,
     userId: string,
-    month?: string
+    month?: string,
+    paginationInput: IPaginationInput = {}
   ): Promise<IJointAccountSummaryResponse> {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
@@ -124,11 +127,13 @@ class JointAccountService {
       };
     });
 
-    // 7. Fetch transactions for the month
-    const transactions = await JointAccountTransaction.find({
-      householdId: householdObjId,
-      createdAt: { $gte: start, $lt: end },
-    }).sort({ createdAt: -1 });
+    // 7. Fetch transactions for the month (paginated)
+    const txFilter = { householdId: householdObjId, createdAt: { $gte: start, $lt: end } };
+    const { page: txPage, limit: txLimit, skip: txSkip } = parsePaginationParams(paginationInput);
+    const [transactions, transactionTotal] = await Promise.all([
+      JointAccountTransaction.find(txFilter).sort({ createdAt: -1 }).skip(txSkip).limit(txLimit),
+      JointAccountTransaction.countDocuments(txFilter),
+    ]);
 
     const formattedTransactions: IJointAccountTransactionResponse[] = transactions.map(
       (tx) => this.formatTransactionResponse(tx, memberMap)
@@ -144,6 +149,9 @@ class JointAccountService {
       ...(config?.targetMode && { targetMode: config.targetMode }),
       memberBreakdown,
       transactions: formattedTransactions,
+      transactionTotal,
+      transactionPage: txPage,
+      transactionTotalPages: Math.ceil(transactionTotal / txLimit) || 1,
     };
   }
 
