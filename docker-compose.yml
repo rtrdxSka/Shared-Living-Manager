@@ -4,6 +4,16 @@ services:
     image: mongo:7
     container_name: splitmate-mongodb
     restart: unless-stopped
+    entrypoint:
+      - bash
+      - -c
+      - |
+        openssl rand -base64 756 > /tmp/mongo-keyfile
+        chmod 400 /tmp/mongo-keyfile
+        chown 999:999 /tmp/mongo-keyfile
+        exec docker-entrypoint.sh "$$@"
+      - --
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--keyFile", "/tmp/mongo-keyfile"]
     ports:
       - "27017:27017"
     environment:
@@ -15,11 +25,13 @@ services:
     networks:
       - splitmate-network
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      test: >-
+        mongosh -u $${MONGO_INITDB_ROOT_USERNAME} -p $${MONGO_INITDB_ROOT_PASSWORD} --authenticationDatabase admin --quiet --eval "
+        try { rs.status().myState === 1 || quit(1) } catch(e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}); quit(1) }"
+      interval: 5s
+      timeout: 10s
+      retries: 15
+      start_period: 15s
 
   # Backend API
   backend:
@@ -33,7 +45,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 5000
-      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-admin123}@mongodb:27017/${MONGO_DB_NAME:-splitmate}?authSource=admin
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-admin123}@mongodb:27017/${MONGO_DB_NAME:-splitmate}?authSource=admin&directConnection=true
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
