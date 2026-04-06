@@ -22,6 +22,7 @@ services:
       MONGO_INITDB_DATABASE: ${MONGO_DB_NAME:-splitmate}
     volumes:
       - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
     networks:
       - splitmate-network
     healthcheck:
@@ -54,7 +55,7 @@ services:
       FROM_EMAIL: ${FROM_EMAIL}
     volumes:
       - ./BackEnd/src:/app/src
-      - /app/node_modules
+      - backend_node_modules:/app/node_modules
     depends_on:
       mongodb:
         condition: service_healthy
@@ -76,7 +77,7 @@ services:
     volumes:
       - ./FrontEnd/src:/app/src
       - ./FrontEnd/public:/app/public
-      - /app/node_modules
+      - frontend_node_modules:/app/node_modules
     depends_on:
       - backend
     networks:
@@ -84,6 +85,12 @@ services:
 
 volumes:
   mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  backend_node_modules:
+    driver: local
+  frontend_node_modules:
     driver: local
 
 networks:
