@@ -18,6 +18,10 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust the first proxy hop (NGINX) so req.ip, express-rate-limit, and
+// secure cookies reflect the real client behind the reverse proxy.
+app.set('trust proxy', 1);
+
 // ── Security middleware ───────────────────────────────────────────────
 app.use(helmet());
 app.use(cookieParser());
@@ -82,7 +86,7 @@ const startServer = async () => {
     startRecurringScheduler();
     startRecurringTaskScheduler();
 
-    app.listen(PORT, () => {
+    app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🔐 Environment: ${process.env.NODE_ENV}`);
       console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
