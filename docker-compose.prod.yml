@@ -30,6 +30,8 @@ services:
       - mongodb_config:/data/configdb
     networks:
       - splitmate-net
+    ports:
+      - "27017:27017"
     # MongoDB is NOT exposed to the host — backend reaches it on the
     # internal Docker network only.
     healthcheck:
