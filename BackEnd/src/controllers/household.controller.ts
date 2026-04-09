@@ -128,6 +128,15 @@ class HouseholdController {
     } catch (error) { next(error); }
   }
 
+  // PATCH /api/households/:id/invite-code
+  async regenerateInviteCode(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) { res.status(401).json({ status: 'error', message: 'Unauthorized' }); return; }
+      const household = await householdService.regenerateInviteCode(req.params.id as string, req.user.userId);
+      res.status(200).json({ status: 'success', data: { household } });
+    } catch (error) { next(error); }
+  }
+
   // PATCH /api/households/:id/members/me/income
   async updateMemberIncome(
     req: AuthRequest,

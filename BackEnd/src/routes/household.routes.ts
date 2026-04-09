@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { householdController } from '../controllers/household.controller';
-import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation } from '../validators/household.validator';
+import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation, regenerateInviteCodeValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
@@ -70,6 +70,16 @@ router.post(
   recordSettlementValidation,
   handleValidationErrors,
   householdController.recordSettlement.bind(householdController)
+);
+
+// PATCH /api/households/:id/invite-code — Regenerate invite code (admin/owner only)
+router.patch(
+  '/:id/invite-code',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  regenerateInviteCodeValidation,
+  handleValidationErrors,
+  householdController.regenerateInviteCode.bind(householdController)
 );
 
 router.use('/:id/expenses', expenseRouter);

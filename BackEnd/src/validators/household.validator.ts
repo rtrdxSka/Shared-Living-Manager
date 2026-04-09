@@ -350,6 +350,12 @@ export const updateMemberIncomeValidation: ValidationChain[] = [
     .withMessage('Income must be between 0 and 1,000,000'),
 ];
 
+// ── Regenerate Invite Code Validation ────────────────────────────────
+
+export const regenerateInviteCodeValidation: ValidationChain[] = [
+  param('id').isMongoId().withMessage('Invalid household ID'),
+];
+
 // ── Record Settlement Validation ──────────────────────────────────────
 
 export const recordSettlementValidation: ValidationChain[] = [

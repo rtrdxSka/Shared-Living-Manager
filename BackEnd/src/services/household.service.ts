@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { User } from '../models/user.model';
 import { Household } from '../models/household.model';
 import {
@@ -275,6 +276,24 @@ class HouseholdService {
       throw ForbiddenError('You are not a member of this household');
     }
 
+    return this.formatHouseholdResponse(household);
+  }
+
+  // ── Regenerate Invite Code ───────────────────────────────────────────
+
+  async regenerateInviteCode(householdId: string, requestingUserId: string): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const member = household.members.find(
+      (m) => m.userId?.toString() === requestingUserId
+    );
+    if (!member) throw ForbiddenError('You are not a member of this household');
+    if (member.role !== 'owner' && member.role !== 'admin')
+      throw ForbiddenError('Only admins can regenerate the invite code');
+
+    household.inviteCode = crypto.randomUUID();
+    await household.save();
     return this.formatHouseholdResponse(household);
   }
 
