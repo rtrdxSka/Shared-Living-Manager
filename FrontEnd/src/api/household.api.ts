@@ -49,4 +49,11 @@ export const householdApi = {
     );
     return data.data.household;
   },
+
+  async regenerateInviteCode(householdId: string): Promise<HouseholdResponse> {
+    const { data } = await api.patch<ApiSuccessResponse<{ household: HouseholdResponse }>>(
+      `/households/${householdId}/invite-code`
+    );
+    return data.data.household;
+  },
 };

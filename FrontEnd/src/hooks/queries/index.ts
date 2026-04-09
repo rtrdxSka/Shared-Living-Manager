@@ -3,6 +3,7 @@ export {
   useUpdateSettings,
   useUpdateIncome,
   useRecordSettlement,
+  useRegenerateInviteCode,
 } from './useHouseholdQueries';
 
 export {

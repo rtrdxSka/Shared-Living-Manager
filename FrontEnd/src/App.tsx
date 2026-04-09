@@ -22,6 +22,7 @@ import ExpensesPage from '@/pages/dashboard/ExpensesPage';
 import TasksPage from '@/pages/dashboard/TasksPage';
 import GoalsPage from '@/pages/dashboard/GoalsPage';
 import AccountPage from '@/pages/dashboard/AccountPage';
+import InvitePage from '@/pages/dashboard/InvitePage';
 
 // Layout for all public/non-dashboard pages (keeps the top navbar)
 function PublicLayout() {
@@ -69,6 +70,7 @@ export default function App() {
                   <Route path="tasks" element={<TasksPage />} />
                   <Route path="goals" element={<GoalsPage />} />
                   <Route path="account" element={<AccountPage />} />
+                  <Route path="invite" element={<InvitePage />} />
                 </Route>
               </Route>
 

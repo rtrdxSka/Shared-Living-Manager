@@ -48,3 +48,14 @@ export function useRecordSettlement(householdId: string) {
     },
   });
 }
+
+export function useRegenerateInviteCode(householdId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => householdApi.regenerateInviteCode(householdId),
+    onSuccess: (updated: HouseholdResponse) => {
+      queryClient.setQueryData(queryKeys.household.detail(householdId), updated);
+    },
+  });
+}
