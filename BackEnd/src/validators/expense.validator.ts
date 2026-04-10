@@ -85,8 +85,8 @@ export const listExpensesValidation: ValidationChain[] = [
 
   query('month')
     .optional()
-    .matches(/^\d{4}-(0[1-9]|1[0-2])$/)
-    .withMessage('month must be in YYYY-MM format'),
+    .matches(/^(\d{4}-(0[1-9]|1[0-2])|all)$/)
+    .withMessage('month must be in YYYY-MM format or "all"'),
 
   query('category')
     .optional()
