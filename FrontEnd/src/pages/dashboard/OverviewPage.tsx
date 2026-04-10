@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useDashboard } from '@/contexts/DashboardContext';
@@ -10,7 +10,11 @@ import {
   fmt,
   CATEGORY_CHIP_CLASSES,
   currentMonthString,
+  stepMonth,
+  formatMonthLabel,
 } from '@/utils/dashboardHelpers';
+
+type ViewMode = 'current' | 'month' | 'all';
 
 export default function OverviewPage() {
   const navigate = useNavigate();
@@ -36,15 +40,20 @@ export default function OverviewPage() {
     splitMethod: _splitMethod,
   } = useDashboard();
 
-  const currentMonth = currentMonthString();
+  const [viewMode, setViewMode] = useState<ViewMode>('current');
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthString);
 
-  const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, currentMonth);
+  const effectiveMonth =
+    viewMode === 'current' ? currentMonthString() :
+    viewMode === 'month'   ? selectedMonth         : 'all';
+
+  const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, effectiveMonth);
   const expenses = expensesData?.expenses ?? [];
 
   const { data: jointAccountData } = useJointAccountSummary(
     household._id,
-    currentMonth,
-    financeMode === 'joint'
+    effectiveMonth,
+    financeMode === 'joint' && effectiveMonth !== 'all'
   );
   const jointAccount = jointAccountData ?? null;
 
@@ -63,6 +72,42 @@ export default function OverviewPage() {
         <IncomeEntryCard household={household} currentUserId={currentUserId} />
       )}
 
+      {/* Period filter */}
+      <div className="flex items-center flex-wrap gap-2">
+        {(['current', 'month', 'all'] as ViewMode[]).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              viewMode === mode
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-transparent hover:bg-muted'
+            }`}
+          >
+            {mode === 'current' ? 'This Month' : mode === 'month' ? 'Month' : 'All Time'}
+          </button>
+        ))}
+        {viewMode === 'month' && (
+          <div className="flex items-center gap-1 ml-1">
+            <button
+              onClick={() => setSelectedMonth((m) => stepMonth(m, 'prev'))}
+              className="rounded p-1 hover:bg-muted"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-medium min-w-[110px] text-center">
+              {formatMonthLabel(selectedMonth)}
+            </span>
+            <button
+              onClick={() => setSelectedMonth((m) => stepMonth(m, 'next'))}
+              className="rounded p-1 hover:bg-muted"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
       <StatsRow
         financeMode={financeMode}
         splitMethod={splitMethod}
@@ -74,7 +119,7 @@ export default function OverviewPage() {
         expenses={expenses}
         myParticipatesInFinances={myParticipatesInFinances}
         hasFinancialPartner={hasFinancialPartner}
-        currentMonth={currentMonth}
+        currentMonth={effectiveMonth}
         onSettleUp={handleSettleUp}
         household={household}
       />
@@ -158,12 +203,23 @@ function StatsRow({
     .reduce((s, e) => s + e.amount, 0);
   const partnerPaidTotal = totalAmount - myPaidTotal;
 
+  const periodLabel = currentMonth === 'all' ? 'all time' : 'this month';
+
+  if (currentMonth === 'all') {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard label="Total Spent" value={`${fmt(totalAmount)} ${currency}`} sub={periodLabel} />
+        <StatCard label="Expenses" value={String(expenses.length)} sub={periodLabel} />
+      </div>
+    );
+  }
+
   if (financeMode === 'joint') {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Total Spent" value={`${fmt(totalAmount)} ${currency}`} sub="this month" />
+        <StatCard label="Total Spent" value={`${fmt(totalAmount)} ${currency}`} sub={periodLabel} />
         <StatCard label="Per Person" value={`~${fmt(totalAmount / 2)} ${currency}`} sub="each" />
-        <StatCard label="Expenses" value={String(expenses.length)} sub="this month" />
+        <StatCard label="Expenses" value={String(expenses.length)} sub={periodLabel} />
       </div>
     );
   }
@@ -174,7 +230,7 @@ function StatsRow({
       : 'No financial partner found.';
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <StatCard label="Total Spent" value={`${fmt(totalAmount)} ${currency}`} sub="this month" />
+        <StatCard label="Total Spent" value={`${fmt(totalAmount)} ${currency}`} sub={periodLabel} />
         <StatCard label="Expenses" value={String(expenses.length)} sub={note} />
       </div>
     );

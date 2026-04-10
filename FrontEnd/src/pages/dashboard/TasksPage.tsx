@@ -165,7 +165,9 @@ function TaskRow({
 }: TaskRowProps) {
   const {
     myMemberId,
+    isAdmin,
     myNickname,
+    currentUserId,
     distribution,
     taskMembers,
     rotationStatus,
@@ -179,6 +181,15 @@ function TaskRow({
 
   const dueDateStatus = getDueDateStatus(task.dueDate, task.isCompleted);
   const isConfirmingThisDelete = confirmingDelete === task._id;
+
+  const canUndo =
+    !task.isCompleted ||
+    isAdmin ||
+    (task.completedByMemberId === myMemberId &&
+      task.completedAt != null &&
+      Date.now() - new Date(task.completedAt).getTime() < 86_400_000);
+
+  const canReassign = isAdmin || task.createdByUserId === currentUserId;
 
   async function handleToggleComplete(e: React.MouseEvent) {
     e.stopPropagation();
@@ -217,36 +228,44 @@ function TaskRow({
         onClick={() => onToggleExpand(task._id)}
       >
         {/* Checkbox */}
-        <span
-          role="checkbox"
-          aria-checked={task.isCompleted}
-          onClick={handleToggleComplete}
-          className={cn(
-            'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-            task.isCompleted
-              ? 'border-primary bg-primary'
-              : 'border-muted-foreground/40 hover:border-primary',
-            completePending && 'opacity-50 pointer-events-none'
-          )}
-        >
-          {completePending ? (
-            <Loader2 className="h-2.5 w-2.5 animate-spin text-primary-foreground" />
-          ) : task.isCompleted ? (
-            <svg
-              className="h-2.5 w-2.5 text-primary-foreground"
-              viewBox="0 0 12 12"
-              fill="none"
-            >
-              <path
-                d="M2 6l3 3 5-5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+        {task.isCompleted && !canUndo ? (
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-primary bg-primary">
+            <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          ) : null}
-        </span>
+          </span>
+        ) : (
+          <span
+            role="checkbox"
+            aria-checked={task.isCompleted}
+            onClick={handleToggleComplete}
+            className={cn(
+              'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+              task.isCompleted
+                ? 'border-primary bg-primary'
+                : 'border-muted-foreground/40 hover:border-primary',
+              completePending && 'opacity-50 pointer-events-none'
+            )}
+          >
+            {completePending ? (
+              <Loader2 className="h-2.5 w-2.5 animate-spin text-primary-foreground" />
+            ) : task.isCompleted ? (
+              <svg
+                className="h-2.5 w-2.5 text-primary-foreground"
+                viewBox="0 0 12 12"
+                fill="none"
+              >
+                <path
+                  d="M2 6l3 3 5-5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : null}
+          </span>
+        )}
 
         {/* Title */}
         <span
@@ -346,11 +365,17 @@ function TaskRow({
                   onAssign={assignTask}
                 />
               ) : distribution === 'fixed' ? (
-                <AssignSelect
-                  task={task}
-                  taskMembers={taskMembers}
-                  onAssign={assignTask}
-                />
+                canReassign ? (
+                  <AssignSelect
+                    task={task}
+                    taskMembers={taskMembers}
+                    onAssign={assignTask}
+                  />
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {task.assignedToNickname ? `Assigned to ${task.assignedToNickname}` : 'Unassigned'}
+                  </span>
+                )
               ) : (
                 /* ai or other */
                 <span className="text-xs text-muted-foreground">
