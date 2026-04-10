@@ -151,6 +151,18 @@ class TaskService {
     const task = await Task.findOne({ _id: taskId, householdId: household._id });
     if (!task) throw NotFoundError('Task not found');
 
+    if (task.isCompleted) {
+      const isAdmin = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+      const isCompleter = task.completedByMemberId?.toString() === requesterMember._id.toString();
+      const withinOneDay =
+        task.completedAt != null && Date.now() - task.completedAt.getTime() < 86_400_000;
+      if (!isAdmin && !(isCompleter && withinOneDay)) {
+        throw ForbiddenError(
+          'Only the admin or the person who completed this task can undo it within 24 hours'
+        );
+      }
+    }
+
     task.isCompleted = !task.isCompleted;
     if (task.isCompleted) {
       task.completedAt = new Date();
@@ -226,6 +238,13 @@ class TaskService {
     if (!task) throw NotFoundError('Task not found');
 
     const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+
+    if (household.settings.taskDistributionMethod === 'fixed') {
+      const isCreator = task.createdByUserId.toString() === userId;
+      if (!isAdminOrOwner && !isCreator) {
+        throw ForbiddenError('Only the task creator or an admin can reassign tasks');
+      }
+    }
 
     if (input.assignedToMemberId !== null) {
       // Regular members can only assign tasks to themselves

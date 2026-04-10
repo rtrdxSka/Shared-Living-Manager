@@ -82,18 +82,19 @@ class ExpenseService {
       throw ForbiddenError('You are not a member of this household');
     }
 
-    // 3. Build month range
-    const { start, end } = this.buildMonthRange(input.month);
-
-    // 4. Build query filter
+    // 3. Build query filter
     const query: {
       householdId: typeof household._id;
-      date: { $gte: Date; $lt: Date };
+      date?: { $gte: Date; $lt: Date };
       category?: ExpenseType;
     } = {
       householdId: household._id,
-      date: { $gte: start, $lt: end },
     };
+
+    if (input.month !== 'all') {
+      const { start, end } = this.buildMonthRange(input.month);
+      query.date = { $gte: start, $lt: end };
+    }
 
     if (input.category) {
       query.category = input.category;
