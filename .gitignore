@@ -45,3 +45,6 @@ temp/
 *.pem
 *.key
 *.cert
+certs/openssl.cnf
+.gitignore
+.env.prod
