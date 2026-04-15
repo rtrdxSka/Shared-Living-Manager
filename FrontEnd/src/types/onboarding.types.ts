@@ -44,7 +44,6 @@ export const EXPENSE_SPLIT_METHODS = [
   'equal',
   'income_based',
   'usage_based',
-  'shapley',
   'custom',
 ] as const;
 
@@ -79,7 +78,6 @@ export type TaskManagementLevel = (typeof TASK_MANAGEMENT_LEVELS)[number];
 export const TASK_DISTRIBUTION_METHODS = [
   'rotation',
   'fixed',
-  'ai',
   'voluntary',
 ] as const;
 
@@ -242,12 +240,6 @@ export const EXPENSE_SPLIT_METHOD_OPTIONS: SelectOption<ExpenseSplitMethod>[] =
       description: 'Expenses are distributed by actual usage',
     },
     {
-      value: 'shapley',
-      label: 'Mathematically fair',
-      description:
-        'Shapley Value — an algorithm for optimally fair distribution',
-    },
-    {
       value: 'custom',
       label: 'Custom',
       description: 'Manually set a percentage or amount for each member',
@@ -302,12 +294,6 @@ export const TASK_DISTRIBUTION_OPTIONS: SelectOption<TaskDistributionMethod>[] =
       description: 'Each member has permanent tasks',
     },
     {
-      value: 'ai',
-      label: 'AI optimized',
-      description:
-        'Intelligent distribution based on preferences and workload',
-    },
-    {
       value: 'voluntary',
       label: 'Voluntary',
       description: 'Tasks are posted and anyone can claim them',
@@ -359,7 +345,7 @@ export function getAvailableSplitMethods(
     case 'couple':
       return ['equal', 'income_based', 'custom'];
     default:
-      return ['equal', 'income_based', 'usage_based', 'shapley', 'custom'];
+      return ['equal', 'income_based', 'usage_based', 'custom'];
   }
 }
 
@@ -382,7 +368,7 @@ export function getAvailableDistributionMethods(
     case 'couple':
       return ['rotation', 'fixed', 'voluntary'];
     default:
-      return ['rotation', 'fixed', 'ai', 'voluntary'];
+      return ['rotation', 'fixed', 'voluntary'];
   }
 }
 

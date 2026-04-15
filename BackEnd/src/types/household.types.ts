@@ -47,7 +47,6 @@ export const EXPENSE_SPLIT_METHODS = [
   'equal',
   'income_based',
   'usage_based',
-  'shapley',
   'custom',
 ] as const;
 
@@ -82,7 +81,6 @@ export type TaskManagementLevel = (typeof TASK_MANAGEMENT_LEVELS)[number];
 export const TASK_DISTRIBUTION_METHODS = [
   'rotation',
   'fixed',
-  'ai',
   'voluntary',
 ] as const;
 
