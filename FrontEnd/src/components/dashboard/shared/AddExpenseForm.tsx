@@ -57,6 +57,7 @@ export default function AddExpenseForm({
   const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : todayISO());
   const [paidByUserId, setPaidByUserId] = useState(expense?.paidByUserId ?? '');
   const [notes, setNotes] = useState(expense?.notes ?? '');
+  const [splitMode, setSplitMode] = useState<'default' | 'full'>(expense?.isFullRepayment ? 'full' : 'default');
   const [error, setError] = useState<string | null>(null);
 
   // Recurring state (not available in edit mode)
@@ -79,6 +80,7 @@ export default function AddExpenseForm({
       setDate(expense.date.slice(0, 10));
       setPaidByUserId(expense.paidByUserId ?? '');
       setNotes(expense.notes ?? '');
+      setSplitMode(expense.isFullRepayment ? 'full' : 'default');
       setError(null);
     }
   }, [expense?._id]);
@@ -95,6 +97,7 @@ export default function AddExpenseForm({
     setDate(todayISO());
     setPaidByUserId('');
     setNotes('');
+    setSplitMode('default');
     setIsRecurring(false);
     setInterval('monthly');
     setPayerMode('open_to_claim');
@@ -115,6 +118,7 @@ export default function AddExpenseForm({
             date,
             paidByUserId: paidByUserId || null,
             notes: notes.trim() || undefined,
+            isFullRepayment: splitMode === 'full',
           },
         });
       } else if (isRecurring) {
@@ -126,6 +130,7 @@ export default function AddExpenseForm({
           interval,
           payerMode,
           ...(payerMode === 'fixed' && paidByUserId ? { fixedPayerUserId: paidByUserId } : {}),
+          isFullRepayment: splitMode === 'full',
         });
       } else {
         const input: AddExpenseInput = {
@@ -135,6 +140,7 @@ export default function AddExpenseForm({
           date,
           ...(paidByUserId && { paidByUserId }),
           ...(notes.trim() && { notes: notes.trim() }),
+          isFullRepayment: splitMode === 'full',
         };
         await addExpenseMutation.mutateAsync(input);
       }
@@ -328,6 +334,20 @@ export default function AddExpenseForm({
               </Select>
             </div>
           )}
+
+          {/* Split */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Split</label>
+            <Select value={splitMode} onValueChange={(v) => setSplitMode(v as 'default' | 'full')} disabled={submitting}>
+              <SelectTrigger className={selectClass}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default (household method)</SelectItem>
+                <SelectItem value="full">Full repayment by other member</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Notes */}
           <div className="flex flex-col gap-1.5">

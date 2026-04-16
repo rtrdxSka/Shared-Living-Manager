@@ -182,12 +182,16 @@ function TaskRow({
   const dueDateStatus = getDueDateStatus(task.dueDate, task.isCompleted);
   const isConfirmingThisDelete = confirmingDelete === task._id;
 
+  const pastOneDay =
+    task.isCompleted &&
+    task.completedAt != null &&
+    Date.now() - new Date(task.completedAt).getTime() >= 86_400_000;
+
   const canUndo =
     !task.isCompleted ||
-    isAdmin ||
-    (task.completedByMemberId === myMemberId &&
-      task.completedAt != null &&
-      Date.now() - new Date(task.completedAt).getTime() < 86_400_000);
+    (!pastOneDay &&
+      (isAdmin ||
+        (task.completedByMemberId === myMemberId && task.completedAt != null)));
 
   const canReassign = isAdmin || task.createdByUserId === currentUserId;
 
@@ -227,44 +231,48 @@ function TaskRow({
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
         onClick={() => onToggleExpand(task._id)}
       >
-        {/* Checkbox */}
-        {task.isCompleted && !canUndo ? (
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-primary bg-primary">
-            <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-        ) : (
-          <span
-            role="checkbox"
-            aria-checked={task.isCompleted}
-            onClick={handleToggleComplete}
-            className={cn(
-              'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-              task.isCompleted
-                ? 'border-primary bg-primary'
-                : 'border-muted-foreground/40 hover:border-primary',
-              completePending && 'opacity-50 pointer-events-none'
-            )}
-          >
-            {completePending ? (
-              <Loader2 className="h-2.5 w-2.5 animate-spin text-primary-foreground" />
-            ) : task.isCompleted ? (
-              <svg
-                className="h-2.5 w-2.5 text-primary-foreground"
-                viewBox="0 0 12 12"
-                fill="none"
+        {/* Checkbox — hidden once task has been completed for >24h */}
+        {!pastOneDay && (
+          <>
+            {task.isCompleted && !canUndo ? (
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-primary bg-primary">
+                <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            ) : (
+              <span
+                role="checkbox"
+                aria-checked={task.isCompleted}
+                onClick={handleToggleComplete}
+                className={cn(
+                  'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+                  task.isCompleted
+                    ? 'border-primary bg-primary'
+                    : 'border-muted-foreground/40 hover:border-primary',
+                  completePending && 'opacity-50 pointer-events-none'
+                )}
               >
-                <path
-                  d="M2 6l3 3 5-5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            ) : null}
-          </span>
+                {completePending ? (
+                  <Loader2 className="h-2.5 w-2.5 animate-spin text-primary-foreground" />
+                ) : task.isCompleted ? (
+                  <svg
+                    className="h-2.5 w-2.5 text-primary-foreground"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                  >
+                    <path
+                      d="M2 6l3 3 5-5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : null}
+              </span>
+            )}
+          </>
         )}
 
         {/* Title */}
@@ -391,21 +399,23 @@ function TaskRow({
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Mark done / incomplete */}
-            <Button
-              variant={task.isCompleted ? 'outline' : 'default'}
-              size="sm"
-              onClick={handleToggleComplete}
-              disabled={completePending}
-            >
-              {completePending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : task.isCompleted ? (
-                'Mark as incomplete'
-              ) : (
-                'Mark as done'
-              )}
-            </Button>
+            {/* Mark done / incomplete — "Mark as incomplete" hidden once past 24h */}
+            {(!task.isCompleted || !pastOneDay) && (
+              <Button
+                variant={task.isCompleted ? 'outline' : 'default'}
+                size="sm"
+                onClick={handleToggleComplete}
+                disabled={completePending || (task.isCompleted && !canUndo)}
+              >
+                {completePending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : task.isCompleted ? (
+                  'Mark as incomplete'
+                ) : (
+                  'Mark as done'
+                )}
+              </Button>
+            )}
 
             {/* Delete — two-step inline confirmation */}
             {!isConfirmingThisDelete ? (

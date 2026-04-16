@@ -13,6 +13,7 @@ export interface ExpenseResponse {
   notes?: string;
   recurringExpenseId?: string;
   isResolved: boolean;
+  isFullRepayment: boolean;
   resolvedAt?: string;
   resolvedByUserId?: string;
   createdAt: string;
@@ -26,6 +27,7 @@ export interface AddExpenseInput {
   date: string; // "YYYY-MM-DD"
   notes?: string;
   paidByUserId?: string;
+  isFullRepayment?: boolean;
 }
 
 export interface UpdateExpenseInput {
@@ -35,4 +37,5 @@ export interface UpdateExpenseInput {
   date?: string;
   notes?: string;
   paidByUserId?: string | null;
+  isFullRepayment?: boolean;
 }

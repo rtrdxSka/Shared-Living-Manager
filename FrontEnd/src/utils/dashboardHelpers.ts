@@ -106,9 +106,15 @@ export function getMyShareLabel(
   splitMethod: string,
   customMyPct: number,
   incomeSplit: { myPct: number; partnerPct: number } | null,
-  currency: string
+  currency: string,
+  myNickname: string
 ): string {
   const { amount } = expense;
+  if (expense.isFullRepayment) {
+    if (!expense.paidByNickname) return `Full repayment (payer not set)`;
+    const myShare = expense.paidByNickname === myNickname ? 0 : amount;
+    return `Your share: ${myShare.toFixed(2)} ${currency} (full repayment)`;
+  }
   if (splitMethod === 'equal') {
     return `Your share: ${(amount / 2).toFixed(2)} ${currency}`;
   }

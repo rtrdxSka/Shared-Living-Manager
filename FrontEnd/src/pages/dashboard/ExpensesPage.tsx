@@ -179,6 +179,7 @@ export default function ExpensesPage() {
                     incomeSplit={incomeSplit}
                     currency={currency}
                     currentUserId={currentUserId}
+                    myNickname={myNickname}
                     partnerNickname={partnerNickname}
                     myParticipatesInFinances={myParticipatesInFinances}
                     hasFinancialPartner={hasFinancialPartner}
@@ -189,12 +190,14 @@ export default function ExpensesPage() {
               {/* Balance summary for split mode */}
               {financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && (() => {
                 const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
-                const unresolvedTotal = unresolvedPaid.reduce((s, e) => s + e.amount, 0);
                 const myPaidUnresolved = unresolvedPaid.filter((e) => e.paidByNickname === myNickname).reduce((s, e) => s + e.amount, 0);
-                let myShare = 0;
-                if (splitMethod === 'equal') myShare = unresolvedTotal * 0.5;
-                else if (splitMethod === 'income_based' && incomeSplit) myShare = unresolvedTotal * (incomeSplit.myPct / 100);
-                else myShare = unresolvedTotal * (customMyPct / 100);
+                const myShare = unresolvedPaid.reduce((s, e) => {
+                  if (e.isFullRepayment) {
+                    return s + (e.paidByNickname === myNickname ? 0 : e.amount);
+                  }
+                  const myPct = splitMethod === 'equal' ? 0.5 : splitMethod === 'income_based' && incomeSplit ? incomeSplit.myPct / 100 : customMyPct / 100;
+                  return s + e.amount * myPct;
+                }, 0);
                 const balance = myPaidUnresolved - myShare;
                 if (unresolvedPaid.length === 0) return null;
                 return (
@@ -265,6 +268,7 @@ function ExpenseRow({
   incomeSplit,
   currency,
   currentUserId,
+  myNickname,
   myParticipatesInFinances,
   hasFinancialPartner,
 }: {
@@ -284,6 +288,7 @@ function ExpenseRow({
   incomeSplit: { myPct: number; partnerPct: number } | null;
   currency: string;
   currentUserId: string;
+  myNickname: string;
   partnerNickname: string;
   myParticipatesInFinances: boolean;
   hasFinancialPartner: boolean;
@@ -356,10 +361,16 @@ function ExpenseRow({
                 <span className="text-sm">{expense.notes}</span>
               </>
             )}
+            {expense.isFullRepayment && (
+              <>
+                <span className="text-muted-foreground">Split</span>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 w-fit">Full repayment</span>
+              </>
+            )}
             {financeMode === 'split' && myParticipatesInFinances && expense.paidByUserId && (
               <>
                 <span className="text-muted-foreground">Your share</span>
-                <span>{getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency)}</span>
+                <span>{getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency, myNickname)}</span>
               </>
             )}
           </div>

@@ -19,6 +19,7 @@ export interface RecurringExpenseResponse {
   fixedPayerUserId?: string;
   fixedPayerNickname?: string;
   isActive: boolean;
+  isFullRepayment: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,6 +32,7 @@ export interface CreateRecurringExpenseInput {
   interval: RecurrenceInterval;
   payerMode: PayerMode;
   fixedPayerUserId?: string;
+  isFullRepayment?: boolean;
 }
 
 export interface UpdateRecurringExpenseInput {
@@ -41,4 +43,5 @@ export interface UpdateRecurringExpenseInput {
   interval?: RecurrenceInterval;
   payerMode?: PayerMode;
   fixedPayerUserId?: string;
+  isFullRepayment?: boolean;
 }

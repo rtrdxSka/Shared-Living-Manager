@@ -238,14 +238,16 @@ function StatsRow({
 
   // Split mode — balance uses only unresolved paid expenses
   const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
-  const unresolvedTotal = unresolvedPaid.reduce((s, e) => s + e.amount, 0);
   const myUnresolvedPaid = unresolvedPaid
     .filter((e) => e.paidByNickname === myNickname)
     .reduce((s, e) => s + e.amount, 0);
-  let myShare = 0;
-  if (splitMethod === 'equal') myShare = unresolvedTotal * 0.5;
-  else if (splitMethod === 'income_based' && incomeSplit) myShare = unresolvedTotal * (incomeSplit.myPct / 100);
-  else myShare = unresolvedTotal * (customMyPct / 100);
+  const myShare = unresolvedPaid.reduce((s, e) => {
+    if (e.isFullRepayment) {
+      return s + (e.paidByNickname === myNickname ? 0 : e.amount);
+    }
+    const myPct = splitMethod === 'equal' ? 0.5 : splitMethod === 'income_based' && incomeSplit ? incomeSplit.myPct / 100 : customMyPct / 100;
+    return s + e.amount * myPct;
+  }, 0);
   const balance = myUnresolvedPaid - myShare;
   const balancePositive = balance > 0;
 
