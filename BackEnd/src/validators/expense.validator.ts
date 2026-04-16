@@ -43,6 +43,12 @@ export const addExpenseValidation: ValidationChain[] = [
     .optional()
     .isMongoId()
     .withMessage('Invalid paidByUserId'),
+
+  body('isFullRepayment')
+    .optional()
+    .isBoolean()
+    .toBoolean()
+    .withMessage('isFullRepayment must be a boolean'),
 ];
 
 export const claimExpenseValidation: ValidationChain[] = [
@@ -76,6 +82,11 @@ export const updateExpenseValidation: ValidationChain[] = [
   body('paidByUserId').optional({ nullable: true })
     .if((value: unknown) => value !== null).isMongoId()
     .withMessage('Invalid paidByUserId'),
+  body('isFullRepayment')
+    .optional()
+    .isBoolean()
+    .toBoolean()
+    .withMessage('isFullRepayment must be a boolean'),
 ];
 
 export const listExpensesValidation: ValidationChain[] = [

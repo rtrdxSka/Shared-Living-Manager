@@ -49,6 +49,12 @@ export const createRecurringExpenseValidation: ValidationChain[] = [
     .optional()
     .isMongoId()
     .withMessage('Invalid fixedPayerUserId'),
+
+  body('isFullRepayment')
+    .optional()
+    .isBoolean()
+    .toBoolean()
+    .withMessage('isFullRepayment must be a boolean'),
 ];
 
 export const updateRecurringExpenseValidation: ValidationChain[] = [
@@ -90,4 +96,10 @@ export const updateRecurringExpenseValidation: ValidationChain[] = [
     .optional()
     .isMongoId()
     .withMessage('Invalid fixedPayerUserId'),
+
+  body('isFullRepayment')
+    .optional()
+    .isBoolean()
+    .toBoolean()
+    .withMessage('isFullRepayment must be a boolean'),
 ];

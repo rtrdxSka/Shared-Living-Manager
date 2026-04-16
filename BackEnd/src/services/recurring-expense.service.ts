@@ -28,6 +28,7 @@ class RecurringExpenseService {
       ...(template.fixedPayerUserId && { fixedPayerUserId: template.fixedPayerUserId.toString() }),
       ...(fixedPayerNickname && { fixedPayerNickname }),
       isActive: template.isActive,
+      isFullRepayment: template.isFullRepayment,
       createdAt: template.createdAt.toISOString(),
       updatedAt: template.updatedAt.toISOString(),
     };
@@ -78,6 +79,7 @@ class RecurringExpenseService {
       interval: input.interval,
       payerMode: input.payerMode,
       ...(input.fixedPayerUserId && { fixedPayerUserId: input.fixedPayerUserId }),
+      isFullRepayment: input.isFullRepayment ?? false,
     });
 
     return this.formatResponse(template, fixedPayerNickname);
@@ -165,6 +167,7 @@ class RecurringExpenseService {
     if (input.fixedPayerUserId !== undefined) {
       template.fixedPayerUserId = input.fixedPayerUserId as unknown as typeof template.fixedPayerUserId;
     }
+    if (input.isFullRepayment !== undefined) template.isFullRepayment = input.isFullRepayment;
 
     await template.save();
 
@@ -267,6 +270,7 @@ class RecurringExpenseService {
           ...(template.payerMode === 'fixed' && template.fixedPayerUserId
             ? { paidByUserId: template.fixedPayerUserId }
             : {}),
+          isFullRepayment: template.isFullRepayment,
         });
       } catch (err) {
         console.error(`Failed to generate instance for recurring expense ${template._id.toString()}:`, err);

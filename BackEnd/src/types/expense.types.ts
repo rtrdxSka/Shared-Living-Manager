@@ -14,6 +14,7 @@ export interface IExpense extends Document {
   notes?: string;
   recurringExpenseId?: Types.ObjectId;
   isResolved: boolean;
+  isFullRepayment: boolean;
   resolvedAt?: Date;
   resolvedByUserId?: Types.ObjectId;
   createdAt: Date;
@@ -27,6 +28,7 @@ export interface IAddExpenseInput {
   date: string;         // "YYYY-MM-DD" from client
   notes?: string;
   paidByUserId?: string;
+  isFullRepayment?: boolean;
 }
 
 export interface IListExpensesInput extends IPaginationInput {
@@ -47,6 +49,7 @@ export interface IExpenseResponse {
   notes?: string;
   recurringExpenseId?: string;
   isResolved: boolean;
+  isFullRepayment: boolean;
   resolvedAt?: string;
   resolvedByUserId?: string;
   createdAt: string;
@@ -60,6 +63,7 @@ export interface IUpdateExpenseInput {
   date?: string;      // "YYYY-MM-DD"
   notes?: string;
   paidByUserId?: string | null;
+  isFullRepayment?: boolean;
 }
 
 export interface IClaimExpenseInput {

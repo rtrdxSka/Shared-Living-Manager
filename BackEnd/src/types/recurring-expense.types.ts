@@ -19,6 +19,7 @@ export interface IRecurringExpense extends Document {
   payerMode: PayerMode;
   fixedPayerUserId?: Types.ObjectId;
   isActive: boolean;
+  isFullRepayment: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +32,7 @@ export interface ICreateRecurringExpenseInput {
   interval: RecurrenceInterval;
   payerMode: PayerMode;
   fixedPayerUserId?: string; // required when payerMode === 'fixed'
+  isFullRepayment?: boolean;
 }
 
 export interface IUpdateRecurringExpenseInput {
@@ -41,6 +43,7 @@ export interface IUpdateRecurringExpenseInput {
   interval?: RecurrenceInterval;
   payerMode?: PayerMode;
   fixedPayerUserId?: string;
+  isFullRepayment?: boolean;
 }
 
 export interface IRecurringExpenseResponse {
@@ -56,6 +59,7 @@ export interface IRecurringExpenseResponse {
   fixedPayerUserId?: string;
   fixedPayerNickname?: string; // resolved from household members
   isActive: boolean;
+  isFullRepayment: boolean;
   createdAt: string;
   updatedAt: string;
 }

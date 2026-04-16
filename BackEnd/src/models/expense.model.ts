@@ -18,6 +18,7 @@ const expenseSchema = new Schema<IExpense>(
     date: { type: Date, required: true },
     notes: { type: String, trim: true, maxlength: 500, default: undefined },
     isResolved: { type: Boolean, default: false },
+    isFullRepayment: { type: Boolean, required: true, default: false },
     resolvedAt: { type: Date, default: undefined },
     resolvedByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
   },

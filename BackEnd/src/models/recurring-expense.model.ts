@@ -26,6 +26,7 @@ const recurringExpenseSchema = new Schema<IRecurringExpense>(
     },
     fixedPayerUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
     isActive: { type: Boolean, required: true, default: true },
+    isFullRepayment: { type: Boolean, required: true, default: false },
   },
   {
     timestamps: true,

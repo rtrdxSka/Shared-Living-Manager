@@ -57,6 +57,7 @@ class ExpenseService {
       category: input.category,
       date: new Date(input.date),
       ...(input.notes && { notes: input.notes }),
+      isFullRepayment: input.isFullRepayment ?? false,
     });
 
     // 5. Return formatted response
@@ -221,6 +222,7 @@ class ExpenseService {
     if (input.category !== undefined) expense.category = input.category;
     if (input.date !== undefined) expense.date = new Date(input.date);
     if (input.notes !== undefined) expense.notes = input.notes;
+    if (input.isFullRepayment !== undefined) expense.isFullRepayment = input.isFullRepayment;
     if (input.paidByUserId !== undefined) {
       if (input.paidByUserId === null) {
         expense.paidByUserId = undefined;
@@ -345,6 +347,7 @@ class ExpenseService {
       ...(expense.notes && { notes: expense.notes }),
       ...(expense.recurringExpenseId && { recurringExpenseId: expense.recurringExpenseId.toString() }),
       isResolved: expense.isResolved ?? false,
+      isFullRepayment: expense.isFullRepayment ?? false,
       ...(expense.resolvedAt && { resolvedAt: expense.resolvedAt.toISOString() }),
       ...(expense.resolvedByUserId && { resolvedByUserId: expense.resolvedByUserId.toString() }),
       createdAt: expense.createdAt.toISOString(),

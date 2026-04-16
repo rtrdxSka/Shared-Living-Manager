@@ -152,11 +152,14 @@ class TaskService {
     if (!task) throw NotFoundError('Task not found');
 
     if (task.isCompleted) {
+      const pastOneDay =
+        task.completedAt != null && Date.now() - task.completedAt.getTime() >= 86_400_000;
+      if (pastOneDay) {
+        throw ForbiddenError('This task can no longer be marked incomplete');
+      }
       const isAdmin = requesterMember.role === 'owner' || requesterMember.role === 'admin';
       const isCompleter = task.completedByMemberId?.toString() === requesterMember._id.toString();
-      const withinOneDay =
-        task.completedAt != null && Date.now() - task.completedAt.getTime() < 86_400_000;
-      if (!isAdmin && !(isCompleter && withinOneDay)) {
+      if (!isAdmin && !isCompleter) {
         throw ForbiddenError(
           'Only the admin or the person who completed this task can undo it within 24 hours'
         );
