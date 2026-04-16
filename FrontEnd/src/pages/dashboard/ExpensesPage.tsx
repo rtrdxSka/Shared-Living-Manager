@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, Loader2, RefreshCw, Receipt } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, RefreshCw, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,8 @@ export default function ExpensesPage() {
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [outstandingOpen, setOutstandingOpen] = useState(true);
+  const [settledOpen, setSettledOpen] = useState(true);
 
   const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, currentMonth);
   const expenses = expensesData?.expenses ?? [];
@@ -61,6 +63,9 @@ export default function ExpensesPage() {
 
   const displayedExpenses =
     categoryFilter === 'all' ? expenses : expenses.filter((e) => e.category === categoryFilter);
+
+  const unsettledExpenses = displayedExpenses.filter((e) => !e.isResolved);
+  const settledExpenses = displayedExpenses.filter((e) => e.isResolved);
 
   function toggleExpand(id: string) {
     setExpandedExpenseId((prev) => (prev === id ? null : id));
@@ -155,37 +160,110 @@ export default function ExpensesPage() {
               <p className="text-xs text-muted-foreground italic">
                 Tap any expense to see details and available actions.
               </p>
-              <div className="space-y-2">
-                {displayedExpenses.map((expense) => (
-                  <ExpenseRow
-                    key={expense._id}
-                    expense={expense}
-                    isExpanded={expandedExpenseId === expense._id}
-                    isConfirmingDelete={confirmingDelete === expense._id}
-                    onToggle={() => toggleExpand(expense._id)}
-                    onStartDelete={() => setConfirmingDelete(expense._id)}
-                    onCancelDelete={() => setConfirmingDelete(null)}
-                    onConfirmDelete={async () => {
-                      await deleteExpense(expense._id);
-                      setConfirmingDelete(null);
-                      setExpandedExpenseId(null);
-                    }}
-                    onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
-                    onClaim={() => claimExpense(expense._id)}
-                    onResolve={() => resolveExpense(expense._id)}
-                    financeMode={financeMode}
-                    splitMethod={splitMethod}
-                    customMyPct={customMyPct}
-                    incomeSplit={incomeSplit}
-                    currency={currency}
-                    currentUserId={currentUserId}
-                    myNickname={myNickname}
-                    partnerNickname={partnerNickname}
-                    myParticipatesInFinances={myParticipatesInFinances}
-                    hasFinancialPartner={hasFinancialPartner}
-                  />
-                ))}
-              </div>
+
+              {/* Outstanding */}
+              <section>
+                <button
+                  onClick={() => setOutstandingOpen((o) => !o)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">Outstanding</span>
+                    <span className="text-xs bg-amber-200 dark:bg-amber-800/60 text-amber-800 dark:text-amber-200 rounded-full px-2 py-0.5 font-medium">
+                      {unsettledExpenses.length}
+                    </span>
+                  </div>
+                  {outstandingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+                {outstandingOpen && (
+                  unsettledExpenses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic py-2 px-1">All settled for this month.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {unsettledExpenses.map((expense) => (
+                        <ExpenseRow
+                          key={expense._id}
+                          expense={expense}
+                          isExpanded={expandedExpenseId === expense._id}
+                          isConfirmingDelete={confirmingDelete === expense._id}
+                          onToggle={() => toggleExpand(expense._id)}
+                          onStartDelete={() => setConfirmingDelete(expense._id)}
+                          onCancelDelete={() => setConfirmingDelete(null)}
+                          onConfirmDelete={async () => {
+                            await deleteExpense(expense._id);
+                            setConfirmingDelete(null);
+                            setExpandedExpenseId(null);
+                          }}
+                          onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
+                          onClaim={() => claimExpense(expense._id)}
+                          onResolve={() => resolveExpense(expense._id)}
+                          financeMode={financeMode}
+                          splitMethod={splitMethod}
+                          customMyPct={customMyPct}
+                          incomeSplit={incomeSplit}
+                          currency={currency}
+                          currentUserId={currentUserId}
+                          myNickname={myNickname}
+                          partnerNickname={partnerNickname}
+                          myParticipatesInFinances={myParticipatesInFinances}
+                          hasFinancialPartner={hasFinancialPartner}
+                        />
+                      ))}
+                    </div>
+                  )
+                )}
+              </section>
+
+              {/* Settled */}
+              {settledExpenses.length > 0 && (
+                <section className="mt-4">
+                  <button
+                    onClick={() => setSettledOpen((o) => !o)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/50 text-green-800 dark:text-green-300 mb-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">Settled</span>
+                      <span className="text-xs bg-green-200 dark:bg-green-800/60 text-green-800 dark:text-green-200 rounded-full px-2 py-0.5 font-medium">
+                        {settledExpenses.length}
+                      </span>
+                    </div>
+                    {settledOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                  {settledOpen && (
+                    <div className="space-y-2">
+                      {settledExpenses.map((expense) => (
+                        <ExpenseRow
+                          key={expense._id}
+                          expense={expense}
+                          isExpanded={expandedExpenseId === expense._id}
+                          isConfirmingDelete={confirmingDelete === expense._id}
+                          onToggle={() => toggleExpand(expense._id)}
+                          onStartDelete={() => setConfirmingDelete(expense._id)}
+                          onCancelDelete={() => setConfirmingDelete(null)}
+                          onConfirmDelete={async () => {
+                            await deleteExpense(expense._id);
+                            setConfirmingDelete(null);
+                            setExpandedExpenseId(null);
+                          }}
+                          onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
+                          onClaim={() => claimExpense(expense._id)}
+                          onResolve={() => resolveExpense(expense._id)}
+                          financeMode={financeMode}
+                          splitMethod={splitMethod}
+                          customMyPct={customMyPct}
+                          incomeSplit={incomeSplit}
+                          currency={currency}
+                          currentUserId={currentUserId}
+                          myNickname={myNickname}
+                          partnerNickname={partnerNickname}
+                          myParticipatesInFinances={myParticipatesInFinances}
+                          hasFinancialPartner={hasFinancialPartner}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
 
               {/* Balance summary for split mode */}
               {financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && (() => {
