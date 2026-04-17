@@ -17,6 +17,10 @@ export interface IExpense extends Document {
   isFullRepayment: boolean;
   resolvedAt?: Date;
   resolvedByUserId?: Types.ObjectId;
+  pendingConfirmation: boolean;
+  pendingConfirmationAt?: Date;
+  pendingConfirmationByUserId?: Types.ObjectId;
+  lastDisputedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +56,11 @@ export interface IExpenseResponse {
   isFullRepayment: boolean;
   resolvedAt?: string;
   resolvedByUserId?: string;
+  pendingConfirmation: boolean;
+  pendingConfirmationAt?: string;
+  pendingConfirmationByUserId?: string;
+  pendingConfirmationByNickname?: string;
+  lastDisputedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -21,6 +21,10 @@ const expenseSchema = new Schema<IExpense>(
     isFullRepayment: { type: Boolean, required: true, default: false },
     resolvedAt: { type: Date, default: undefined },
     resolvedByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
+    pendingConfirmation: { type: Boolean, default: false },
+    pendingConfirmationAt: { type: Date, default: undefined },
+    pendingConfirmationByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
+    lastDisputedAt: { type: Date, default: undefined },
   },
   {
     timestamps: true,

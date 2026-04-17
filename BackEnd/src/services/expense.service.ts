@@ -117,14 +117,7 @@ class ExpenseService {
     }
 
     // 7. Map to response
-    const items = expenses.map((expense) =>
-      this.formatExpenseResponse(
-        expense,
-        expense.paidByUserId
-          ? (nicknameMap.get(expense.paidByUserId.toString()) ?? 'Unknown')
-          : undefined
-      )
-    );
+    const items = expenses.map((expense) => this.formatExpenseResponse(expense, nicknameMap));
 
     return buildPaginatedResult(items, total, page, limit);
   }
@@ -245,17 +238,8 @@ class ExpenseService {
 
     await expense.save();
 
-    const nicknameMap = new Map<string, string>();
-    for (const member of household.members) {
-      if (member.userId) {
-        nicknameMap.set(member.userId.toString(), member.nickname);
-      }
-    }
-    const paidByNickname = expense.paidByUserId
-      ? (nicknameMap.get(expense.paidByUserId.toString()) ?? 'Unknown')
-      : undefined;
-
-    return this.formatExpenseResponse(expense, paidByNickname);
+    const nicknameMap = this.buildNicknameMap(household.members);
+    return this.formatExpenseResponse(expense, nicknameMap);
   }
 
   async claimExpense(
@@ -291,49 +275,133 @@ class ExpenseService {
     return this.formatExpenseResponse(expense, requesterMember.nickname);
   }
 
-  async resolveExpense(
+  async requestResolution(
     householdId: string,
     requestingUserId: string,
     expenseId: string
   ): Promise<IExpenseResponse> {
     const household = await Household.findById(householdId);
-    if (!household) {
-      throw NotFoundError('Household not found');
-    }
+    if (!household) throw NotFoundError('Household not found');
 
     const isMember = household.members.some(
       (m) => m.userId?.toString() === requestingUserId && m.participatesInFinances
     );
-    if (!isMember) {
-      throw ForbiddenError('You must be a financial member to resolve an expense');
-    }
+    if (!isMember) throw ForbiddenError('You must be a financial member to request resolution');
 
     const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
-    if (!expense) {
-      throw NotFoundError('Expense not found');
+    if (!expense) throw NotFoundError('Expense not found');
+    if (!expense.paidByUserId) throw BadRequestError('Cannot request resolution on an unclaimed expense');
+    if (expense.isResolved) throw BadRequestError('This expense is already resolved');
+    if (expense.paidByUserId.toString() === requestingUserId) {
+      throw ForbiddenError('The payer cannot request resolution — the other person must confirm receipt');
     }
-    if (!expense.paidByUserId) {
-      throw BadRequestError('Cannot resolve an unclaimed expense');
+    if (expense.pendingConfirmation) throw BadRequestError('Resolution is already pending confirmation');
+
+    expense.pendingConfirmation = true;
+    expense.pendingConfirmationAt = new Date();
+    expense.pendingConfirmationByUserId = requestingUserId as unknown as typeof expense.pendingConfirmationByUserId;
+    expense.lastDisputedAt = undefined;
+    await expense.save();
+
+    const nicknameMap = this.buildNicknameMap(household.members);
+    return this.formatExpenseResponse(expense, nicknameMap, requestingUserId);
+  }
+
+  async confirmResolution(
+    householdId: string,
+    requestingUserId: string,
+    expenseId: string
+  ): Promise<IExpenseResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
+    if (!expense) throw NotFoundError('Expense not found');
+    if (!expense.paidByUserId) throw BadRequestError('Expense has no payer');
+    if (expense.paidByUserId.toString() !== requestingUserId) {
+      throw ForbiddenError('Only the payer can confirm receipt of payment');
     }
-    if (expense.isResolved) {
-      throw BadRequestError('This expense is already resolved');
-    }
-    if (expense.paidByUserId?.toString() === requestingUserId) {
-      throw ForbiddenError('The person who paid this expense cannot mark it as resolved');
-    }
+    if (!expense.pendingConfirmation) throw BadRequestError('No pending resolution to confirm');
+    if (expense.isResolved) throw BadRequestError('This expense is already resolved');
 
     expense.isResolved = true;
     expense.resolvedAt = new Date();
     expense.resolvedByUserId = requestingUserId as unknown as typeof expense.resolvedByUserId;
+    expense.pendingConfirmation = false;
+    expense.pendingConfirmationAt = undefined;
+    expense.pendingConfirmationByUserId = undefined;
+    expense.lastDisputedAt = undefined;
     await expense.save();
 
-    const paidByNickname = household.members.find(
-      (m) => m.userId?.toString() === expense.paidByUserId?.toString()
-    )?.nickname;
-    return this.formatExpenseResponse(expense, paidByNickname);
+    const nicknameMap = this.buildNicknameMap(household.members);
+    return this.formatExpenseResponse(expense, nicknameMap, requestingUserId);
   }
 
-  formatExpenseResponse(expense: IExpense, paidByNickname?: string): IExpenseResponse {
+  async disputeResolution(
+    householdId: string,
+    requestingUserId: string,
+    expenseId: string
+  ): Promise<IExpenseResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
+    if (!expense) throw NotFoundError('Expense not found');
+    if (!expense.paidByUserId) throw BadRequestError('Expense has no payer');
+    if (expense.paidByUserId.toString() !== requestingUserId) {
+      throw ForbiddenError('Only the payer can dispute a resolution request');
+    }
+    if (!expense.pendingConfirmation) throw BadRequestError('No pending resolution to dispute');
+
+    expense.pendingConfirmation = false;
+    expense.pendingConfirmationAt = undefined;
+    expense.pendingConfirmationByUserId = undefined;
+    expense.lastDisputedAt = new Date();
+    await expense.save();
+
+    const nicknameMap = this.buildNicknameMap(household.members);
+    return this.formatExpenseResponse(expense, nicknameMap, requestingUserId);
+  }
+
+  async autoConfirmExpiredPending(): Promise<number> {
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const expenses = await Expense.find({
+      pendingConfirmation: true,
+      pendingConfirmationAt: { $lt: cutoff },
+      isResolved: false,
+    });
+
+    await Promise.all(
+      expenses.map((expense) => {
+        expense.isResolved = true;
+        expense.resolvedAt = new Date();
+        expense.resolvedByUserId = expense.pendingConfirmationByUserId as unknown as typeof expense.resolvedByUserId;
+        expense.pendingConfirmation = false;
+        expense.pendingConfirmationAt = undefined;
+        expense.pendingConfirmationByUserId = undefined;
+        return expense.save();
+      })
+    );
+
+    return expenses.length;
+  }
+
+  private buildNicknameMap(members: Array<{ userId?: { toString(): string } | null; nickname: string }>): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const m of members) {
+      if (m.userId) map.set(m.userId.toString(), m.nickname);
+    }
+    return map;
+  }
+
+  formatExpenseResponse(expense: IExpense, nicknameMapOrName?: Map<string, string> | string, _callerUserId?: string): IExpenseResponse {
+    const paidByNickname = typeof nicknameMapOrName === 'string'
+      ? nicknameMapOrName
+      : (nicknameMapOrName && expense.paidByUserId ? nicknameMapOrName.get(expense.paidByUserId.toString()) : undefined);
+    const pendingConfirmationByNickname = (nicknameMapOrName instanceof Map && expense.pendingConfirmationByUserId)
+      ? nicknameMapOrName.get(expense.pendingConfirmationByUserId.toString())
+      : undefined;
+
     return {
       _id: expense._id.toString(),
       householdId: expense.householdId.toString(),
@@ -350,6 +418,11 @@ class ExpenseService {
       isFullRepayment: expense.isFullRepayment ?? false,
       ...(expense.resolvedAt && { resolvedAt: expense.resolvedAt.toISOString() }),
       ...(expense.resolvedByUserId && { resolvedByUserId: expense.resolvedByUserId.toString() }),
+      pendingConfirmation: expense.pendingConfirmation ?? false,
+      ...(expense.pendingConfirmationAt && { pendingConfirmationAt: expense.pendingConfirmationAt.toISOString() }),
+      ...(expense.pendingConfirmationByUserId && { pendingConfirmationByUserId: expense.pendingConfirmationByUserId.toString() }),
+      ...(pendingConfirmationByNickname && { pendingConfirmationByNickname }),
+      ...(expense.lastDisputedAt && { lastDisputedAt: expense.lastDisputedAt.toISOString() }),
       createdAt: expense.createdAt.toISOString(),
       updatedAt: expense.updatedAt.toISOString(),
     };
