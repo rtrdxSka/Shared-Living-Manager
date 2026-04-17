@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // ── Profile schema ───────────────────────────────────────────────────
-export const profileSchema = z.object({
+const profileBaseSchema = z.object({
   firstName: z
     .string()
     .min(2, { message: 'First name must be at least 2 characters' })
@@ -11,9 +11,26 @@ export const profileSchema = z.object({
     .min(2, { message: 'Last name must be at least 2 characters' })
     .max(50, { message: 'Last name cannot exceed 50 characters' }),
   email: z.string().email({ message: 'Please enter a valid email address' }),
+  currentPassword: z.string().optional(),
 });
 
-export type ProfileFormData = z.infer<typeof profileSchema>;
+export type ProfileFormData = z.infer<typeof profileBaseSchema>;
+
+/** Schema with conditional password requirement when email changes */
+export function createProfileSchema(originalEmail: string) {
+  return profileBaseSchema.refine(
+    (data) =>
+      data.email === originalEmail ||
+      (typeof data.currentPassword === 'string' && data.currentPassword.length >= 1),
+    {
+      message: 'Current password is required to change email',
+      path: ['currentPassword'],
+    }
+  );
+}
+
+// Keep a static export for backwards compat (no password required)
+export const profileSchema = profileBaseSchema;
 
 // ── Change password schema ───────────────────────────────────────────
 export const changePasswordSchema = z

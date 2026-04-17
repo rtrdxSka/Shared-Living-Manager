@@ -9,12 +9,12 @@ import {
   LIVING_ARRANGEMENT_OPTIONS,
   RELATIONSHIP_OPTIONS,
   AGE_GROUP_OPTIONS,
+  FINANCE_MODE_OPTIONS,
   EXPENSE_SPLIT_METHOD_OPTIONS,
   EXPENSE_TYPE_OPTIONS,
   CURRENCY_OPTIONS,
   TASK_MANAGEMENT_OPTIONS,
   TASK_DISTRIBUTION_OPTIONS,
-  shouldShowSplitMethod,
   shouldShowDistributionMethod,
 } from '@/types/onboarding.types';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,8 @@ export function StepReview() {
 
   const { step1, step2, step3, step4 } = surveyState;
   const arrangement = step1.livingArrangement;
-  const showSplit = shouldShowSplitMethod(arrangement);
+  const isNonSolo = arrangement !== 'alone';
+  const showSplit = isNonSolo && step3.financeMode === 'split';
   const showDistribution = shouldShowDistributionMethod(
     arrangement,
     step4.taskManagementEnabled
@@ -147,6 +148,12 @@ export function StepReview() {
 
       {/* Step 3: Financial Preferences */}
       <ReviewSection title="Financial Preferences" onEdit={() => goToStep(3)}>
+        {isNonSolo && (
+          <ReviewRow
+            label="Finance mode"
+            value={findLabel(FINANCE_MODE_OPTIONS, step3.financeMode)}
+          />
+        )}
         {showSplit && (
           <ReviewRow
             label="Split method"

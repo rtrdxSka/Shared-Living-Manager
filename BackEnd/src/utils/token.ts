@@ -15,17 +15,3 @@ export const hashToken = (token: string): string => {
   return crypto.createHash('sha256').update(token).digest('hex');
 };
 
-/**
- * Compare a plain token against a SHA-256 hash using timing-safe comparison.
- */
-export const compareToken = (plain: string, hashed: string): boolean => {
-  const plainHash = hashToken(plain);
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(plainHash, 'hex'),
-      Buffer.from(hashed, 'hex')
-    );
-  } catch {
-    return false;
-  }
-};

@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertCircle, CheckCircle2, AlertTriangle, User } from 'lucide-react';
 import axios from 'axios';
+import { extractApiError } from '@/utils/extractApiError';
 
-import { profileSchema, type ProfileFormData } from '@/schemas/user.schemas';
+import { createProfileSchema, type ProfileFormData } from '@/schemas/user.schemas';
 import { changePasswordSchema, type ChangePasswordFormData } from '@/schemas/user.schemas';
 import { userApi } from '@/api/user.api';
 import { authApi } from '@/api/auth.api';
@@ -23,13 +25,15 @@ import type { ApiErrorResponse } from '@/types/auth.types';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
+  const location = useLocation();
+  const wasRedirected = location.state?.emailVerificationRequired === true;
 
   if (!user) return null;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
       {/* Email verification banner */}
-      {!user.isEmailVerified && <VerificationBanner />}
+      {!user.isEmailVerified && <VerificationBanner wasRedirected={wasRedirected} />}
 
       <div className="space-y-8">
         <ProfileForm user={{ ...user, isEmailVerified: user.isEmailVerified }} refreshUser={refreshUser} />
@@ -41,7 +45,7 @@ export default function ProfilePage() {
 
 // ── Verification Banner ──────────────────────────────────────────────
 
-function VerificationBanner() {
+function VerificationBanner({ wasRedirected }: { wasRedirected: boolean }) {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -52,8 +56,8 @@ function VerificationBanner() {
     try {
       await authApi.resendVerification();
       setMessage('Verification email sent. Please check your inbox.');
-    } catch {
-      setMessage('Failed to send verification email. Please try again.');
+    } catch (error) {
+      setMessage(extractApiError(error, 'Failed to send verification email. Please try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +67,11 @@ function VerificationBanner() {
     <Alert className="mb-8 rounded-xl border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
       <AlertTriangle className="h-4 w-4 !text-amber-600 dark:!text-amber-400" />
       <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <span>Your email address is not verified.</span>
+        <span>
+          {wasRedirected
+            ? 'Please verify your email address to access the dashboard and other features.'
+            : 'Your email address is not verified.'}
+        </span>
         <div className="flex items-center gap-2">
           {message && (
             <span className="text-xs">{message}</span>
@@ -98,25 +106,42 @@ function ProfileForm({
   const [serverError, setServerError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  const schema = useMemo(() => createProfileSchema(user.email), [user.email]);
+
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      currentPassword: '',
     },
   });
+
+  const watchedEmail = watch('email');
+  const isEmailChanging = watchedEmail !== user.email;
 
   const onSubmit = async (data: ProfileFormData) => {
     setServerError('');
     setSuccessMessage('');
 
     try {
-      const updatedUser = await userApi.updateProfile(data);
+      // Only send currentPassword when email is actually changing
+      const payload: ProfileFormData = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+      };
+      if (isEmailChanging && data.currentPassword) {
+        payload.currentPassword = data.currentPassword;
+      }
+
+      const updatedUser = await userApi.updateProfile(payload);
       await refreshUser();
 
       if (updatedUser.email !== user.email) {
@@ -201,6 +226,17 @@ function ProfileForm({
             </div>
           )}
 
+          {isEmailChanging && (
+            <FormField
+              label="Current Password"
+              type="password"
+              placeholder="Required to change email"
+              autoComplete="current-password"
+              error={errors.currentPassword}
+              {...register('currentPassword')}
+            />
+          )}
+
           <Button type="submit" className="h-11 w-full rounded-xl text-base shadow-sm" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
@@ -220,13 +256,13 @@ function ProfileForm({
 // ── Change Password Form ─────────────────────────────────────────────
 
 function ChangePasswordForm() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [serverError, setServerError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
 
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors, isSubmitting },
   } = useForm<ChangePasswordFormData>({
     resolver: zodResolver(changePasswordSchema),
@@ -239,15 +275,19 @@ function ChangePasswordForm() {
 
   const onSubmit = async (data: ChangePasswordFormData) => {
     setServerError('');
-    setSuccessMessage('');
 
     try {
       await userApi.changePassword({
         currentPassword: data.currentPassword,
         newPassword: data.newPassword,
       });
-      setSuccessMessage('Password changed successfully.');
-      reset();
+
+      // Backend invalidates refresh token on password change — log out proactively
+      await logout();
+      navigate('/login', {
+        replace: true,
+        state: { message: 'Password changed successfully. Please log in with your new password.' },
+      });
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const apiError = error.response?.data as ApiErrorResponse | undefined;
@@ -271,13 +311,6 @@ function ChangePasswordForm() {
             <Alert variant="destructive" className="rounded-xl">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{serverError}</AlertDescription>
-            </Alert>
-          )}
-
-          {successMessage && (
-            <Alert className="rounded-xl border-green-500/50 bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-200">
-              <CheckCircle2 className="h-4 w-4 !text-green-600 dark:!text-green-400" />
-              <AlertDescription>{successMessage}</AlertDescription>
             </Alert>
           )}
 

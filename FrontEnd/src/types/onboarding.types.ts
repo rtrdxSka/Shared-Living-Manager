@@ -32,13 +32,18 @@ export const AGE_GROUPS = ['child', 'teenager', 'adult', 'senior'] as const;
 
 export type AgeGroup = (typeof AGE_GROUPS)[number];
 
+// ── Finance Mode ──────────────────────────────────────────────────────
+
+export const FINANCE_MODES = ['joint', 'split'] as const;
+
+export type FinanceMode = (typeof FINANCE_MODES)[number];
+
 // ── Expense Split Method ──────────────────────────────────────────────
 
 export const EXPENSE_SPLIT_METHODS = [
   'equal',
   'income_based',
   'usage_based',
-  'shapley',
   'custom',
 ] as const;
 
@@ -73,7 +78,6 @@ export type TaskManagementLevel = (typeof TASK_MANAGEMENT_LEVELS)[number];
 export const TASK_DISTRIBUTION_METHODS = [
   'rotation',
   'fixed',
-  'ai',
   'voluntary',
 ] as const;
 
@@ -132,6 +136,7 @@ export interface OnboardingSurveyData {
   memberStructure: MemberStructureEntry[]; // empty for 'alone'
 
   // Step 3: Financial Preferences
+  financeMode?: FinanceMode;            // required when livingArrangement !== 'alone'
   expenseSplitMethod?: ExpenseSplitMethod;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
@@ -156,6 +161,7 @@ export interface StepHouseholdStructure {
 }
 
 export interface StepFinancialPreferences {
+  financeMode: FinanceMode | '';
   expenseSplitMethod: ExpenseSplitMethod | '';
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
@@ -203,6 +209,19 @@ export const AGE_GROUP_OPTIONS: SelectOption<AgeGroup>[] = [
   { value: 'senior', label: 'Senior (65+)' },
 ];
 
+export const FINANCE_MODE_OPTIONS: SelectOption<FinanceMode>[] = [
+  {
+    value: 'joint',
+    label: 'Joint pool',
+    description: 'All expenses tracked in a shared pool. No individual shares needed.',
+  },
+  {
+    value: 'split',
+    label: 'Split between members',
+    description: 'Track who owes whom. Choose a split method below.',
+  },
+];
+
 export const EXPENSE_SPLIT_METHOD_OPTIONS: SelectOption<ExpenseSplitMethod>[] =
   [
     {
@@ -219,12 +238,6 @@ export const EXPENSE_SPLIT_METHOD_OPTIONS: SelectOption<ExpenseSplitMethod>[] =
       value: 'usage_based',
       label: 'Usage-based',
       description: 'Expenses are distributed by actual usage',
-    },
-    {
-      value: 'shapley',
-      label: 'Mathematically fair',
-      description:
-        'Shapley Value — an algorithm for optimally fair distribution',
     },
     {
       value: 'custom',
@@ -281,12 +294,6 @@ export const TASK_DISTRIBUTION_OPTIONS: SelectOption<TaskDistributionMethod>[] =
       description: 'Each member has permanent tasks',
     },
     {
-      value: 'ai',
-      label: 'AI optimized',
-      description:
-        'Intelligent distribution based on preferences and workload',
-    },
-    {
       value: 'voluntary',
       label: 'Voluntary',
       description: 'Tasks are posted and anyone can claim them',
@@ -338,15 +345,17 @@ export function getAvailableSplitMethods(
     case 'couple':
       return ['equal', 'income_based', 'custom'];
     default:
-      return ['equal', 'income_based', 'usage_based', 'shapley', 'custom'];
+      return ['equal', 'income_based', 'usage_based', 'custom'];
   }
 }
 
 /** Whether to show the split method section */
 export function shouldShowSplitMethod(
-  arrangement: LivingArrangement | ''
+  arrangement: LivingArrangement | '',
+  financeMode: FinanceMode | '' = '',
 ): boolean {
-  return arrangement !== 'alone';
+  if (arrangement === 'alone') return false;
+  return financeMode === 'split';
 }
 
 /** Which task distribution methods are available per arrangement */
@@ -359,7 +368,7 @@ export function getAvailableDistributionMethods(
     case 'couple':
       return ['rotation', 'fixed', 'voluntary'];
     default:
-      return ['rotation', 'fixed', 'ai', 'voluntary'];
+      return ['rotation', 'fixed', 'voluntary'];
   }
 }
 
@@ -368,7 +377,7 @@ export function shouldShowDistributionMethod(
   arrangement: LivingArrangement | '',
   taskLevel: TaskManagementLevel | ''
 ): boolean {
-  return arrangement !== 'alone' && taskLevel !== 'disabled' && taskLevel !== '';
+  return arrangement !== 'alone' && taskLevel === 'full';
 }
 
 /** Which relationships to suggest per arrangement */

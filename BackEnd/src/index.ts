@@ -2,12 +2,15 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { connectDatabase } from './config/database';
 import authRoutes from './routes/auth.routes';
 import householdRoutes from './routes/household.routes';
 import userRoutes from './routes/user.routes';
 import { errorHandler } from './middleware/errorHandler';
+import { startRecurringScheduler } from './scheduler/recurringExpenses';
+import { startRecurringTaskScheduler } from './scheduler/recurringTasks';
 
 // Load environment variables
 dotenv.config();
@@ -15,8 +18,13 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust the first proxy hop (NGINX) so req.ip, express-rate-limit, and
+// secure cookies reflect the real client behind the reverse proxy.
+app.set('trust proxy', 1);
+
 // ── Security middleware ───────────────────────────────────────────────
 app.use(helmet());
+app.use(cookieParser());
 
 // ── CORS configuration ───────────────────────────────────────────────
 app.use(
@@ -27,8 +35,8 @@ app.use(
 );
 
 // ── Body parsing ──────────────────────────────────────────────────────
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // ── Rate limiting ─────────────────────────────────────────────────────
 const authLimiter = rateLimit({
@@ -75,8 +83,10 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     await connectDatabase();
+    startRecurringScheduler();
+    startRecurringTaskScheduler();
 
-    app.listen(PORT, () => {
+    app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🔐 Environment: ${process.env.NODE_ENV}`);
       console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);

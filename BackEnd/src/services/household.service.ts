@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { User } from '../models/user.model';
 import { Household } from '../models/household.model';
 import {
@@ -7,8 +8,11 @@ import {
   IHouseholdMemberResponse,
   IHouseholdMember,
   IHousehold,
+  ISettlement,
+  IUpdateHouseholdSettingsInput,
   determineUIMode,
 } from '../types/household.types';
+import mongoose, { Types } from 'mongoose';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../utils/error';
 
 class HouseholdService {
@@ -72,27 +76,45 @@ class HouseholdService {
       trackedExpenseTypes: input.trackedExpenseTypes,
       currency: input.currency,
       taskManagementEnabled: input.taskManagementEnabled,
+      ...(input.financeMode && { financeMode: input.financeMode }),
       ...(input.expenseSplitMethod && { expenseSplitMethod: input.expenseSplitMethod }),
       ...(input.taskDistributionMethod && { taskDistributionMethod: input.taskDistributionMethod }),
     };
 
-    // 6. Create household document
-    // TODO: wrap in MongoDB transaction for production
-    const household = await Household.create({
-      name: input.householdName,
-      livingArrangement: input.livingArrangement,
-      ...(input.livingArrangementOther && { livingArrangementOther: input.livingArrangementOther }),
-      totalMembers: input.totalMembers,
-      uiMode,
-      members: [creatorMember, ...placeholderMembers],
-      settings,
-      createdBy: user._id,
-    });
+    // 6. Create household and link user atomically
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // 7. Update user: link household
-    user.households.push(household._id);
-    user.activeHousehold = household._id;
-    await user.save();
+    let household;
+    try {
+      const [created] = await Household.create(
+        [
+          {
+            name: input.householdName,
+            livingArrangement: input.livingArrangement,
+            ...(input.livingArrangementOther && { livingArrangementOther: input.livingArrangementOther }),
+            totalMembers: input.totalMembers,
+            uiMode,
+            members: [creatorMember, ...placeholderMembers],
+            settings,
+            createdBy: user._id,
+          },
+        ],
+        { session }
+      );
+      household = created;
+
+      user.households.push(household._id);
+      user.activeHousehold = household._id;
+      await user.save({ session });
+
+      await session.commitTransaction();
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
 
     return this.formatHouseholdResponse(household);
   }
@@ -134,18 +156,107 @@ class HouseholdService {
       );
     }
 
-    // 5. Link user to placeholder slot
-    placeholder.userId = user._id;
-    placeholder.joinedAt = new Date();
+    // 5. Link user to placeholder slot and update user atomically
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      placeholder.userId = user._id;
+      placeholder.joinedAt = new Date();
+      await household.save({ session });
+
+      user.households.push(household._id);
+      if (!user.activeHousehold) {
+        user.activeHousehold = household._id;
+      }
+      await user.save({ session });
+
+      await session.commitTransaction();
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
+
+    return this.formatHouseholdResponse(household);
+  }
+
+  // ── Update Member Income ─────────────────────────────────────────────
+
+  async updateMemberIncome(
+    householdId: string,
+    userId: string,
+    income: number
+  ): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) {
+      throw NotFoundError('Household not found');
+    }
+
+    const member = household.members.find(
+      (m) => m.userId?.toString() === userId
+    );
+    if (!member) {
+      throw ForbiddenError('You are not a member of this household');
+    }
+
+    member.monthlyIncome = income;
     await household.save();
 
-    // 6. Update user: link household
-    user.households.push(household._id);
-    if (!user.activeHousehold) {
-      user.activeHousehold = household._id;
-    }
-    await user.save();
+    return this.formatHouseholdResponse(household);
+  }
 
+  // ── Update Settings ──────────────────────────────────────────────────
+
+  async updateSettings(
+    householdId: string,
+    requestingUserId: string,
+    input: IUpdateHouseholdSettingsInput
+  ): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const member = household.members.find(
+      (m) => m.userId?.toString() === requestingUserId
+    );
+    if (!member) throw ForbiddenError('You are not a member of this household');
+    if (member.role !== 'owner' && member.role !== 'admin')
+      throw ForbiddenError('Only admins can update household settings');
+
+    if (input.financeMode !== undefined) household.settings.financeMode = input.financeMode;
+    if (input.expenseSplitMethod !== undefined) household.settings.expenseSplitMethod = input.expenseSplitMethod;
+    if (input.customSplitPercentage !== undefined) household.settings.customSplitPercentage = input.customSplitPercentage;
+
+    await household.save();
+    return this.formatHouseholdResponse(household);
+  }
+
+  // ── Record Settlement ─────────────────────────────────────────────────
+
+  async recordSettlement(
+    householdId: string,
+    userId: string,
+    month: string,
+    amount: number
+  ): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const member = household.members.find((m) => m.userId?.toString() === userId);
+    if (!member) throw ForbiddenError('You are not a member of this household');
+    if (!member.participatesInFinances) {
+      throw ForbiddenError('Only financial members can record settlements');
+    }
+    if (member.role !== 'owner' && member.role !== 'admin') {
+      throw ForbiddenError('Only admins can record settlements');
+    }
+
+    if (household.settlements.find((s) => s.month === month))
+      throw BadRequestError('Balance for this month is already marked as settled');
+
+    household.settlements.push({ month, amount, settledByUserId: userId, settledAt: new Date() } as unknown as ISettlement);
+    await household.save();
     return this.formatHouseholdResponse(household);
   }
 
@@ -168,9 +279,27 @@ class HouseholdService {
     return this.formatHouseholdResponse(household);
   }
 
+  // ── Regenerate Invite Code ───────────────────────────────────────────
+
+  async regenerateInviteCode(householdId: string, requestingUserId: string): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+
+    const member = household.members.find(
+      (m) => m.userId?.toString() === requestingUserId
+    );
+    if (!member) throw ForbiddenError('You are not a member of this household');
+    if (member.role !== 'owner' && member.role !== 'admin')
+      throw ForbiddenError('Only admins can regenerate the invite code');
+
+    household.inviteCode = crypto.randomUUID();
+    await household.save();
+    return this.formatHouseholdResponse(household);
+  }
+
   // ── Private helpers ─────────────────────────────────────────────────
 
-  private formatHouseholdResponse(household: IHousehold): IHouseholdResponse {
+  formatHouseholdResponse(household: IHousehold): IHouseholdResponse {
     return {
       _id: household._id.toString(),
       name: household.name,
@@ -181,6 +310,13 @@ class HouseholdService {
       totalMembers: household.totalMembers,
       uiMode: household.uiMode,
       members: household.members.map((m) => this.formatMemberResponse(m)),
+      settlements: (household.settlements ?? []).map((s) => ({
+        _id: (s._id as Types.ObjectId).toString(),
+        month: s.month,
+        amount: s.amount,
+        settledByUserId: s.settledByUserId.toString(),
+        settledAt: s.settledAt.toISOString(),
+      })),
       settings: household.settings,
       createdBy: household.createdBy.toString(),
       inviteCode: household.inviteCode,
@@ -203,6 +339,7 @@ class HouseholdService {
       ...(member.email && { email: member.email }),
       isCreator: member.isCreator,
       joinedAt: member.joinedAt.toISOString(),
+      ...(member.monthlyIncome !== undefined && { monthlyIncome: member.monthlyIncome }),
     };
   }
 }

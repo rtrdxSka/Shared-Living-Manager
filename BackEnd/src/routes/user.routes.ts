@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { userController } from '../controllers/user.controller';
 import { updateProfileValidation, changePasswordValidation } from '../validators/user.validator';
 import { handleValidationErrors } from '../middleware/validate';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 
 const router = Router();
 
@@ -10,6 +10,7 @@ const router = Router();
 router.patch(
   '/profile',
   authMiddleware,
+  emailVerifiedMiddleware,
   updateProfileValidation,
   handleValidationErrors,
   userController.updateProfile.bind(userController)
@@ -18,6 +19,7 @@ router.patch(
 router.patch(
   '/password',
   authMiddleware,
+  emailVerifiedMiddleware,
   changePasswordValidation,
   handleValidationErrors,
   userController.changePassword.bind(userController)

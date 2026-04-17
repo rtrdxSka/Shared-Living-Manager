@@ -26,6 +26,18 @@ const forgotPasswordLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Dedicated rate limiter for resend verification (3 req / 60 min)
+const resendVerificationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  message: {
+    status: 'error',
+    message: 'Too many verification email requests, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Public routes
 router.post(
   '/register',
@@ -78,6 +90,7 @@ router.get('/me', authMiddleware, authController.getMe.bind(authController));
 router.post(
   '/resend-verification',
   authMiddleware,
+  resendVerificationLimiter,
   authController.resendVerification.bind(authController)
 );
 

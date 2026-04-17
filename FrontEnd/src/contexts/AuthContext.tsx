@@ -11,20 +11,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore session on mount
+  // Restore session on mount via silent refresh
+  // Uses fetch directly to avoid the axios interceptor's /login redirect on failure
   useEffect(() => {
     const init = async () => {
-      const tokens = tokenStorage.get();
-      if (!tokens?.accessToken) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
+        const res = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!res.ok) return;
+
+        const body = (await res.json()) as {
+          data: { tokens: { accessToken: string } };
+        };
+        const accessToken = body.data?.tokens?.accessToken;
+        if (!accessToken) return;
+
+        tokenStorage.set({ accessToken });
         const currentUser = await authApi.getMe();
         setUser(currentUser);
       } catch {
-        tokenStorage.clear();
+        // No valid session — stay as unauthenticated
       } finally {
         setIsLoading(false);
       }

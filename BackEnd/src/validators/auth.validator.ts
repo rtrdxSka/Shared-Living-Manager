@@ -1,4 +1,4 @@
-import { body, ValidationChain } from 'express-validator';
+import { body, cookie, ValidationChain } from 'express-validator';
 
 // ── Password regex: min 1 uppercase, 1 lowercase, 1 digit ────────────
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
@@ -45,7 +45,7 @@ export const loginValidation: ValidationChain[] = [
 
 // ── Refresh token validation ──────────────────────────────────────────
 export const refreshTokenValidation: ValidationChain[] = [
-  body('refreshToken').notEmpty().withMessage('Refresh token is required'),
+  cookie('refreshToken').notEmpty().withMessage('Refresh token is required'),
 ];
 
 // ── Verify email validation ──────────────────────────────────────────

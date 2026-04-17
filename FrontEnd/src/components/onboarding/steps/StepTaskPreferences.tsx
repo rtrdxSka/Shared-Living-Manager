@@ -50,7 +50,7 @@ export function StepTaskPreferences() {
     updateStepData('step4', {
       taskManagementEnabled: data.taskManagementEnabled,
       taskDistributionMethod: showDistribution
-        ? data.taskDistributionMethod
+        ? data.taskDistributionMethod ?? ''
         : '',
     });
     nextStep();

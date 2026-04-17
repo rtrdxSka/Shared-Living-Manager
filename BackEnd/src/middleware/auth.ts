@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { IJwtPayload } from '../types/user.types';
-import { UnauthorizedError } from '../utils/error';
+import { ForbiddenError, UnauthorizedError } from '../utils/error';
+import { User } from '../models/user.model';
 
 
 // ── Extend Express Request ────────────────────────────────────────────
@@ -33,7 +34,7 @@ export const authMiddleware = (
       throw new Error('JWT_ACCESS_SECRET is not defined');
     }
 
-    const decoded = jwt.verify(token, secret) as IJwtPayload;
+    const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as IJwtPayload;
 
     req.user = {
       userId: decoded.userId,
@@ -50,6 +51,33 @@ export const authMiddleware = (
       next(UnauthorizedError('Invalid access token'));
       return;
     }
+    next(error);
+  }
+};
+
+// ── Email verified middleware ─────────────────────────────────────────
+// Must be placed AFTER authMiddleware so req.user is populated.
+export const emailVerifiedMiddleware = async (
+  req: AuthRequest,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw UnauthorizedError('Access token is required');
+    }
+
+    const user = await User.findById(req.user.userId).select('isEmailVerified');
+    if (!user) {
+      throw UnauthorizedError('User not found');
+    }
+
+    if (!user.isEmailVerified) {
+      throw ForbiddenError('Please verify your email address before accessing this resource');
+    }
+
+    next();
+  } catch (error) {
     next(error);
   }
 };

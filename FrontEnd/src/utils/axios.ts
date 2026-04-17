@@ -1,27 +1,21 @@
 import axios from 'axios';
 import type { AuthTokens, ApiSuccessResponse } from '@/types/auth.types';
 
-const TOKEN_KEY = 'auth_tokens';
+// ── Token storage (in-memory — refresh token lives in httpOnly cookie) ─
 
-// ── Token storage ─────────────────────────────────────────────────────
+let _accessToken: string | null = null;
 
 export const tokenStorage = {
   get(): AuthTokens | null {
-    try {
-      const raw = localStorage.getItem(TOKEN_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw) as AuthTokens;
-    } catch {
-      return null;
-    }
+    return _accessToken ? { accessToken: _accessToken } : null;
   },
 
   set(tokens: AuthTokens): void {
-    localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
+    _accessToken = tokens.accessToken;
   },
 
   clear(): void {
-    localStorage.removeItem(TOKEN_KEY);
+    _accessToken = null;
   },
 };
 
@@ -31,6 +25,7 @@ const api = axios.create({
   baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 10000,
+  withCredentials: true, // send httpOnly refresh token cookie on every request
 });
 
 // ── Request: inject access token ──────────────────────────────────────
@@ -69,6 +64,16 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Handle 403 — email verification required
+    if (
+      error.response?.status === 403 &&
+      typeof error.response?.data?.message === 'string' &&
+      error.response.data.message.toLowerCase().includes('verify your email')
+    ) {
+      window.location.href = '/profile';
+      return Promise.reject(error);
+    }
+
     if (originalRequest.url?.includes('/login')) {
       return Promise.reject(error);
     }
@@ -100,12 +105,10 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const tokens = tokenStorage.get();
-      if (!tokens?.refreshToken) throw new Error('No refresh token');
-
+      // Cookie is sent automatically — no body needed
       const { data } = await api.post<
         ApiSuccessResponse<{ tokens: AuthTokens }>
-      >('/auth/refresh', { refreshToken: tokens.refreshToken });
+      >('/auth/refresh');
 
       const newTokens = data.data.tokens;
       tokenStorage.set(newTokens);

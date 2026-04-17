@@ -2,6 +2,7 @@ import type {
   LivingArrangement,
   Relationship,
   AgeGroup,
+  FinanceMode,
   ExpenseSplitMethod,
   ExpenseType,
   TaskManagementLevel,
@@ -10,6 +11,7 @@ import type {
   Currency,
   OnboardingSurveyData,
 } from './onboarding.types';
+import type { ContributionTargetMode } from './joint-account.types';
 
 // ── Household Role ────────────────────────────────────────────────────
 
@@ -30,14 +32,35 @@ export interface HouseholdMemberResponse {
   email?: string;
   isCreator: boolean;
   joinedAt: string;
+  monthlyIncome?: number;
 }
 
 export interface HouseholdSettings {
+  financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
+  customSplitPercentage?: number;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
   taskManagementEnabled: TaskManagementLevel;
   taskDistributionMethod?: TaskDistributionMethod;
+  jointAccountConfig?: {
+    monthlyTarget?: number;
+    targetMode?: ContributionTargetMode;
+  };
+}
+
+export interface UpdateHouseholdSettingsInput {
+  financeMode?: FinanceMode;
+  expenseSplitMethod?: ExpenseSplitMethod;
+  customSplitPercentage?: number;
+}
+
+export interface Settlement {
+  _id: string;
+  month: string;
+  amount: number;
+  settledByUserId: string;
+  settledAt: string;
 }
 
 export interface HouseholdResponse {
@@ -48,6 +71,7 @@ export interface HouseholdResponse {
   totalMembers: number;
   uiMode: UIMode;
   members: HouseholdMemberResponse[];
+  settlements: Settlement[];
   settings: HouseholdSettings;
   createdBy: string;
   inviteCode: string;

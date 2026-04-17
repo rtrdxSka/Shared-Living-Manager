@@ -20,6 +20,7 @@ class UserController {
         firstName: req.body.firstName,
         lastName: req.body.lastName,
         email: req.body.email,
+        currentPassword: req.body.currentPassword,
       };
 
       const result = await userService.updateProfile(req.user.userId, input);

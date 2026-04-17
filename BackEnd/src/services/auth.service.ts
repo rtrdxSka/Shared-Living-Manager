@@ -83,7 +83,7 @@ class AuthService {
     let decoded: IJwtPayload;
 
     try {
-      decoded = jwt.verify(refreshToken, secret) as IJwtPayload;
+      decoded = jwt.verify(refreshToken, secret, { algorithms: ['HS256'] }) as IJwtPayload;
     } catch {
       throw UnauthorizedError('Invalid or expired refresh token');
     }
@@ -109,6 +109,9 @@ class AuthService {
   }
 
   // ── Logout ────────────────────────────────────────────────────────
+  // Note: Only the refresh token is revoked. The current access token (15-min TTL)
+  // remains valid until expiry. This is an accepted trade-off — a token blacklist
+  // would require a cache lookup on every authenticated request.
   async logout(userId: string): Promise<void> {
     await User.findByIdAndUpdate(userId, {
       $unset: { refreshToken: 1 },
@@ -136,6 +139,7 @@ class AuthService {
     }
 
     user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
     user.emailVerificationExpires = undefined;
     await user.save();
   }
@@ -190,7 +194,9 @@ class AuthService {
     user.password = newPassword; // pre-save hook hashes
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
-    user.refreshToken = undefined; // force re-login on all sessions
+    // Revokes refresh token so no new access tokens can be issued.
+    // Existing access tokens (up to 15-min TTL) remain valid — accepted trade-off.
+    user.refreshToken = undefined;
     await user.save();
   }
 

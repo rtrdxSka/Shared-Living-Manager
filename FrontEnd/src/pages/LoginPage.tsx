@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, AlertCircle, Home } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Loader2, AlertCircle, CheckCircle2, Home } from 'lucide-react';
 import axios from 'axios';
 
 
@@ -25,7 +25,10 @@ import { useAuth } from '@/hooks/useAuth';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [serverError, setServerError] = useState('');
+
+  const locationMessage = (location.state as { message?: string } | null)?.message;
 
   const {
     register,
@@ -72,6 +75,13 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-5 px-6 sm:px-8">
+            {locationMessage && (
+              <Alert className="rounded-xl border-green-500/50 bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-200">
+                <CheckCircle2 className="h-4 w-4 !text-green-600 dark:!text-green-400" />
+                <AlertDescription>{locationMessage}</AlertDescription>
+              </Alert>
+            )}
+
             {serverError && (
               <Alert variant="destructive" className="rounded-xl">
                 <AlertCircle className="h-4 w-4" />

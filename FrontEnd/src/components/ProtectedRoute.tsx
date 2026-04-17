@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,10 +16,16 @@ function AuthLoading() {
 // ── Requires authentication ───────────────────────────────────────────
 
 export function ProtectedRoute() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
 
   if (isLoading) return <AuthLoading />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  // Unverified users can only access /profile (verification banner + resend)
+  if (user && !user.isEmailVerified && location.pathname !== '/profile') {
+    return <Navigate to="/profile" replace state={{ emailVerificationRequired: true }} />;
+  }
 
   return <Outlet />;
 }

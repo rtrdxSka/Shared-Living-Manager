@@ -5,6 +5,7 @@ import {
   LIVING_ARRANGEMENTS,
   RELATIONSHIPS,
   AGE_GROUPS,
+  FINANCE_MODES,
   EXPENSE_SPLIT_METHODS,
   EXPENSE_TYPES,
   TASK_MANAGEMENT_LEVELS,
@@ -13,6 +14,7 @@ import {
   CURRENCIES,
   HOUSEHOLD_ROLES,
 } from '../types/household.types';
+import { CONTRIBUTION_TARGET_MODES } from '../types/joint-account.types';
 
 // ── Member subdocument schema ─────────────────────────────────────────
 
@@ -84,20 +86,50 @@ const memberSchema = new Schema(
       type: Date,
       default: Date.now,
     },
+    monthlyIncome: {
+      type: Number,
+      min: [0, 'Income cannot be negative'],
+      default: undefined,
+    },
   },
   { _id: true }
+);
+
+// ── Task rotation config subdocument schema ───────────────────────────
+
+const taskRotationConfigSchema = new Schema(
+  {
+    orderedMemberIds: [{ type: Schema.Types.ObjectId, required: true }],
+    startedAt: { type: Date, required: true },
+    periodDays: { type: Number, required: true, default: 7 },
+  },
+  { _id: false }
 );
 
 // ── Settings subdocument schema ───────────────────────────────────────
 
 const settingsSchema = new Schema(
   {
+    financeMode: {
+      type: String,
+      enum: {
+        values: FINANCE_MODES,
+        message: 'Invalid finance mode',
+      },
+      default: undefined,
+    },
     expenseSplitMethod: {
       type: String,
       enum: {
         values: EXPENSE_SPLIT_METHODS,
         message: 'Invalid expense split method',
       },
+      default: undefined,
+    },
+    customSplitPercentage: {
+      type: Number,
+      min: [1, 'Split percentage must be at least 1'],
+      max: [99, 'Split percentage cannot exceed 99'],
       default: undefined,
     },
     trackedExpenseTypes: [
@@ -133,8 +165,45 @@ const settingsSchema = new Schema(
       },
       default: undefined,
     },
+    taskRotationConfig: {
+      type: taskRotationConfigSchema,
+      default: undefined,
+    },
+    jointAccountConfig: {
+      type: new Schema(
+        {
+          monthlyTarget: {
+            type: Number,
+            min: [0.01, 'Monthly target must be at least 0.01'],
+            default: undefined,
+          },
+          targetMode: {
+            type: String,
+            enum: {
+              values: CONTRIBUTION_TARGET_MODES,
+              message: 'Invalid contribution target mode',
+            },
+            default: undefined,
+          },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
   },
   { _id: false }
+);
+
+// ── Settlement subdocument schema ────────────────────────────────────
+
+const settlementSchema = new Schema(
+  {
+    month: { type: String, required: true },
+    amount: { type: Number, required: true },
+    settledByUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    settledAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
 );
 
 // ── Main household schema ─────────────────────────────────────────────
@@ -177,6 +246,7 @@ const householdSchema = new Schema<IHousehold>(
       },
     },
     members: [memberSchema],
+    settlements: { type: [settlementSchema], default: [] },
     settings: {
       type: settingsSchema,
       required: [true, 'Settings are required'],

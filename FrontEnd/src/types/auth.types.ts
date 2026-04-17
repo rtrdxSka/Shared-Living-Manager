@@ -28,7 +28,7 @@ export interface User {
 
 export interface AuthTokens {
   accessToken: string;
-  refreshToken: string;
+  // refreshToken is stored as an httpOnly cookie — never exposed to JS
 }
 
 export interface AuthResponse {
@@ -68,6 +68,7 @@ export interface UpdateProfileInput {
   firstName?: string;
   lastName?: string;
   email?: string;
+  currentPassword?: string;
 }
 
 export interface ChangePasswordInput {

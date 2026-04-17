@@ -3,6 +3,7 @@ import {
   LIVING_ARRANGEMENTS,
   RELATIONSHIPS,
   AGE_GROUPS,
+  FINANCE_MODES,
   EXPENSE_SPLIT_METHODS,
   EXPENSE_TYPES,
   TASK_MANAGEMENT_LEVELS,
@@ -102,6 +103,11 @@ export const createHouseholdValidation: ValidationChain[] = [
     .withMessage('Email cannot exceed 254 characters'),
 
   // ── Step 3: Financial Preferences ─────────────────────────────────────
+
+  body('financeMode')
+    .optional()
+    .isIn(['joint', 'split'])
+    .withMessage('Finance mode must be joint or split'),
 
   body('expenseSplitMethod')
     .optional()
@@ -223,10 +229,19 @@ export const createHouseholdValidation: ValidationChain[] = [
     return true;
   }),
 
+  body('financeMode').custom((value: string | undefined, { req }) => {
+    const arrangement = req.body.livingArrangement as LivingArrangement;
+    if (arrangement !== 'alone' && (!value || !['joint', 'split'].includes(value))) {
+      throw new Error('Finance mode is required for shared households');
+    }
+    return true;
+  }),
+
   body('expenseSplitMethod').custom((value: string | undefined, { req }) => {
     const arrangement = req.body.livingArrangement as LivingArrangement;
-    if (arrangement !== 'alone' && !value) {
-      throw new Error('Expense split method is required for shared households');
+    const financeMode = req.body.financeMode as string | undefined;
+    if (arrangement !== 'alone' && financeMode === 'split' && !value) {
+      throw new Error('Expense split method is required when finance mode is split');
     }
     return true;
   }),
@@ -234,8 +249,8 @@ export const createHouseholdValidation: ValidationChain[] = [
   body('taskDistributionMethod').custom((value: string | undefined, { req }) => {
     const arrangement = req.body.livingArrangement as LivingArrangement;
     const taskLevel = req.body.taskManagementEnabled as TaskManagementLevel;
-    if (arrangement !== 'alone' && taskLevel !== 'disabled' && !value) {
-      throw new Error('Task distribution method is required when task management is enabled');
+    if (arrangement !== 'alone' && taskLevel === 'full' && !value) {
+      throw new Error('Task distribution method is required when task management is set to full');
     }
     return true;
   }),
@@ -300,4 +315,51 @@ export const joinHouseholdValidation: ValidationChain[] = [
     .withMessage('Invite code is required')
     .isUUID()
     .withMessage('Invalid invite code format'),
+];
+
+// ── Update Settings Validation ────────────────────────────────────────
+
+export const updateSettingsValidation: ValidationChain[] = [
+  param('id').isMongoId().withMessage('Invalid household ID'),
+
+  body('financeMode')
+    .optional()
+    .isIn([...FINANCE_MODES])
+    .withMessage('Invalid finance mode'),
+
+  body('expenseSplitMethod')
+    .optional()
+    .isIn([...EXPENSE_SPLIT_METHODS])
+    .withMessage('Invalid split method'),
+
+  body('customSplitPercentage')
+    .optional()
+    .isInt({ min: 1, max: 99 })
+    .withMessage('customSplitPercentage must be an integer between 1 and 99'),
+];
+
+// ── Update Member Income Validation ───────────────────────────────────
+
+export const updateMemberIncomeValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
+
+  body('monthlyIncome')
+    .isFloat({ min: 0, max: 1_000_000 })
+    .withMessage('Income must be between 0 and 1,000,000'),
+];
+
+// ── Regenerate Invite Code Validation ────────────────────────────────
+
+export const regenerateInviteCodeValidation: ValidationChain[] = [
+  param('id').isMongoId().withMessage('Invalid household ID'),
+];
+
+// ── Record Settlement Validation ──────────────────────────────────────
+
+export const recordSettlementValidation: ValidationChain[] = [
+  param('id').isMongoId().withMessage('Invalid household ID'),
+  body('month').matches(/^\d{4}-(0[1-9]|1[0-2])$/).withMessage('Month must be in YYYY-MM format'),
+  body('amount').isFloat({ min: 0.01, max: 1_000_000 }).withMessage('Amount must be between 0.01 and 1,000,000'),
 ];
