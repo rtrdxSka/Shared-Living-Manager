@@ -39,9 +39,23 @@ export const expenseApi = {
     return data.data.expense;
   },
 
-  async resolveExpense(householdId: string, expenseId: string): Promise<ExpenseResponse> {
+  async requestResolution(householdId: string, expenseId: string): Promise<ExpenseResponse> {
     const { data } = await api.post<ApiSuccessResponse<{ expense: ExpenseResponse }>>(
-      `/households/${householdId}/expenses/${expenseId}/resolve`
+      `/households/${householdId}/expenses/${expenseId}/request-resolution`
+    );
+    return data.data.expense;
+  },
+
+  async confirmResolution(householdId: string, expenseId: string): Promise<ExpenseResponse> {
+    const { data } = await api.post<ApiSuccessResponse<{ expense: ExpenseResponse }>>(
+      `/households/${householdId}/expenses/${expenseId}/confirm-resolution`
+    );
+    return data.data.expense;
+  },
+
+  async disputeResolution(householdId: string, expenseId: string): Promise<ExpenseResponse> {
+    const { data } = await api.post<ApiSuccessResponse<{ expense: ExpenseResponse }>>(
+      `/households/${householdId}/expenses/${expenseId}/dispute-resolution`
     );
     return data.data.expense;
   },

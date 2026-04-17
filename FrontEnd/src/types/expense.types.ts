@@ -16,6 +16,11 @@ export interface ExpenseResponse {
   isFullRepayment: boolean;
   resolvedAt?: string;
   resolvedByUserId?: string;
+  pendingConfirmation: boolean;
+  pendingConfirmationAt?: string;
+  pendingConfirmationByUserId?: string;
+  pendingConfirmationByNickname?: string;
+  lastDisputedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

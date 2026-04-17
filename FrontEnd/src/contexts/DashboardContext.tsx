@@ -15,7 +15,9 @@ import type {
 import {
   useDeleteExpense,
   useClaimExpense,
-  useResolveExpense,
+  useRequestResolution,
+  useConfirmResolution,
+  useDisputeResolution,
   useDeactivateRecurringExpense,
   useToggleTaskComplete,
   useDeleteTask,
@@ -102,7 +104,9 @@ export interface DashboardContextValue {
   // Mutation functions
   deleteExpense: (id: string) => Promise<void>;
   claimExpense: (id: string) => Promise<void>;
-  resolveExpense: (id: string) => Promise<void>;
+  requestResolution: (id: string) => Promise<void>;
+  confirmResolution: (id: string) => Promise<void>;
+  disputeResolution: (id: string) => Promise<void>;
   deactivateRecurringExpense: (id: string) => Promise<void>;
   toggleTaskComplete: (id: string) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
@@ -162,7 +166,9 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   // ── Mutations ─────────────────────────────────────────────────────────
   const deleteExpenseMutation = useDeleteExpense(household._id);
   const claimExpenseMutation = useClaimExpense(household._id);
-  const resolveExpenseMutation = useResolveExpense(household._id);
+  const requestResolutionMutation = useRequestResolution(household._id);
+  const confirmResolutionMutation = useConfirmResolution(household._id);
+  const disputeResolutionMutation = useDisputeResolution(household._id);
   const deactivateRecurringExpenseMutation = useDeactivateRecurringExpense(household._id);
   const toggleCompleteMutation = useToggleTaskComplete(household._id);
   const deleteTaskMutation = useDeleteTask(household._id);
@@ -238,7 +244,9 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   // ── Mutation wrappers ─────────────────────────────────────────────────
   const deleteExpense = async (id: string) => { await deleteExpenseMutation.mutateAsync(id); };
   const claimExpense = async (id: string) => { await claimExpenseMutation.mutateAsync(id); };
-  const resolveExpense = async (id: string) => { await resolveExpenseMutation.mutateAsync(id); };
+  const requestResolution = async (id: string) => { await requestResolutionMutation.mutateAsync(id); };
+  const confirmResolution = async (id: string) => { await confirmResolutionMutation.mutateAsync(id); };
+  const disputeResolution = async (id: string) => { await disputeResolutionMutation.mutateAsync(id); };
   const deactivateRecurringExpense = async (id: string) => {
     await deactivateRecurringExpenseMutation.mutateAsync(id);
   };
@@ -315,7 +323,9 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     setAddTransactionOpen,
     deleteExpense,
     claimExpense,
-    resolveExpense,
+    requestResolution,
+    confirmResolution,
+    disputeResolution,
     deactivateRecurringExpense,
     toggleTaskComplete,
     deleteTask,

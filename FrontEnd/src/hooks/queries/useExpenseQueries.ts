@@ -85,16 +85,26 @@ export function useClaimExpense(householdId: string) {
   });
 }
 
-export function useResolveExpense(householdId: string) {
+export function useRequestResolution(householdId: string) {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: (expenseId: string) =>
-      expenseApi.resolveExpense(householdId, expenseId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(householdId),
-      });
-    },
+    mutationFn: (expenseId: string) => expenseApi.requestResolution(householdId, expenseId),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(householdId) }); },
+  });
+}
+
+export function useConfirmResolution(householdId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (expenseId: string) => expenseApi.confirmResolution(householdId, expenseId),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(householdId) }); },
+  });
+}
+
+export function useDisputeResolution(householdId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (expenseId: string) => expenseApi.disputeResolution(householdId, expenseId),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(householdId) }); },
   });
 }

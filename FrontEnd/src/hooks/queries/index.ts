@@ -12,7 +12,9 @@ export {
   useUpdateExpense,
   useDeleteExpense,
   useClaimExpense,
-  useResolveExpense,
+  useRequestResolution,
+  useConfirmResolution,
+  useDisputeResolution,
 } from './useExpenseQueries';
 
 export {

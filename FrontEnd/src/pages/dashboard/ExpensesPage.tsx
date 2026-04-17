@@ -40,7 +40,9 @@ export default function ExpensesPage() {
     setEditingExpense,
     deleteExpense,
     claimExpense,
-    resolveExpense,
+    requestResolution,
+    confirmResolution,
+    disputeResolution,
     deactivateRecurringExpense,
   } = useDashboard();
 
@@ -196,7 +198,9 @@ export default function ExpensesPage() {
                           }}
                           onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
                           onClaim={() => claimExpense(expense._id)}
-                          onResolve={() => resolveExpense(expense._id)}
+                          onRequestResolution={() => requestResolution(expense._id)}
+                          onConfirmResolution={() => confirmResolution(expense._id)}
+                          onDisputeResolution={() => disputeResolution(expense._id)}
                           financeMode={financeMode}
                           splitMethod={splitMethod}
                           customMyPct={customMyPct}
@@ -247,7 +251,9 @@ export default function ExpensesPage() {
                           }}
                           onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
                           onClaim={() => claimExpense(expense._id)}
-                          onResolve={() => resolveExpense(expense._id)}
+                          onRequestResolution={() => requestResolution(expense._id)}
+                          onConfirmResolution={() => confirmResolution(expense._id)}
+                          onDisputeResolution={() => disputeResolution(expense._id)}
                           financeMode={financeMode}
                           splitMethod={splitMethod}
                           customMyPct={customMyPct}
@@ -339,7 +345,9 @@ function ExpenseRow({
   onConfirmDelete,
   onEdit,
   onClaim,
-  onResolve,
+  onRequestResolution,
+  onConfirmResolution,
+  onDisputeResolution,
   financeMode,
   splitMethod,
   customMyPct,
@@ -347,6 +355,7 @@ function ExpenseRow({
   currency,
   currentUserId,
   myNickname,
+  partnerNickname,
   myParticipatesInFinances,
   hasFinancialPartner,
 }: {
@@ -359,7 +368,9 @@ function ExpenseRow({
   onConfirmDelete: () => Promise<void>;
   onEdit: () => void;
   onClaim: () => Promise<void>;
-  onResolve: () => Promise<void>;
+  onRequestResolution: () => Promise<void>;
+  onConfirmResolution: () => Promise<void>;
+  onDisputeResolution: () => Promise<void>;
   financeMode: string;
   splitMethod: string;
   customMyPct: number;
@@ -375,17 +386,30 @@ function ExpenseRow({
 
   const isCreator = expense.createdByUserId === currentUserId;
   const isUnpaid = !expense.paidByUserId;
-  const isMyExpense = expense.paidByUserId === currentUserId;
+  const isCreditor = expense.paidByUserId === currentUserId;
+  const isDebtor = !isUnpaid && !isCreditor;
+  const isSplitMode = financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner;
+
   const canClaim = isUnpaid && myParticipatesInFinances;
-  const canMarkPaid =
-    financeMode === 'split' &&
-    myParticipatesInFinances &&
-    hasFinancialPartner &&
-    expense.paidByUserId &&
-    !isMyExpense &&
-    !expense.isResolved;
-  const canEdit = isCreator && !expense.isResolved;
-  const canDelete = isCreator && !expense.isResolved;
+
+  // Debtor can request resolution when expense is claimed, not resolved, not already pending
+  const canRequestResolution = isSplitMode && isDebtor && !expense.isResolved && !expense.pendingConfirmation;
+
+  // Creditor can confirm/dispute when there's a pending request
+  const canConfirmOrDispute = isSplitMode && isCreditor && expense.pendingConfirmation && !expense.isResolved;
+
+  // Debtor's pending request awaiting creditor
+  const isAwaitingConfirmation = isSplitMode && isDebtor && expense.pendingConfirmation && !expense.isResolved;
+
+  // Creditor waiting for debtor to initiate
+  const isCreditorWaiting = isSplitMode && isCreditor && !expense.pendingConfirmation && !expense.isResolved && !isUnpaid;
+
+  // Dispute hint for debtor (within 24 h of a dispute)
+  const wasRecentlyDisputed = expense.lastDisputedAt
+    && (Date.now() - new Date(expense.lastDisputedAt).getTime()) < 24 * 60 * 60 * 1000;
+
+  const canEdit = isCreator && !expense.isResolved && !expense.pendingConfirmation;
+  const canDelete = isCreator && !expense.isResolved && !expense.pendingConfirmation;
 
   async function handleAction(action: () => Promise<void>, key: string) {
     setActionLoading(key);
@@ -417,6 +441,11 @@ function ExpenseRow({
         ) : (
           <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
             Unpaid
+          </span>
+        )}
+        {expense.pendingConfirmation && !expense.isResolved && (
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+            Pending
           </span>
         )}
         <span className="shrink-0 text-xs text-muted-foreground">
@@ -462,6 +491,26 @@ function ExpenseRow({
               No payer assigned yet. Claim this expense if you paid for it.
             </p>
           )}
+          {isAwaitingConfirmation && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Waiting for {partnerNickname} to confirm they received your payment.
+            </p>
+          )}
+          {isCreditorWaiting && (
+            <p className="text-xs text-muted-foreground">
+              Waiting for {partnerNickname} to confirm they paid you back.
+            </p>
+          )}
+          {canConfirmOrDispute && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+              {expense.pendingConfirmationByNickname ?? partnerNickname} says they paid you back.
+            </p>
+          )}
+          {isDebtor && wasRecentlyDisputed && !expense.pendingConfirmation && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {partnerNickname} disputed your payment claim. Sort it out and try again.
+            </p>
+          )}
 
           {/* Action buttons — labelled, not icon-only */}
           {!isConfirmingDelete ? (
@@ -476,15 +525,42 @@ function ExpenseRow({
                   {actionLoading === 'claim' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Claim expense'}
                 </Button>
               )}
-              {canMarkPaid && (
+              {canRequestResolution && (
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={actionLoading === 'resolve'}
-                  onClick={() => void handleAction(onResolve, 'resolve')}
+                  disabled={actionLoading === 'request'}
+                  onClick={() => void handleAction(onRequestResolution, 'request')}
                 >
-                  {actionLoading === 'resolve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mark as paid'}
+                  {actionLoading === 'request' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'I paid you back'}
                 </Button>
+              )}
+              {isAwaitingConfirmation && (
+                <Button size="sm" variant="outline" disabled className="opacity-60 cursor-not-allowed">
+                  Awaiting confirmation…
+                </Button>
+              )}
+              {canConfirmOrDispute && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-green-500/50 text-green-700 hover:bg-green-50 hover:border-green-500 dark:text-green-400 dark:hover:bg-green-950/40"
+                    disabled={actionLoading === 'confirm'}
+                    onClick={() => void handleAction(onConfirmResolution, 'confirm')}
+                  >
+                    {actionLoading === 'confirm' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Confirm received'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60"
+                    disabled={actionLoading === 'dispute'}
+                    onClick={() => void handleAction(onDisputeResolution, 'dispute')}
+                  >
+                    {actionLoading === 'dispute' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Dispute'}
+                  </Button>
+                </>
               )}
               {canEdit && (
                 <Button size="sm" variant="outline" onClick={onEdit}>
