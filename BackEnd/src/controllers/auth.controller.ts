@@ -8,7 +8,7 @@ const REFRESH_COOKIE: CookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'strict',
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days — matches JWT refresh token expiry
   path: '/api/auth',
 };
 
