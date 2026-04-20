@@ -1,6 +1,5 @@
 {
   "model": "claude-sonnet-4-6",
-  "effortLevel": "high",
   "hooks": {
     "PreToolUse": [
       {
@@ -13,5 +12,9 @@
         ]
       }
     ]
+  },
+  "effortLevel": "high",
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
   }
 }
