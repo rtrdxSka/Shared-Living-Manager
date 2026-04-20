@@ -1,0 +1,17 @@
+cat > .graphifyignore << 'EOF'
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+.next/
+coverage/
+*.lock
+.env
+*.min.js
+*.bundle.js
+*.generated.*
+certs/
+nginx/
+*.json
+EOF

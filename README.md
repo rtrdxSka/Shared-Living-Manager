@@ -1,6 +1,6 @@
 # Household Expense Manager
 
-A web platform for managing shared household expenses and tasks among roommates, featuring AI-powered expense splitting using Shapley Value algorithm and intelligent task assignment.
+A web platform for managing shared household expenses and tasks among roommates.
 
 ## 🎓 Academic Project
 Master's Thesis Project - 16-week development timeline
@@ -17,11 +17,6 @@ Master's Thesis Project - 16-week development timeline
 - TypeScript
 - MongoDB with Mongoose
 - JWT Authentication
-
-### AI Features
-- Shapley Value algorithm for fair expense splitting
-- Time series forecasting for bill prediction
-- Intelligent task assignment optimization
 
 ## 📁 Project Structure
 ```
