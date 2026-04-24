@@ -8,8 +8,10 @@ export function useRecurringExpenses(householdId: string, enabled = true) {
     queryKey: queryKeys.recurringExpenses.list(householdId),
     queryFn: () => recurringExpenseApi.list(householdId),
     enabled,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    // Recurring templates change infrequently; mutations invalidate the
+    // cache immediately, so a longer stale window is safe.
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 }
 

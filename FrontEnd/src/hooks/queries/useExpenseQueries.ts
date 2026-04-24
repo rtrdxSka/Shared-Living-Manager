@@ -8,7 +8,9 @@ export function useExpenses(householdId: string, month: string) {
     queryKey: queryKeys.expenses.list(householdId, month),
     queryFn: () => expenseApi.listExpenses(householdId, month),
     staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
+    // Align with the rest of the app: holding 6 months of expense lists in
+    // memory for 30 min was wasteful; 10 min is plenty of back-nav buffer.
+    gcTime: 10 * 60 * 1000,
   });
 }
 
@@ -21,10 +23,12 @@ export function useAddExpense(householdId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
       });
       // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
+        refetchType: 'active',
       });
     },
   });
@@ -44,10 +48,12 @@ export function useUpdateExpense(householdId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
       });
       // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
+        refetchType: 'active',
       });
     },
   });
@@ -62,13 +68,26 @@ export function useDeleteExpense(householdId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
       });
       // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
+        refetchType: 'active',
       });
     },
   });
+}
+
+// Cancel in-flight expense list queries so a rapid second click doesn't race
+// the first mutation's refetch. Full optimistic state-flip on these hooks
+// would need `currentUserId` / resolution-state context that's not available
+// in the hook API; cancelQueries handles the double-submit race on its own.
+async function cancelExpenseListQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  householdId: string
+) {
+  await queryClient.cancelQueries({ queryKey: queryKeys.expenses.all(householdId) });
 }
 
 export function useClaimExpense(householdId: string) {
@@ -77,9 +96,11 @@ export function useClaimExpense(householdId: string) {
   return useMutation({
     mutationFn: (expenseId: string) =>
       expenseApi.claimExpense(householdId, expenseId),
+    onMutate: () => cancelExpenseListQueries(queryClient, householdId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
       });
     },
   });
@@ -89,7 +110,13 @@ export function useRequestResolution(householdId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (expenseId: string) => expenseApi.requestResolution(householdId, expenseId),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(householdId) }); },
+    onMutate: () => cancelExpenseListQueries(queryClient, householdId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
+      });
+    },
   });
 }
 
@@ -97,7 +124,13 @@ export function useConfirmResolution(householdId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (expenseId: string) => expenseApi.confirmResolution(householdId, expenseId),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(householdId) }); },
+    onMutate: () => cancelExpenseListQueries(queryClient, householdId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
+      });
+    },
   });
 }
 
@@ -105,6 +138,12 @@ export function useDisputeResolution(householdId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (expenseId: string) => expenseApi.disputeResolution(householdId, expenseId),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(householdId) }); },
+    onMutate: () => cancelExpenseListQueries(queryClient, householdId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
+      });
+    },
   });
 }
