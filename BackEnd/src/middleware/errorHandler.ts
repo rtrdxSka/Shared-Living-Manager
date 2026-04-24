@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { AppError } from '../utils/error';
+import { logger } from '../utils/logger';
 
 
 interface ErrorResponse {
   status: 'error';
   message: string;
-  errors?: Record<string, string>[];
+  errors?: string[];
   stack?: string;
 }
 
@@ -51,11 +52,13 @@ export const errorHandler = (
   }
 
   // Handle Mongoose validation errors (e.g. schema-level match/required)
+  // Return every field's message so the client can surface all issues at once.
   if (err instanceof mongoose.Error.ValidationError) {
-    const firstError = Object.values(err.errors)[0];
+    const errors = Object.values(err.errors).map((e) => e.message);
     const response: ErrorResponse = {
       status: 'error',
-      message: firstError?.message || 'Validation failed',
+      message: 'Validation failed',
+      errors,
     };
 
     if (process.env.NODE_ENV === 'development') {
@@ -67,7 +70,7 @@ export const errorHandler = (
   }
 
   // Unexpected errors — log and return generic 500
-  console.error('❌ Unexpected error:', err);
+  logger.error({ err }, 'Unexpected error');
 
   const response: ErrorResponse = {
     status: 'error',

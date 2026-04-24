@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { logger } from '../utils/logger';
 
 export const connectDatabase = async (): Promise<void> => {
   try {
@@ -12,21 +13,25 @@ export const connectDatabase = async (): Promise<void> => {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       maxPoolSize: 10,
+      // Keep a minimum of 2 warm connections so the first request after
+      // an idle period doesn't pay the TCP/TLS setup cost (~50ms).
+      minPoolSize: 2,
+      heartbeatFrequencyMS: 10000,
     });
 
-    console.log('✅ MongoDB connected successfully');
-    console.log(`📊 Database: ${mongoose.connection.name}`);
+    logger.info('✅ MongoDB connected successfully');
+    logger.info(`📊 Database: ${mongoose.connection.name}`);
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    logger.error({ err: error }, '❌ MongoDB connection error');
     process.exit(1);
   }
 };
 
 // Graceful shutdown
 mongoose.connection.on('disconnected', () => {
-  console.log('⚠️  MongoDB disconnected');
+  logger.info('⚠️  MongoDB disconnected');
 });
 
 mongoose.connection.on('error', (error) => {
-  console.error('❌ MongoDB error:', error);
+  logger.error({ err: error }, '❌ MongoDB error');
 });
