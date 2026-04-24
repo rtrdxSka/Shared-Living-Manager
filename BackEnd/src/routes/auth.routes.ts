@@ -38,6 +38,19 @@ const resendVerificationLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Dedicated rate limiter for refresh token rotation (10 req / min per IP).
+// Prevents brute-force enumeration of valid refresh tokens.
+const refreshLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: {
+    status: 'error',
+    message: 'Too many refresh attempts, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Public routes
 router.post(
   '/register',
@@ -55,6 +68,7 @@ router.post(
 
 router.post(
   '/refresh',
+  refreshLimiter,
   refreshTokenValidation,
   handleValidationErrors,
   authController.refresh.bind(authController)

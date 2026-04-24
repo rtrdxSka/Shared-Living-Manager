@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { householdController } from '../controllers/household.controller';
 import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation, regenerateInviteCodeValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
@@ -11,6 +12,19 @@ import goalRouter from './goal.routes';
 import jointAccountRouter from './joint-account.routes';
 
 const router = Router();
+
+// Dedicated rate limiter for household join attempts (5 req / min per IP).
+// Prevents brute-force enumeration of valid invite codes.
+const joinLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: {
+    status: 'error',
+    message: 'Too many join attempts, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // POST /api/households — Create household from onboarding survey
 router.post(
@@ -27,6 +41,7 @@ router.post(
   '/join',
   authMiddleware,
   emailVerifiedMiddleware,
+  joinLimiter,
   joinHouseholdValidation,
   handleValidationErrors,
   householdController.join.bind(householdController)
