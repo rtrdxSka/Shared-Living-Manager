@@ -123,6 +123,8 @@ const userSchema = new Schema<IUser>(
 
 // Index for faster queries
 userSchema.index({ email: 1 });
+userSchema.index({ emailVerificationToken: 1 }, { sparse: true });
+userSchema.index({ passwordResetToken: 1 }, { sparse: true });
 
 // Hash password before saving
 userSchema.pre('save', async function () {

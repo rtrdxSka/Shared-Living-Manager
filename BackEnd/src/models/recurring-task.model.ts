@@ -27,5 +27,8 @@ const recurringTaskSchema = new Schema<IRecurringTask>(
 );
 
 recurringTaskSchema.index({ householdId: 1, isActive: 1 });
+recurringTaskSchema.index({ interval: 1, isActive: 1 });
+// Supports findOne({ _id, householdId }) household-scoping on writes/reads
+recurringTaskSchema.index({ _id: 1, householdId: 1 });
 
 export const RecurringTask = model<IRecurringTask>('RecurringTask', recurringTaskSchema);

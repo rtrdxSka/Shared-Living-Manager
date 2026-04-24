@@ -46,5 +46,7 @@ expenseSchema.index(
   { recurringExpenseId: 1, date: 1 },
   { unique: true, partialFilterExpression: { recurringExpenseId: { $exists: true } } }
 );
+// Supports findOne({ _id, householdId }) household-scoping on writes/reads
+expenseSchema.index({ _id: 1, householdId: 1 });
 
 export const Expense = model<IExpense>('Expense', expenseSchema);

@@ -40,5 +40,8 @@ const recurringExpenseSchema = new Schema<IRecurringExpense>(
 );
 
 recurringExpenseSchema.index({ householdId: 1, isActive: 1 });
+recurringExpenseSchema.index({ interval: 1, isActive: 1 });
+// Supports findOne({ _id, householdId }) household-scoping on writes/reads
+recurringExpenseSchema.index({ _id: 1, householdId: 1 });
 
 export const RecurringExpense = model<IRecurringExpense>('RecurringExpense', recurringExpenseSchema);
