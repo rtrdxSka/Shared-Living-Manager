@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,13 @@ import {
   stepMonth,
   formatMonthLabel,
 } from '@/utils/dashboardHelpers';
+import type { ExpenseResponse } from '@/types/expense.types';
+import type { HouseholdResponse } from '@/types/household.types';
+import type { Settlement } from '@/types/household.types';
+import type { JointAccountSummaryResponse } from '@/types/joint-account.types';
+import type { GoalResponse } from '@/types/goal.types';
+import type { TaskResponse } from '@/types/task.types';
+import type { TaskManagementLevel } from '@/types/onboarding.types';
 
 type ViewMode = 'current' | 'month' | 'all';
 
@@ -157,25 +164,7 @@ export default function OverviewPage() {
 
 // ── Stats Row ─────────────────────────────────────────────────────────────
 
-import type { ExpenseResponse } from '@/types/expense.types';
-import type { HouseholdResponse } from '@/types/household.types';
-import type { Settlement } from '@/types/household.types';
-
-function StatsRow({
-  financeMode,
-  splitMethod,
-  customMyPct,
-  incomeSplit,
-  myNickname,
-  partnerNickname,
-  currency,
-  expenses,
-  myParticipatesInFinances,
-  hasFinancialPartner,
-  currentMonth,
-  onSettleUp,
-  household,
-}: {
+interface StatsRowProps {
   financeMode: string;
   splitMethod: string;
   customMyPct: number;
@@ -189,19 +178,59 @@ function StatsRow({
   currentMonth: string;
   onSettleUp: (month: string, amount: number) => Promise<void>;
   household: HouseholdResponse;
-}) {
+}
+
+const StatsRow = React.memo(function StatsRow({
+  financeMode,
+  splitMethod,
+  customMyPct,
+  incomeSplit,
+  myNickname,
+  partnerNickname,
+  currency,
+  expenses,
+  myParticipatesInFinances,
+  hasFinancialPartner,
+  currentMonth,
+  onSettleUp,
+  household,
+}: StatsRowProps) {
   const [confirmSettle, setConfirmSettle] = useState(false);
   const [settlingUp, setSettlingUp] = useState(false);
 
-  const settlementForMonth =
-    (household.settlements ?? []).find((s: Settlement) => s.month === currentMonth) ?? null;
+  const settlementForMonth = useMemo(
+    () => (household.settlements ?? []).find((s: Settlement) => s.month === currentMonth) ?? null,
+    [household.settlements, currentMonth]
+  );
 
-  const paidExpenses = expenses.filter((e) => e.paidByUserId);
-  const totalAmount = paidExpenses.reduce((s, e) => s + e.amount, 0);
-  const myPaidTotal = paidExpenses
-    .filter((e) => e.paidByNickname === myNickname)
-    .reduce((s, e) => s + e.amount, 0);
-  const partnerPaidTotal = totalAmount - myPaidTotal;
+  const { totalAmount, myPaidTotal, partnerPaidTotal } = useMemo(() => {
+    const paidExpenses = expenses.filter((e) => e.paidByUserId);
+    const total = paidExpenses.reduce((s, e) => s + e.amount, 0);
+    const myPaid = paidExpenses
+      .filter((e) => e.paidByNickname === myNickname)
+      .reduce((s, e) => s + e.amount, 0);
+    return {
+      totalAmount: total,
+      myPaidTotal: myPaid,
+      partnerPaidTotal: total - myPaid,
+    };
+  }, [expenses, myNickname]);
+
+  const { balance, balancePositive } = useMemo(() => {
+    const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
+    const myUnresolvedPaid = unresolvedPaid
+      .filter((e) => e.paidByNickname === myNickname)
+      .reduce((s, e) => s + e.amount, 0);
+    const myShare = unresolvedPaid.reduce((s, e) => {
+      if (e.isFullRepayment) {
+        return s + (e.paidByNickname === myNickname ? 0 : e.amount);
+      }
+      const myPct = splitMethod === 'equal' ? 0.5 : splitMethod === 'income_based' && incomeSplit ? incomeSplit.myPct / 100 : customMyPct / 100;
+      return s + e.amount * myPct;
+    }, 0);
+    const b = myUnresolvedPaid - myShare;
+    return { balance: b, balancePositive: b > 0 };
+  }, [expenses, myNickname, splitMethod, incomeSplit, customMyPct]);
 
   const periodLabel = currentMonth === 'all' ? 'all time' : 'this month';
 
@@ -236,21 +265,7 @@ function StatsRow({
     );
   }
 
-  // Split mode — balance uses only unresolved paid expenses
-  const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
-  const myUnresolvedPaid = unresolvedPaid
-    .filter((e) => e.paidByNickname === myNickname)
-    .reduce((s, e) => s + e.amount, 0);
-  const myShare = unresolvedPaid.reduce((s, e) => {
-    if (e.isFullRepayment) {
-      return s + (e.paidByNickname === myNickname ? 0 : e.amount);
-    }
-    const myPct = splitMethod === 'equal' ? 0.5 : splitMethod === 'income_based' && incomeSplit ? incomeSplit.myPct / 100 : customMyPct / 100;
-    return s + e.amount * myPct;
-  }, 0);
-  const balance = myUnresolvedPaid - myShare;
-  const balancePositive = balance > 0;
-
+  // Split mode — balance uses only unresolved paid expenses (memoized above)
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <Card>
@@ -312,7 +327,7 @@ function StatsRow({
       </Card>
     </div>
   );
-}
+});
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -330,19 +345,19 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 // ── Joint Account Overview Card ───────────────────────────────────────────
 
-import type { JointAccountSummaryResponse } from '@/types/joint-account.types';
-
-function JointAccountOverviewCard({
-  jointAccount,
-  currency,
-  onViewAccount,
-  onAddFunds,
-}: {
+interface JointAccountOverviewCardProps {
   jointAccount: JointAccountSummaryResponse;
   currency: string;
   onViewAccount: () => void;
   onAddFunds: () => void;
-}) {
+}
+
+const JointAccountOverviewCard = React.memo(function JointAccountOverviewCard({
+  jointAccount,
+  currency,
+  onViewAccount,
+  onAddFunds,
+}: JointAccountOverviewCardProps) {
   return (
     <Card>
       <CardContent className="pt-4 pb-4">
@@ -375,26 +390,29 @@ function JointAccountOverviewCard({
       </CardContent>
     </Card>
   );
-}
+});
 
 // ── Goals Preview Card ────────────────────────────────────────────────────
 
-import type { GoalResponse } from '@/types/goal.types';
-
-function GoalsPreviewCard({
-  goals,
-  goalsLoading,
-  currency,
-  onAddGoal,
-  onViewAll,
-}: {
+interface GoalsPreviewCardProps {
   goals: GoalResponse[];
   goalsLoading: boolean;
   currency: string;
   onAddGoal: () => void;
   onViewAll: () => void;
-}) {
-  const activeGoals = goals.filter((g) => g.status === 'active').slice(0, 3);
+}
+
+const GoalsPreviewCard = React.memo(function GoalsPreviewCard({
+  goals,
+  goalsLoading,
+  currency,
+  onAddGoal,
+  onViewAll,
+}: GoalsPreviewCardProps) {
+  const { activeGoals, hasMoreActive } = useMemo(() => {
+    const active = goals.filter((g) => g.status === 'active');
+    return { activeGoals: active.slice(0, 3), hasMoreActive: active.length > 3 };
+  }, [goals]);
 
   return (
     <Card>
@@ -438,7 +456,7 @@ function GoalsPreviewCard({
                 </div>
               );
             })}
-            {goals.filter((g) => g.status === 'active').length > 3 && (
+            {hasMoreActive && (
               <button onClick={onViewAll} className="w-full text-center text-xs font-medium text-primary hover:underline">
                 View all goals
               </button>
@@ -448,22 +466,11 @@ function GoalsPreviewCard({
       </CardContent>
     </Card>
   );
-}
+});
 
 // ── Recent Activity Card ──────────────────────────────────────────────────
 
-import type { TaskResponse } from '@/types/task.types';
-import type { TaskManagementLevel } from '@/types/onboarding.types';
-
-function RecentActivityCard({
-  taskLevel,
-  currency,
-  expenses,
-  tasks,
-  expensesLoading,
-  onViewExpenses,
-  onViewTasks,
-}: {
+interface RecentActivityCardProps {
   taskLevel: TaskManagementLevel;
   currency: string;
   expenses: ExpenseResponse[];
@@ -471,9 +478,22 @@ function RecentActivityCard({
   expensesLoading: boolean;
   onViewExpenses: () => void;
   onViewTasks: () => void;
-}) {
-  const topExpenses = expenses.slice(0, 3);
-  const pendingTasks = tasks.filter((t) => !t.isCompleted).slice(0, 2);
+}
+
+const RecentActivityCard = React.memo(function RecentActivityCard({
+  taskLevel,
+  currency,
+  expenses,
+  tasks,
+  expensesLoading,
+  onViewExpenses,
+  onViewTasks,
+}: RecentActivityCardProps) {
+  const topExpenses = useMemo(() => expenses.slice(0, 3), [expenses]);
+  const pendingTasks = useMemo(
+    () => tasks.filter((t) => !t.isCompleted).slice(0, 2),
+    [tasks]
+  );
 
   return (
     <Card>
@@ -529,4 +549,4 @@ function RecentActivityCard({
       </CardContent>
     </Card>
   );
-}
+});

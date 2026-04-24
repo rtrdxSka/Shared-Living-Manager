@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   CheckSquare,
   ChevronDown,
@@ -29,7 +29,7 @@ import type { RecurringTaskResponse } from '@/types/recurring-task.types';
 
 // ── Due date badge ────────────────────────────────────────────────────────
 
-function DueDateBadge({ task }: { task: TaskResponse }) {
+const DueDateBadge = React.memo(function DueDateBadge({ task }: { task: TaskResponse }) {
   if (!task.dueDate) return null;
   const status = getDueDateStatus(task.dueDate, task.isCompleted);
   if (status === 'none') return null;
@@ -47,7 +47,7 @@ function DueDateBadge({ task }: { task: TaskResponse }) {
       {label}
     </span>
   );
-}
+});
 
 // ── Assign select (fixed distribution) ───────────────────────────────────
 
@@ -156,7 +156,7 @@ interface TaskRowProps {
   setConfirmingDelete: (id: string | null) => void;
 }
 
-function TaskRow({
+const TaskRow = React.memo(function TaskRow({
   task,
   isExpanded,
   onToggleExpand,
@@ -179,19 +179,28 @@ function TaskRow({
   const [completePending, setCompletePending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
 
-  const dueDateStatus = getDueDateStatus(task.dueDate, task.isCompleted);
+  const dueDateStatus = useMemo(
+    () => getDueDateStatus(task.dueDate, task.isCompleted),
+    [task.dueDate, task.isCompleted]
+  );
   const isConfirmingThisDelete = confirmingDelete === task._id;
 
-  const pastOneDay =
-    task.isCompleted &&
-    task.completedAt != null &&
-    Date.now() - new Date(task.completedAt).getTime() >= 86_400_000;
+  const pastOneDay = useMemo(
+    () =>
+      task.isCompleted &&
+      task.completedAt != null &&
+      Date.now() - new Date(task.completedAt).getTime() >= 86_400_000,
+    [task.isCompleted, task.completedAt]
+  );
 
-  const canUndo =
-    !task.isCompleted ||
-    (!pastOneDay &&
-      (isAdmin ||
-        (task.completedByMemberId === myMemberId && task.completedAt != null)));
+  const canUndo = useMemo(
+    () =>
+      !task.isCompleted ||
+      (!pastOneDay &&
+        (isAdmin ||
+          (task.completedByMemberId === myMemberId && task.completedAt != null))),
+    [task.isCompleted, task.completedByMemberId, task.completedAt, pastOneDay, isAdmin, myMemberId]
+  );
 
   const canReassign = isAdmin || task.createdByUserId === currentUserId;
 
@@ -459,7 +468,7 @@ function TaskRow({
       )}
     </div>
   );
-}
+});
 
 // ── Recurring task row ────────────────────────────────────────────────────
 
@@ -606,8 +615,15 @@ export default function TasksPage() {
     setConfirmingDelete(null);
   }
 
-  const pendingTasks = tasks.filter((t) => !t.isCompleted);
-  const completedTasks = tasks.filter((t) => t.isCompleted);
+  const { pendingTasks, completedTasks } = useMemo(() => {
+    const pending: TaskResponse[] = [];
+    const completed: TaskResponse[] = [];
+    for (const t of tasks) {
+      if (t.isCompleted) completed.push(t);
+      else pending.push(t);
+    }
+    return { pendingTasks: pending, completedTasks: completed };
+  }, [tasks]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6">

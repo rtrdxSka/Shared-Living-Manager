@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, RefreshCw, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,11 +63,41 @@ export default function ExpensesPage() {
   );
   const recurringExpenses = recurringExpensesData ?? [];
 
-  const displayedExpenses =
-    categoryFilter === 'all' ? expenses : expenses.filter((e) => e.category === categoryFilter);
+  const displayedExpenses = useMemo(
+    () =>
+      categoryFilter === 'all'
+        ? expenses
+        : expenses.filter((e) => e.category === categoryFilter),
+    [expenses, categoryFilter]
+  );
 
-  const unsettledExpenses = displayedExpenses.filter((e) => !e.isResolved);
-  const settledExpenses = displayedExpenses.filter((e) => e.isResolved);
+  const { unsettledExpenses, settledExpenses } = useMemo(() => {
+    const unsettled: ExpenseResponse[] = [];
+    const settled: ExpenseResponse[] = [];
+    for (const e of displayedExpenses) {
+      if (e.isResolved) settled.push(e);
+      else unsettled.push(e);
+    }
+    return { unsettledExpenses: unsettled, settledExpenses: settled };
+  }, [displayedExpenses]);
+
+  const splitBalance = useMemo(() => {
+    const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
+    const myPaidUnresolved = unresolvedPaid
+      .filter((e) => e.paidByNickname === myNickname)
+      .reduce((s, e) => s + e.amount, 0);
+    const myShare = unresolvedPaid.reduce((s, e) => {
+      if (e.isFullRepayment) {
+        return s + (e.paidByNickname === myNickname ? 0 : e.amount);
+      }
+      const myPct = splitMethod === 'equal' ? 0.5 : splitMethod === 'income_based' && incomeSplit ? incomeSplit.myPct / 100 : customMyPct / 100;
+      return s + e.amount * myPct;
+    }, 0);
+    return {
+      unresolvedPaidCount: unresolvedPaid.length,
+      balance: myPaidUnresolved - myShare,
+    };
+  }, [expenses, myNickname, splitMethod, incomeSplit, customMyPct]);
 
   function toggleExpand(id: string) {
     setExpandedExpenseId((prev) => (prev === id ? null : id));
@@ -272,29 +302,16 @@ export default function ExpensesPage() {
               )}
 
               {/* Balance summary for split mode */}
-              {financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && (() => {
-                const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
-                const myPaidUnresolved = unresolvedPaid.filter((e) => e.paidByNickname === myNickname).reduce((s, e) => s + e.amount, 0);
-                const myShare = unresolvedPaid.reduce((s, e) => {
-                  if (e.isFullRepayment) {
-                    return s + (e.paidByNickname === myNickname ? 0 : e.amount);
-                  }
-                  const myPct = splitMethod === 'equal' ? 0.5 : splitMethod === 'income_based' && incomeSplit ? incomeSplit.myPct / 100 : customMyPct / 100;
-                  return s + e.amount * myPct;
-                }, 0);
-                const balance = myPaidUnresolved - myShare;
-                if (unresolvedPaid.length === 0) return null;
-                return (
-                  <div className="mt-2 border-t border-border pt-3 text-sm">
-                    <span className={balance > 0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
-                      {balance > 0
-                        ? `${partnerNickname} owes you ${fmt(Math.abs(balance))} ${currency}`
-                        : `You owe ${partnerNickname} ${fmt(Math.abs(balance))} ${currency}`}
-                    </span>
-                    <span className="text-muted-foreground"> · based on {getBalanceSplitLabel(splitMethod, customMyPct, incomeSplit)}</span>
-                  </div>
-                );
-              })()}
+              {financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && splitBalance.unresolvedPaidCount > 0 && (
+                <div className="mt-2 border-t border-border pt-3 text-sm">
+                  <span className={splitBalance.balance > 0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
+                    {splitBalance.balance > 0
+                      ? `${partnerNickname} owes you ${fmt(Math.abs(splitBalance.balance))} ${currency}`
+                      : `You owe ${partnerNickname} ${fmt(Math.abs(splitBalance.balance))} ${currency}`}
+                  </span>
+                  <span className="text-muted-foreground"> · based on {getBalanceSplitLabel(splitMethod, customMyPct, incomeSplit)}</span>
+                </div>
+              )}
             </>
           )}
 
@@ -335,30 +352,7 @@ export default function ExpensesPage() {
 
 // ── Expense Row (expand-on-click) ─────────────────────────────────────────
 
-function ExpenseRow({
-  expense,
-  isExpanded,
-  isConfirmingDelete,
-  onToggle,
-  onStartDelete,
-  onCancelDelete,
-  onConfirmDelete,
-  onEdit,
-  onClaim,
-  onRequestResolution,
-  onConfirmResolution,
-  onDisputeResolution,
-  financeMode,
-  splitMethod,
-  customMyPct,
-  incomeSplit,
-  currency,
-  currentUserId,
-  myNickname,
-  partnerNickname,
-  myParticipatesInFinances,
-  hasFinancialPartner,
-}: {
+interface ExpenseRowProps {
   expense: ExpenseResponse;
   isExpanded: boolean;
   isConfirmingDelete: boolean;
@@ -381,35 +375,86 @@ function ExpenseRow({
   partnerNickname: string;
   myParticipatesInFinances: boolean;
   hasFinancialPartner: boolean;
-}) {
+}
+
+const ExpenseRow = React.memo(function ExpenseRow({
+  expense,
+  isExpanded,
+  isConfirmingDelete,
+  onToggle,
+  onStartDelete,
+  onCancelDelete,
+  onConfirmDelete,
+  onEdit,
+  onClaim,
+  onRequestResolution,
+  onConfirmResolution,
+  onDisputeResolution,
+  financeMode,
+  splitMethod,
+  customMyPct,
+  incomeSplit,
+  currency,
+  currentUserId,
+  myNickname,
+  partnerNickname,
+  myParticipatesInFinances,
+  hasFinancialPartner,
+}: ExpenseRowProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const isCreator = expense.createdByUserId === currentUserId;
-  const isUnpaid = !expense.paidByUserId;
-  const isCreditor = expense.paidByUserId === currentUserId;
-  const isDebtor = !isUnpaid && !isCreditor;
-  const isSplitMode = financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner;
-
-  const canClaim = isUnpaid && myParticipatesInFinances;
-
-  // Debtor can request resolution when expense is claimed, not resolved, not already pending
-  const canRequestResolution = isSplitMode && isDebtor && !expense.isResolved && !expense.pendingConfirmation;
-
-  // Creditor can confirm/dispute when there's a pending request
-  const canConfirmOrDispute = isSplitMode && isCreditor && expense.pendingConfirmation && !expense.isResolved;
-
-  // Debtor's pending request awaiting creditor
-  const isAwaitingConfirmation = isSplitMode && isDebtor && expense.pendingConfirmation && !expense.isResolved;
-
-  // Creditor waiting for debtor to initiate
-  const isCreditorWaiting = isSplitMode && isCreditor && !expense.pendingConfirmation && !expense.isResolved && !isUnpaid;
-
-  // Dispute hint for debtor (within 24 h of a dispute)
-  const wasRecentlyDisputed = expense.lastDisputedAt
-    && (Date.now() - new Date(expense.lastDisputedAt).getTime()) < 24 * 60 * 60 * 1000;
-
-  const canEdit = isCreator && !expense.isResolved && !expense.pendingConfirmation;
-  const canDelete = isCreator && !expense.isResolved && !expense.pendingConfirmation;
+  const {
+    isUnpaid,
+    isDebtor,
+    canClaim,
+    canRequestResolution,
+    canConfirmOrDispute,
+    isAwaitingConfirmation,
+    isCreditorWaiting,
+    wasRecentlyDisputed,
+    canEdit,
+    canDelete,
+  } = useMemo(() => {
+    const isCreatorLocal = expense.createdByUserId === currentUserId;
+    const isUnpaidLocal = !expense.paidByUserId;
+    const isCreditorLocal = expense.paidByUserId === currentUserId;
+    const isDebtorLocal = !isUnpaidLocal && !isCreditorLocal;
+    const isSplitModeLocal = financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner;
+    const wasRecentlyDisputedLocal = !!(
+      expense.lastDisputedAt &&
+      Date.now() - new Date(expense.lastDisputedAt).getTime() < 24 * 60 * 60 * 1000
+    );
+    return {
+      isUnpaid: isUnpaidLocal,
+      isDebtor: isDebtorLocal,
+      canClaim: isUnpaidLocal && myParticipatesInFinances,
+      canRequestResolution:
+        isSplitModeLocal && isDebtorLocal && !expense.isResolved && !expense.pendingConfirmation,
+      canConfirmOrDispute:
+        isSplitModeLocal && isCreditorLocal && expense.pendingConfirmation && !expense.isResolved,
+      isAwaitingConfirmation:
+        isSplitModeLocal && isDebtorLocal && expense.pendingConfirmation && !expense.isResolved,
+      isCreditorWaiting:
+        isSplitModeLocal &&
+        isCreditorLocal &&
+        !expense.pendingConfirmation &&
+        !expense.isResolved &&
+        !isUnpaidLocal,
+      wasRecentlyDisputed: wasRecentlyDisputedLocal,
+      canEdit: isCreatorLocal && !expense.isResolved && !expense.pendingConfirmation,
+      canDelete: isCreatorLocal && !expense.isResolved && !expense.pendingConfirmation,
+    };
+  }, [
+    expense.createdByUserId,
+    expense.paidByUserId,
+    expense.isResolved,
+    expense.pendingConfirmation,
+    expense.lastDisputedAt,
+    currentUserId,
+    financeMode,
+    myParticipatesInFinances,
+    hasFinancialPartner,
+  ]);
 
   async function handleAction(action: () => Promise<void>, key: string) {
     setActionLoading(key);
@@ -598,7 +643,7 @@ function ExpenseRow({
       )}
     </div>
   );
-}
+});
 
 // ── Split Method Callout ──────────────────────────────────────────────────
 
