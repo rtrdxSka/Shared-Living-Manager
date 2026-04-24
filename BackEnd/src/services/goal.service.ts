@@ -1,5 +1,4 @@
 import { Types } from 'mongoose';
-import { Household } from '../models/household.model';
 import { Goal } from '../models/goal.model';
 import {
   IGoal,
@@ -14,6 +13,7 @@ import { IHouseholdMember } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { IPaginatedResult } from '../types/pagination.types';
 import { parsePaginationParams, buildPaginatedResult } from '../utils/pagination';
+import { getHouseholdForMember } from '../utils/household.helpers';
 
 class GoalService {
   // ── Any member ────────────────────────────────────────────────────────
@@ -23,11 +23,7 @@ class GoalService {
     userId: string,
     input: IAddGoalInput
   ): Promise<IGoalResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household } = await getHouseholdForMember(householdId, userId);
 
     const goal = await Goal.create({
       householdId: household._id,
@@ -47,18 +43,14 @@ class GoalService {
     userId: string,
     input: IListGoalsInput = {}
   ): Promise<IPaginatedResult<IGoalResponse>> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const { household } = await getHouseholdForMember(householdId, userId);
 
     const filter: Record<string, unknown> = { householdId: household._id };
     if (input.status) filter.status = input.status;
 
     const { page, limit, skip } = parsePaginationParams(input);
     const [goals, total] = await Promise.all([
-      Goal.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Goal.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Goal.countDocuments(filter),
     ]);
 
@@ -71,11 +63,7 @@ class GoalService {
     userId: string,
     goalId: string
   ): Promise<IGoalResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const { household } = await getHouseholdForMember(householdId, userId);
 
     const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
     if (!goal) throw NotFoundError('Goal not found');
@@ -91,11 +79,7 @@ class GoalService {
     goalId: string,
     input: IUpdateGoalInput
   ): Promise<IGoalResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
     const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
     if (!goal) throw NotFoundError('Goal not found');
@@ -135,11 +119,7 @@ class GoalService {
     userId: string,
     goalId: string
   ): Promise<void> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
     const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
     if (!goal) throw NotFoundError('Goal not found');
@@ -161,11 +141,7 @@ class GoalService {
     goalId: string,
     input: IAddContributionInput
   ): Promise<IGoalResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
     const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
     if (!goal) throw NotFoundError('Goal not found');
@@ -198,11 +174,7 @@ class GoalService {
     goalId: string,
     contributionId: string
   ): Promise<IGoalResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
     const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
     if (!goal) throw NotFoundError('Goal not found');

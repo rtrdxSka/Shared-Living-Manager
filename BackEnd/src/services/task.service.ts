@@ -5,6 +5,7 @@ import { ITask, IAddTaskInput, ITaskResponse, IRotationStatus, IAssignTaskInput,
 import { parsePaginationParams } from '../utils/pagination';
 import { IHouseholdMember, ITaskRotationConfig, ISetRotationInput } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
+import { getHouseholdForMember } from '../utils/household.helpers';
 
 class TaskService {
   // ── Any member ────────────────────────────────────────────────────────
@@ -14,11 +15,7 @@ class TaskService {
     userId: string,
     input: IAddTaskInput
   ): Promise<ITaskResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }
@@ -77,16 +74,12 @@ class TaskService {
     userId: string,
     input: IListTasksInput = {}
   ): Promise<{ tasks: ITaskResponse[]; total: number; page: number; totalPages: number; rotation?: IRotationStatus }> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const { household } = await getHouseholdForMember(householdId, userId);
 
     const { page, limit, skip } = parsePaginationParams(input);
     const filter = { householdId: household._id };
     const [tasks, total] = await Promise.all([
-      Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Task.countDocuments(filter),
     ]);
 
@@ -139,11 +132,7 @@ class TaskService {
     userId: string,
     taskId: string
   ): Promise<ITaskResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }
@@ -198,11 +187,7 @@ class TaskService {
     userId: string,
     taskId: string
   ): Promise<void> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }
@@ -228,11 +213,7 @@ class TaskService {
     taskId: string,
     input: IAssignTaskInput
   ): Promise<ITaskResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }

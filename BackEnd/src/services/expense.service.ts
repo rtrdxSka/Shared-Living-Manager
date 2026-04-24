@@ -5,6 +5,7 @@ import { ExpenseType } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { IPaginatedResult } from '../types/pagination.types';
 import { parsePaginationParams, buildPaginatedResult } from '../utils/pagination';
+import { getHouseholdForMember } from '../utils/household.helpers';
 
 class ExpenseService {
   async addExpense(
@@ -12,19 +13,10 @@ class ExpenseService {
     requestingUserId: string,
     input: IAddExpenseInput
   ): Promise<IExpenseResponse> {
-    // 1. Find household
-    const household = await Household.findById(householdId);
-    if (!household) {
-      throw NotFoundError('Household not found');
-    }
+    // 1. Find household + verify requester is a member
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, requestingUserId);
 
     // 2. Verify requester is a financial member
-    const requesterMember = household.members.find(
-      (m) => m.userId?.toString() === requestingUserId
-    );
-    if (!requesterMember) {
-      throw ForbiddenError('You are not a member of this household');
-    }
     if (!requesterMember.participatesInFinances) {
       throw ForbiddenError('You do not participate in household finances');
     }
@@ -69,19 +61,8 @@ class ExpenseService {
     requestingUserId: string,
     input: IListExpensesInput
   ): Promise<IPaginatedResult<IExpenseResponse>> {
-    // 1. Find household
-    const household = await Household.findById(householdId);
-    if (!household) {
-      throw NotFoundError('Household not found');
-    }
-
-    // 2. Verify requester is a member
-    const isMember = household.members.some(
-      (m) => m.userId?.toString() === requestingUserId
-    );
-    if (!isMember) {
-      throw ForbiddenError('You are not a member of this household');
-    }
+    // 1. Find household + verify requester is a member
+    const { household } = await getHouseholdForMember(householdId, requestingUserId);
 
     // 3. Build query filter
     const query: {
@@ -104,7 +85,7 @@ class ExpenseService {
     // 5. Paginate
     const { page, limit, skip } = parsePaginationParams(input);
     const [expenses, total] = await Promise.all([
-      Expense.find(query).sort({ date: -1 }).skip(skip).limit(limit),
+      Expense.find(query).sort({ date: -1 }).skip(skip).limit(limit).lean(),
       Expense.countDocuments(query),
     ]);
 
@@ -145,17 +126,7 @@ class ExpenseService {
     requestingUserId: string,
     expenseId: string
   ): Promise<void> {
-    const household = await Household.findById(householdId);
-    if (!household) {
-      throw NotFoundError('Household not found');
-    }
-
-    const requesterMember = household.members.find(
-      (m) => m.userId?.toString() === requestingUserId
-    );
-    if (!requesterMember) {
-      throw ForbiddenError('You are not a member of this household');
-    }
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, requestingUserId);
     if (!requesterMember.participatesInFinances) {
       throw ForbiddenError('You do not participate in household finances');
     }
@@ -182,17 +153,7 @@ class ExpenseService {
     expenseId: string,
     input: IUpdateExpenseInput
   ): Promise<IExpenseResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) {
-      throw NotFoundError('Household not found');
-    }
-
-    const requesterMember = household.members.find(
-      (m) => m.userId?.toString() === requestingUserId
-    );
-    if (!requesterMember) {
-      throw ForbiddenError('You are not a member of this household');
-    }
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, requestingUserId);
     if (!requesterMember.participatesInFinances) {
       throw ForbiddenError('You do not participate in household finances');
     }
