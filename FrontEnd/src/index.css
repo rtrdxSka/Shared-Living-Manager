@@ -3,59 +3,157 @@
 @tailwind utilities;
 
 @layer base {
+  /* ─── Paper-light (default / no-class fallback) ─── */
   :root {
-    --background: 220 14% 96%;
-    --foreground: 224 12% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 12% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 12% 10%;
-    --primary: 220 13% 18%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 220 14% 92%;
-    --secondary-foreground: 220 13% 18%;
-    --muted: 220 14% 92%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 220 14% 92%;
-    --accent-foreground: 220 13% 18%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 13% 87%;
-    --input: 220 13% 87%;
-    --ring: 220 13% 18%;
-    --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    /* shadcn core tokens */
+    --background:           42 43% 93%;   /* #f5f0e8 */
+    --foreground:           60 5% 10%;    /* #1a1a17 */
+    --card:                 45 100% 99%;  /* #fffdf8 */
+    --card-foreground:      60 5% 10%;
+    --popover:              45 100% 99%;  /* #fffdf8 */
+    --popover-foreground:   60 5% 10%;
+    --primary:              72 80% 60%;   /* lime accent */
+    --primary-foreground:   100 14% 5%;   /* #0b0d0a */
+    --secondary:            40 37% 88%;   /* #efe9da */
+    --secondary-foreground: 60 5% 10%;
+    --muted:                40 37% 88%;   /* #efe9da */
+    --muted-foreground:     41 6% 39%;    /* #6b6760 */
+    --accent:               40 37% 88%;   /* #efe9da */
+    --accent-foreground:    60 5% 10%;
+    --destructive:          2 91% 71%;    /* #f97370 */
+    --destructive-foreground: 60 5% 10%;
+    --border:               41 31% 85%;   /* #e8e1d2 */
+    --input:                41 31% 85%;   /* #e8e1d2 */
+    --ring:                 72 80% 60%;   /* lime */
+    --radius:               0.75rem;
+    --chart-1:              4 89% 81%;
+    --chart-2:              103 55% 76%;
+    --chart-3:              210 100% 82%;
+    --chart-4:              280 87% 83%;
+    --chart-5:              41 79% 74%;
+
+    /* redesign-only tokens */
+    --bg-sub:               45 100% 99%;  /* #fffdf8 */
+    --surface:              45 100% 99%;  /* #fffdf8 */
+    --surface-2:            40 37% 88%;   /* #efe9da */
+    --line:                 41 31% 85%;   /* #e8e1d2 */
+    --line-2:               41 24% 77%;   /* #d6cdb8 */
+    --ink:                  60 5% 10%;    /* #1a1a17 */
+    --ink-2:                43 10% 22%;   /* #3d3a32 */
+    --ink-3:                41 6% 39%;    /* #6b6760 */
+    --ink-4:                38 9% 59%;    /* #a09a8e */
+    --accent-ink:           100 14% 5%;   /* #0b0d0a */
+    --pos:                  78 78% 55%;   /* #a3e635 */
+    --neg:                  2 91% 71%;    /* #f97370 */
+    --neg-bg:               0 88% 96%;    /* #fdecec light tint */
+    --warn:                 36 87% 72%;   /* #f6c177 */
+    --warn-bg:              40 92% 93%;   /* #fdf3e0 light tint */
+    --cat-rent:             4 89% 81%;    /* #f9a8a0 */
+    --cat-utilities:        210 100% 82%; /* #a4d4ff */
+    --cat-groceries:        103 55% 76%;  /* #b9e4a3 */
+    --cat-internet:         280 87% 83%;  /* #d8b4f8 */
+    --cat-other:            41 79% 74%;   /* #f0d28a */
   }
 
+  /* ─── Paper-light explicit class (same as :root) ─── */
+  .light {
+    --background:           42 43% 93%;
+    --foreground:           60 5% 10%;
+    --card:                 45 100% 99%;
+    --card-foreground:      60 5% 10%;
+    --popover:              45 100% 99%;
+    --popover-foreground:   60 5% 10%;
+    --primary:              72 80% 60%;
+    --primary-foreground:   100 14% 5%;
+    --secondary:            40 37% 88%;
+    --secondary-foreground: 60 5% 10%;
+    --muted:                40 37% 88%;
+    --muted-foreground:     41 6% 39%;
+    --accent:               40 37% 88%;
+    --accent-foreground:    60 5% 10%;
+    --destructive:          2 91% 71%;
+    --destructive-foreground: 60 5% 10%;
+    --border:               41 31% 85%;
+    --input:                41 31% 85%;
+    --ring:                 72 80% 60%;
+    --radius:               0.75rem;
+    --chart-1:              4 89% 81%;
+    --chart-2:              103 55% 76%;
+    --chart-3:              210 100% 82%;
+    --chart-4:              280 87% 83%;
+    --chart-5:              41 79% 74%;
+
+    --bg-sub:               45 100% 99%;
+    --surface:              45 100% 99%;
+    --surface-2:            40 37% 88%;
+    --line:                 41 31% 85%;
+    --line-2:               41 24% 77%;
+    --ink:                  60 5% 10%;
+    --ink-2:                43 10% 22%;
+    --ink-3:                41 6% 39%;
+    --ink-4:                38 9% 59%;
+    --accent-ink:           100 14% 5%;
+    --pos:                  78 78% 55%;
+    --neg:                  2 91% 71%;
+    --neg-bg:               0 88% 96%;
+    --warn:                 36 87% 72%;
+    --warn-bg:              40 92% 93%;
+    --cat-rent:             4 89% 81%;
+    --cat-utilities:        210 100% 82%;
+    --cat-groceries:        103 55% 76%;
+    --cat-internet:         280 87% 83%;
+    --cat-other:            41 79% 74%;
+  }
+
+  /* ─── Warm-dark ─── */
   .dark {
-    --background: 224 12% 8%;
-    --foreground: 210 20% 95%;
-    --card: 224 12% 11%;
-    --card-foreground: 210 20% 95%;
-    --popover: 224 12% 11%;
-    --popover-foreground: 210 20% 95%;
-    --primary: 210 20% 95%;
-    --primary-foreground: 224 12% 8%;
-    --secondary: 215 14% 16%;
-    --secondary-foreground: 210 20% 95%;
-    --muted: 215 14% 16%;
-    --muted-foreground: 218 11% 60%;
-    --accent: 215 14% 16%;
-    --accent-foreground: 210 20% 95%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 215 14% 18%;
-    --input: 215 14% 18%;
-    --ring: 210 20% 80%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --background:           210 8% 5%;    /* #0c0d0e */
+    --foreground:           40 33% 95%;   /* #f5f3ee */
+    --card:                 220 8% 11%;   /* #1a1c1f */
+    --card-foreground:      40 33% 95%;
+    --popover:              220 8% 11%;   /* #1a1c1f */
+    --popover-foreground:   40 33% 95%;
+    --primary:              72 80% 60%;   /* lime accent */
+    --primary-foreground:   100 14% 5%;   /* #0b0d0a */
+    --secondary:            217 10% 15%;  /* #22252a */
+    --secondary-foreground: 40 33% 95%;
+    --muted:                217 10% 15%;  /* #22252a */
+    --muted-foreground:     43 5% 52%;    /* #8c8a83 */
+    --accent:               217 10% 15%;  /* #22252a */
+    --accent-foreground:    40 33% 95%;
+    --destructive:          2 91% 71%;    /* #f97370 */
+    --destructive-foreground: 100 14% 5%;
+    --border:               215 11% 19%;  /* #2a2e34 */
+    --input:                215 11% 19%;  /* #2a2e34 */
+    --ring:                 72 80% 60%;   /* lime */
+    --radius:               0.75rem;
+    --chart-1:              4 89% 81%;
+    --chart-2:              103 55% 76%;
+    --chart-3:              210 100% 82%;
+    --chart-4:              280 87% 83%;
+    --chart-5:              41 79% 74%;
+
+    /* redesign-only tokens */
+    --bg-sub:               220 9% 9%;    /* #131517 */
+    --surface:              220 8% 11%;   /* #1a1c1f */
+    --surface-2:            217 10% 15%;  /* #22252a */
+    --line:                 215 11% 19%;  /* #2a2e34 */
+    --line-2:               214 10% 25%;  /* #383d45 */
+    --ink:                  40 33% 95%;   /* #f5f3ee */
+    --ink-2:                43 14% 76%;   /* #c9c5bc */
+    --ink-3:                43 5% 52%;    /* #8c8a83 */
+    --ink-4:                50 5% 35%;    /* #5e5d57 */
+    --accent-ink:           100 14% 5%;   /* #0b0d0a */
+    --pos:                  78 78% 55%;   /* #a3e635 */
+    --neg:                  2 91% 71%;    /* #f97370 */
+    --neg-bg:               0 34% 12%;    /* #2a1313 */
+    --warn:                 36 87% 72%;   /* #f6c177 */
+    --warn-bg:              45 49% 11%;   /* #2a230f */
+    --cat-rent:             4 89% 81%;    /* #f9a8a0 */
+    --cat-utilities:        210 100% 82%; /* #a4d4ff */
+    --cat-groceries:        103 55% 76%;  /* #b9e4a3 */
+    --cat-internet:         280 87% 83%;  /* #d8b4f8 */
+    --cat-other:            41 79% 74%;   /* #f0d28a */
   }
 
   .dark input[type="date"],
@@ -74,5 +172,20 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .num {
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 11px;
+    font-weight: 500;
+    color: hsl(var(--ink-3));
   }
 }
