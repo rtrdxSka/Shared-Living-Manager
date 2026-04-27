@@ -146,7 +146,15 @@ class HouseholdService {
       throw ConflictError('You are already a member of this household');
     }
 
-    // 4. Find placeholder slot matching user's email (case-insensitive, no userId)
+    // 4. Capacity check: count members linked to a real user vs. configured cap.
+    const linkedCount = household.members.filter((m) => m.userId).length;
+    if (linkedCount >= household.totalMembers) {
+      throw ConflictError(
+        `This household is already at full capacity (${household.totalMembers} of ${household.totalMembers} members).`
+      );
+    }
+
+    // 5. Find placeholder slot matching user's email (case-insensitive, no userId)
     const placeholder = household.members.find(
       (m) => !m.userId && m.email?.toLowerCase() === userEmail.toLowerCase()
     );
@@ -156,7 +164,7 @@ class HouseholdService {
       );
     }
 
-    // 5. Link user to placeholder slot and update user atomically
+    // 6. Link user to placeholder slot and update user atomically
     const session = await mongoose.startSession();
     session.startTransaction();
 
