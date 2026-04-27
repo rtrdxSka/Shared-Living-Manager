@@ -147,10 +147,18 @@ function JoinView({ onBack }: { onBack: () => void }) {
       navigate('/dashboard', { replace: true });
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
         const apiError = error.response?.data as ApiErrorResponse | undefined;
-        setServerError(
-          apiError?.message || 'An error occurred while joining. Please try again.'
-        );
+
+        if (status === 409 && apiError?.message?.includes('full capacity')) {
+          setServerError(
+            'This household is already full. Ask the household admin to remove a member or update the household size before trying again.'
+          );
+        } else {
+          setServerError(
+            apiError?.message || 'An error occurred while joining. Please try again.'
+          );
+        }
       } else {
         setServerError('An unexpected error occurred. Please try again.');
       }
