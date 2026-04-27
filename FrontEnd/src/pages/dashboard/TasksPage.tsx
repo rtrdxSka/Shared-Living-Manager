@@ -7,7 +7,6 @@ import {
   Plus,
   RefreshCw,
   Settings2,
-  Sparkles,
   UserCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -366,7 +365,7 @@ const TaskRow = React.memo(function TaskRow({
                   <RefreshCw className="h-3.5 w-3.5 text-ink-3" />
                   <span className="text-xs text-ink-3">
                     {rotationStatus
-                      ? `Rotation — currently: ${rotationStatus.currentNickname}`
+                      ? `Rotation: ${rotationStatus.currentNickname}`
                       : task.assignedToNickname
                         ? `Assigned to ${task.assignedToNickname}`
                         : 'Rotation not configured yet'}
@@ -682,33 +681,13 @@ function DistributionCard() {
       <p className="text-sm text-ink mb-3">
         Currently: <span className="font-medium">{methodLabel[distribution] ?? distribution}</span>
       </p>
-      <Button variant="ghost" size="sm" className="w-full text-xs text-ink-3" disabled>
-        Switch to AI-balanced
-        <span className="ml-2 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
-          Coming soon
-        </span>
-      </Button>
     </Card>
   );
 }
 
 // ── Streak nudge card (right rail) ────────────────────────────────────────
 
-function StreakCard() {
-  return (
-    <Card className="p-5 bg-gradient-to-br from-accent/10 to-transparent border-accent/30">
-      <div className="flex items-start gap-3">
-        <Sparkles className="h-5 w-5 text-accent shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-semibold text-ink">Tiny streak: 6 days</p>
-          <p className="text-xs text-ink-3 mt-0.5">
-            Keep marking tasks done to maintain momentum.
-          </p>
-        </div>
-      </div>
-    </Card>
-  );
-}
+
 
 // ── Main page ─────────────────────────────────────────────────────────────
 
@@ -900,7 +879,7 @@ export default function TasksPage() {
           <div className="space-y-4">
             <FairnessCard />
             <DistributionCard />
-            <StreakCard />
+            
           </div>
         </div>
       </div>
