@@ -134,12 +134,12 @@ export function StepHouseholdStructure() {
               id="creator-nickname"
               placeholder="How should others see you?"
               className={cn(
-                errors.creatorProfile?.nickname && 'border-destructive'
+                errors.creatorProfile?.nickname && 'border-neg'
               )}
               {...register('creatorProfile.nickname')}
             />
             {errors.creatorProfile?.nickname && (
-              <p className="text-sm text-destructive">
+              <p className="text-sm text-neg">
                 {errors.creatorProfile.nickname.message}
               </p>
             )}
@@ -161,8 +161,8 @@ export function StepHouseholdStructure() {
                   <select
                     id="creator-ageGroup"
                     className={cn(
-                      'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                      errors.creatorProfile?.ageGroup && 'border-destructive'
+                      'flex h-11 w-full rounded-lg border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20',
+                      errors.creatorProfile?.ageGroup && 'border-neg'
                     )}
                     value={field.value}
                     onChange={field.onChange}
@@ -176,7 +176,7 @@ export function StepHouseholdStructure() {
                 )}
               />
               {errors.creatorProfile?.ageGroup && (
-                <p className="text-sm text-destructive">
+                <p className="text-sm text-neg">
                   {errors.creatorProfile.ageGroup.message}
                 </p>
               )}
@@ -189,12 +189,12 @@ export function StepHouseholdStructure() {
                   id="creator-familyGroup"
                   placeholder="e.g. Family A"
                   className={cn(
-                    errors.creatorProfile?.familyGroup && 'border-destructive'
+                    errors.creatorProfile?.familyGroup && 'border-neg'
                   )}
                   {...register('creatorProfile.familyGroup')}
                 />
                 {errors.creatorProfile?.familyGroup && (
-                  <p className="text-sm text-destructive">
+                  <p className="text-sm text-neg">
                     {errors.creatorProfile.familyGroup.message}
                   </p>
                 )}
@@ -286,12 +286,12 @@ export function StepHouseholdStructure() {
                           id={`member-${index}-nickname`}
                           placeholder="e.g. Ivan"
                           className={cn(
-                            memberErrors?.nickname && 'border-destructive'
+                            memberErrors?.nickname && 'border-neg'
                           )}
                           {...register(`memberStructure.${index}.nickname`)}
                         />
                         {memberErrors?.nickname && (
-                          <p className="text-sm text-destructive">
+                          <p className="text-sm text-neg">
                             {memberErrors.nickname.message}
                           </p>
                         )}
@@ -308,9 +308,9 @@ export function StepHouseholdStructure() {
                             <select
                               id={`member-${index}-relationship`}
                               className={cn(
-                                'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                'flex h-11 w-full rounded-lg border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20',
                                 memberErrors?.relationship &&
-                                  'border-destructive'
+                                  'border-neg'
                               )}
                               value={selectField.value}
                               onChange={selectField.onChange}
@@ -324,7 +324,7 @@ export function StepHouseholdStructure() {
                           )}
                         />
                         {memberErrors?.relationship && (
-                          <p className="text-sm text-destructive">
+                          <p className="text-sm text-neg">
                             {memberErrors.relationship.message}
                           </p>
                         )}
@@ -339,12 +339,12 @@ export function StepHouseholdStructure() {
                         type="email"
                         placeholder="e.g. member@example.com"
                         className={cn(
-                          memberErrors?.email && 'border-destructive'
+                          memberErrors?.email && 'border-neg'
                         )}
                         {...register(`memberStructure.${index}.email`)}
                       />
                       {memberErrors?.email && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-sm text-neg">
                           {memberErrors.email.message}
                         </p>
                       )}
@@ -368,8 +368,8 @@ export function StepHouseholdStructure() {
                             <select
                               id={`member-${index}-ageGroup`}
                               className={cn(
-                                'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                                memberErrors?.ageGroup && 'border-destructive'
+                                'flex h-11 w-full rounded-lg border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20',
+                                memberErrors?.ageGroup && 'border-neg'
                               )}
                               value={selectField.value}
                               onChange={selectField.onChange}
@@ -383,7 +383,7 @@ export function StepHouseholdStructure() {
                           )}
                         />
                         {memberErrors?.ageGroup && (
-                          <p className="text-sm text-destructive">
+                          <p className="text-sm text-neg">
                             {memberErrors.ageGroup.message}
                           </p>
                         )}
@@ -398,14 +398,14 @@ export function StepHouseholdStructure() {
                             id={`member-${index}-familyGroup`}
                             placeholder="e.g. Family A"
                             className={cn(
-                              memberErrors?.familyGroup && 'border-destructive'
+                              memberErrors?.familyGroup && 'border-neg'
                             )}
                             {...register(
                               `memberStructure.${index}.familyGroup`
                             )}
                           />
                           {memberErrors?.familyGroup && (
-                            <p className="text-sm text-destructive">
+                            <p className="text-sm text-neg">
                               {memberErrors.familyGroup.message}
                             </p>
                           )}
@@ -472,7 +472,7 @@ export function StepHouseholdStructure() {
           </div>
 
           {errors.memberStructure?.message && (
-            <p className="text-sm text-destructive">
+            <p className="text-sm text-neg">
               {errors.memberStructure.message}
             </p>
           )}
