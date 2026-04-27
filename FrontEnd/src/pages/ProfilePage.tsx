@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, AlertCircle, CheckCircle2, AlertTriangle, User } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import { extractApiError } from '@/utils/extractApiError';
 
@@ -12,14 +12,12 @@ import { userApi } from '@/api/user.api';
 import { authApi } from '@/api/auth.api';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Avatar } from '@/components/ui/avatar';
+import { EyebrowLabel } from '@/components/ui/eyebrow-label';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { FormField } from '@/contexts/FormField';
 import type { ApiErrorResponse } from '@/types/auth.types';
 
@@ -31,14 +29,81 @@ export default function ProfilePage() {
   if (!user) return null;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
+    <div className="mx-auto max-w-3xl px-4 py-10 space-y-8">
       {/* Email verification banner */}
       {!user.isEmailVerified && <VerificationBanner wasRedirected={wasRedirected} />}
 
-      <div className="space-y-8">
-        <ProfileForm user={{ ...user, isEmailVerified: user.isEmailVerified }} refreshUser={refreshUser} />
-        <ChangePasswordForm />
-      </div>
+      {/* Page header */}
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Profile</h1>
+        <p className="text-sm text-ink-3 mt-1">Your personal account settings</p>
+      </header>
+
+      {/* Avatar block */}
+      <Card className="p-6">
+        <div className="flex items-center gap-5">
+          <Avatar
+            name={`${user.firstName} ${user.lastName}`}
+            size={72}
+            variant="filled"
+            className="rounded-3xl"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-ink">
+              {user.firstName} {user.lastName}
+            </p>
+            <p className="text-sm text-ink-3 truncate">{user.email}</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" disabled>Change</Button>
+            <Button variant="ghost" size="sm" disabled>Remove</Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Profile information */}
+      <ProfileForm user={{ ...user, isEmailVerified: user.isEmailVerified }} refreshUser={refreshUser} />
+
+      {/* Change password */}
+      <ChangePasswordForm />
+
+      {/* Notifications */}
+      <Card className="p-6">
+        <EyebrowLabel as="div" className="mb-4">NOTIFICATIONS</EyebrowLabel>
+        <div className="space-y-1 divide-y divide-line">
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm text-ink">Email notifications</p>
+              <p className="text-xs text-ink-3 mt-0.5">Receive updates and alerts via email</p>
+            </div>
+            {/* Read-only display — not wired to a mutation */}
+            <span className="text-xs text-ink-3">
+              {user.preferences.notifications.email ? 'On' : 'Off'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm text-ink">Push notifications</p>
+              <p className="text-xs text-ink-3 mt-0.5">Receive real-time push alerts</p>
+            </div>
+            <span className="text-xs text-ink-3">
+              {user.preferences.notifications.push ? 'On' : 'Off'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm text-ink">Frequency</p>
+              <p className="text-xs text-ink-3 mt-0.5">How often you receive digest emails</p>
+            </div>
+            <span className="text-xs text-ink-3 capitalize">
+              {user.preferences.notifications.frequency}
+            </span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Danger zone */}
+      <DangerZone />
     </div>
   );
 }
@@ -64,7 +129,7 @@ function VerificationBanner({ wasRedirected }: { wasRedirected: boolean }) {
   };
 
   return (
-    <Alert className="mb-8 rounded-xl border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+    <Alert className="rounded-xl border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
       <AlertTriangle className="h-4 w-4 !text-amber-600 dark:!text-amber-400" />
       <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span>
@@ -160,84 +225,88 @@ function ProfileForm({
   };
 
   return (
-    <Card className="rounded-2xl border-border/60 shadow-xl">
-      <CardHeader className="space-y-2 pb-2 pt-8 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-sm">
-          <User className="h-7 w-7 text-primary-foreground" />
-        </div>
-        <CardTitle className="text-xl font-bold tracking-tight">Profile</CardTitle>
-        <CardDescription>Update your personal information</CardDescription>
-      </CardHeader>
+    <Card className="p-6">
+      <EyebrowLabel as="div" className="mb-4">PROFILE INFORMATION</EyebrowLabel>
+
+      {serverError && (
+        <Alert variant="destructive" className="rounded-xl mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{serverError}</AlertDescription>
+        </Alert>
+      )}
+
+      {successMessage && (
+        <Alert className="rounded-xl border-green-500/50 bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-200 mb-4">
+          <CheckCircle2 className="h-4 w-4 !text-green-600 dark:!text-green-400" />
+          <AlertDescription>{successMessage}</AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="space-y-5 px-6 sm:px-8">
-          {serverError && (
-            <Alert variant="destructive" className="rounded-xl">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{serverError}</AlertDescription>
-            </Alert>
-          )}
-
-          {successMessage && (
-            <Alert className="rounded-xl border-green-500/50 bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-200">
-              <CheckCircle2 className="h-4 w-4 !text-green-600 dark:!text-green-400" />
-              <AlertDescription>{successMessage}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-4">
-            <FormField
-              label="First Name"
-              type="text"
-              placeholder="Ivan"
-              autoComplete="given-name"
-              error={errors.firstName}
-              {...register('firstName')}
-            />
-
-            <FormField
-              label="Last Name"
-              type="text"
-              placeholder="Smith"
-              autoComplete="family-name"
-              error={errors.lastName}
-              {...register('lastName')}
-            />
-          </div>
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
-            label="Email"
-            type="email"
-            placeholder="ivan@example.com"
-            autoComplete="email"
-            error={errors.email}
-            {...register('email')}
+            label="First Name"
+            type="text"
+            placeholder="Ivan"
+            autoComplete="given-name"
+            error={errors.firstName}
+            {...register('firstName')}
+          />
+          <FormField
+            label="Last Name"
+            type="text"
+            placeholder="Smith"
+            autoComplete="family-name"
+            error={errors.lastName}
+            {...register('lastName')}
           />
 
-          {user.isEmailVerified ? (
-            <div className="flex items-center gap-1.5 -mt-3">
-              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-              <span className="text-xs text-green-700 dark:text-green-400">Email verified</span>
+          <div className="sm:col-span-2">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="ivan@example.com"
+                autoComplete="email"
+                className={errors.email ? 'border-destructive' : ''}
+                {...register('email')}
+              />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email.message}</p>
+              )}
+              <div className="flex items-center gap-1.5">
+                {user.isEmailVerified ? (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                    <span className="text-xs text-green-700 dark:text-green-400">Email verified</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    <span className="text-xs text-amber-700 dark:text-amber-400">Email not verified</span>
+                  </>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="flex items-center gap-1.5 -mt-3">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              <span className="text-xs text-amber-700 dark:text-amber-400">Email not verified</span>
-            </div>
-          )}
+          </div>
 
           {isEmailChanging && (
-            <FormField
-              label="Current Password"
-              type="password"
-              placeholder="Required to change email"
-              autoComplete="current-password"
-              error={errors.currentPassword}
-              {...register('currentPassword')}
-            />
+            <div className="sm:col-span-2">
+              <FormField
+                label="Current Password"
+                type="password"
+                placeholder="Required to change email"
+                autoComplete="current-password"
+                error={errors.currentPassword}
+                {...register('currentPassword')}
+              />
+            </div>
           )}
+        </div>
 
-          <Button type="submit" className="h-11 w-full rounded-xl text-base shadow-sm" disabled={isSubmitting}>
+        <div className="flex justify-end mt-6">
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -247,7 +316,7 @@ function ProfileForm({
               'Save changes'
             )}
           </Button>
-        </CardContent>
+        </div>
       </form>
     </Card>
   );
@@ -299,21 +368,18 @@ function ChangePasswordForm() {
   };
 
   return (
-    <Card className="rounded-2xl border-border/60 shadow-xl">
-      <CardHeader className="space-y-2 pb-2 pt-8 text-center">
-        <CardTitle className="text-xl font-bold tracking-tight">Change Password</CardTitle>
-        <CardDescription>Update your account password</CardDescription>
-      </CardHeader>
+    <Card className="p-6">
+      <EyebrowLabel as="div" className="mb-4">CHANGE PASSWORD</EyebrowLabel>
+
+      {serverError && (
+        <Alert variant="destructive" className="rounded-xl mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{serverError}</AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="space-y-5 px-6 sm:px-8">
-          {serverError && (
-            <Alert variant="destructive" className="rounded-xl">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{serverError}</AlertDescription>
-            </Alert>
-          )}
-
+        <div className="space-y-4">
           <FormField
             label="Current Password"
             type="password"
@@ -322,7 +388,6 @@ function ChangePasswordForm() {
             error={errors.currentPassword}
             {...register('currentPassword')}
           />
-
           <FormField
             label="New Password"
             type="password"
@@ -331,7 +396,6 @@ function ChangePasswordForm() {
             error={errors.newPassword}
             {...register('newPassword')}
           />
-
           <FormField
             label="Confirm New Password"
             type="password"
@@ -340,8 +404,10 @@ function ChangePasswordForm() {
             error={errors.confirmNewPassword}
             {...register('confirmNewPassword')}
           />
+        </div>
 
-          <Button type="submit" className="h-11 w-full rounded-xl text-base shadow-sm" disabled={isSubmitting}>
+        <div className="flex justify-end mt-6">
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -351,8 +417,52 @@ function ChangePasswordForm() {
               'Change password'
             )}
           </Button>
-        </CardContent>
+        </div>
       </form>
+    </Card>
+  );
+}
+
+// ── Danger Zone ──────────────────────────────────────────────────────
+// Leave household and delete account are not yet wired to API endpoints.
+// Buttons are rendered as visible stubs (disabled) consistent with the design spec.
+
+function DangerZone() {
+  return (
+    <Card className="p-6 border-neg/30">
+      <EyebrowLabel as="div" className="mb-4 text-neg">DANGER ZONE</EyebrowLabel>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-ink">Leave household</p>
+            <p className="text-xs text-ink-3 mt-0.5">Removes you from your current household.</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-neg/40 text-neg hover:bg-neg/5 hover:text-neg shrink-0"
+            disabled
+          >
+            Leave
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-ink">Delete account</p>
+            <p className="text-xs text-ink-3 mt-0.5">Permanently delete your account and all data.</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-neg/40 text-neg hover:bg-neg/5 hover:text-neg shrink-0"
+            disabled
+          >
+            Delete account
+          </Button>
+        </div>
+      </div>
     </Card>
   );
 }
