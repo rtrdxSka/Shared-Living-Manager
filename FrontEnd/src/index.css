@@ -181,7 +181,7 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
   .eyebrow {
-    font-family: var(--font-mono);
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
     text-transform: uppercase;
     letter-spacing: 0.14em;
     font-size: 11px;
