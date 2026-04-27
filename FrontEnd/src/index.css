@@ -21,7 +21,7 @@
     --accent:               40 37% 88%;   /* #efe9da */
     --accent-foreground:    60 5% 10%;
     --destructive:          2 91% 71%;    /* #f97370 */
-    --destructive-foreground: 60 5% 10%;
+    --destructive-foreground: 100 14% 5%;
     --border:               41 31% 85%;   /* #e8e1d2 */
     --input:                41 31% 85%;   /* #e8e1d2 */
     --ring:                 72 80% 60%;   /* lime */
@@ -43,7 +43,7 @@
     --ink-3:                41 6% 39%;    /* #6b6760 */
     --ink-4:                38 9% 59%;    /* #a09a8e */
     --accent-ink:           100 14% 5%;   /* #0b0d0a */
-    --pos:                  78 78% 55%;   /* #a3e635 */
+    --pos:                  83 78% 55%;   /* #a3e635 */
     --neg:                  2 91% 71%;    /* #f97370 */
     --neg-bg:               0 88% 96%;    /* #fdecec light tint */
     --warn:                 36 87% 72%;   /* #f6c177 */
@@ -51,7 +51,7 @@
     --cat-rent:             4 89% 81%;    /* #f9a8a0 */
     --cat-utilities:        210 100% 82%; /* #a4d4ff */
     --cat-groceries:        103 55% 76%;  /* #b9e4a3 */
-    --cat-internet:         280 87% 83%;  /* #d8b4f8 */
+    --cat-internet:         272 83% 84%;  /* #d8b4f8 */
     --cat-other:            41 79% 74%;   /* #f0d28a */
   }
 
@@ -72,7 +72,7 @@
     --accent:               40 37% 88%;
     --accent-foreground:    60 5% 10%;
     --destructive:          2 91% 71%;
-    --destructive-foreground: 60 5% 10%;
+    --destructive-foreground: 100 14% 5%;
     --border:               41 31% 85%;
     --input:                41 31% 85%;
     --ring:                 72 80% 60%;
@@ -93,7 +93,7 @@
     --ink-3:                41 6% 39%;
     --ink-4:                38 9% 59%;
     --accent-ink:           100 14% 5%;
-    --pos:                  78 78% 55%;
+    --pos:                  83 78% 55%;
     --neg:                  2 91% 71%;
     --neg-bg:               0 88% 96%;
     --warn:                 36 87% 72%;
@@ -101,7 +101,7 @@
     --cat-rent:             4 89% 81%;
     --cat-utilities:        210 100% 82%;
     --cat-groceries:        103 55% 76%;
-    --cat-internet:         280 87% 83%;
+    --cat-internet:         272 83% 84%;
     --cat-other:            41 79% 74%;
   }
 
@@ -144,7 +144,7 @@
     --ink-3:                43 5% 52%;    /* #8c8a83 */
     --ink-4:                50 5% 35%;    /* #5e5d57 */
     --accent-ink:           100 14% 5%;   /* #0b0d0a */
-    --pos:                  78 78% 55%;   /* #a3e635 */
+    --pos:                  83 78% 55%;   /* #a3e635 */
     --neg:                  2 91% 71%;    /* #f97370 */
     --neg-bg:               0 34% 12%;    /* #2a1313 */
     --warn:                 36 87% 72%;   /* #f6c177 */
@@ -152,7 +152,7 @@
     --cat-rent:             4 89% 81%;    /* #f9a8a0 */
     --cat-utilities:        210 100% 82%; /* #a4d4ff */
     --cat-groceries:        103 55% 76%;  /* #b9e4a3 */
-    --cat-internet:         280 87% 83%;  /* #d8b4f8 */
+    --cat-internet:         272 83% 84%;  /* #d8b4f8 */
     --cat-other:            41 79% 74%;   /* #f0d28a */
   }
 
