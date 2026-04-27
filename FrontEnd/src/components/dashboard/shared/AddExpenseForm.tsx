@@ -279,7 +279,7 @@ export default function AddExpenseForm({
                           disabled={submitting}
                           className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                             interval === iv
-                              ? 'border-accent bg-accent text-white'
+                              ? 'border-accent bg-accent text-accent-ink'
                               : 'border-line bg-surface text-ink-3 hover:border-line-2 hover:text-ink'
                           }`}
                         >
@@ -306,7 +306,7 @@ export default function AddExpenseForm({
                           disabled={submitting}
                           className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                             payerMode === pm
-                              ? 'border-accent bg-accent text-white'
+                              ? 'border-accent bg-accent text-accent-ink'
                               : 'border-line bg-surface text-ink-3 hover:border-line-2 hover:text-ink'
                           }`}
                         >

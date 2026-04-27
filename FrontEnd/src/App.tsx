@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 import { queryClient } from '@/lib/queryClient';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
@@ -38,8 +37,10 @@ const ReactQueryDevtools = import.meta.env.DEV
 
 function PageFallback() {
   return (
-    <div className="flex h-screen items-center justify-center">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    <div className="flex h-screen w-full items-center justify-center bg-bg">
+      <p className="text-sm font-mono uppercase tracking-[0.14em] text-accent animate-pulse">
+        ▸ HouseMate · loading direction
+      </p>
     </div>
   );
 }
