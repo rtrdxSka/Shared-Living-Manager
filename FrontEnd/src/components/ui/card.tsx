@@ -9,13 +9,28 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-xl border bg-card text-card-foreground shadow",
+      "rounded-xl border border-line bg-surface text-ink shadow-none transition-colors",
       className
     )}
     {...props}
   />
 ))
 Card.displayName = "Card"
+
+const CardWarm = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-2xl border border-line bg-surface text-ink shadow-hero relative overflow-hidden",
+      className
+    )}
+    {...props}
+  />
+))
+CardWarm.displayName = "CardWarm"
 
 const CardHeader = React.forwardRef<
   HTMLDivElement,
@@ -35,7 +50,7 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("font-semibold leading-none tracking-tight", className)}
+    className={cn("text-base font-semibold leading-none tracking-tight text-ink", className)}
     {...props}
   />
 ))
@@ -47,7 +62,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("text-sm text-ink-3", className)}
     {...props}
   />
 ))
@@ -73,4 +88,4 @@ const CardFooter = React.forwardRef<
 ))
 CardFooter.displayName = "CardFooter"
 
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+export { Card, CardWarm, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
