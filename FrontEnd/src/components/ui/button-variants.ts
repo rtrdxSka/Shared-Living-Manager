@@ -2,7 +2,7 @@ import { cva } from "class-variance-authority";
 
 
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -18,10 +18,10 @@ export const buttonVariants = cva(
         link: "text-accent underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2 rounded-lg",
-        sm: "h-8 rounded-lg px-3 text-xs",
-        lg: "h-11 rounded-lg px-8 text-sm",
-        icon: "h-9 w-9 rounded-lg",
+        default: "h-9 px-4 py-2",
+        sm: "h-8 px-3 text-xs",
+        lg: "h-11 px-8 text-sm",
+        icon: "h-9 w-9",
       },
     },
     defaultVariants: {

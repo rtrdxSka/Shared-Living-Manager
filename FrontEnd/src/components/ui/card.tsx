@@ -24,7 +24,7 @@ const CardWarm = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-2xl border border-line bg-surface text-ink shadow-hero relative overflow-hidden",
+      "relative overflow-hidden rounded-2xl border border-line bg-surface text-ink shadow-hero transition-colors",
       className
     )}
     {...props}
