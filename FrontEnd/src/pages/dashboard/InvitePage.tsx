@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Send, RefreshCw, Loader2, ChevronDown, Check } from 'lucide-react';
+import { Mail, Send, RefreshCw, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { BlobBack } from '@/components/ui/blob-back';
@@ -12,7 +12,6 @@ export default function InvitePage() {
   const { household, currentUserId, isAdmin, myNickname } = useDashboard();
   const [copied, setCopied] = useState(false);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
-  const [recoveryOpen, setRecoveryOpen] = useState(false);
 
   const regenerateMutation = useRegenerateInviteCode(household._id);
 
@@ -50,13 +49,6 @@ export default function InvitePage() {
             <HouseholdCompleteView
               members={household.members}
               currentUserId={currentUserId}
-              isAdmin={isAdmin}
-              recoveryOpen={recoveryOpen}
-              setRecoveryOpen={setRecoveryOpen}
-              confirmingRegenerate={confirmingRegenerate}
-              setConfirmingRegenerate={setConfirmingRegenerate}
-              onRegenerate={handleRegenerate}
-              regeneratePending={regenerateMutation.isPending}
             />
           ) : (
             <InvitePromptView
@@ -82,25 +74,11 @@ export default function InvitePage() {
 interface HouseholdCompleteViewProps {
   members: ReturnType<typeof useDashboard>['household']['members'];
   currentUserId: string;
-  isAdmin: boolean;
-  recoveryOpen: boolean;
-  setRecoveryOpen: (v: boolean) => void;
-  confirmingRegenerate: boolean;
-  setConfirmingRegenerate: (v: boolean) => void;
-  onRegenerate: () => Promise<void>;
-  regeneratePending: boolean;
 }
 
 function HouseholdCompleteView({
   members,
   currentUserId,
-  isAdmin,
-  recoveryOpen,
-  setRecoveryOpen,
-  confirmingRegenerate,
-  setConfirmingRegenerate,
-  onRegenerate,
-  regeneratePending,
 }: HouseholdCompleteViewProps) {
   return (
     <>
@@ -157,72 +135,6 @@ function HouseholdCompleteView({
         })}
       </div>
 
-      {/* Admin: code recovery (collapsed by default) */}
-      {isAdmin && (
-        <div className="pt-2 border-t border-line">
-          <button
-            type="button"
-            onClick={() => setRecoveryOpen(!recoveryOpen)}
-            className="flex items-center gap-1.5 text-xs text-ink-3 hover:text-ink transition-colors"
-          >
-            <ChevronDown
-              className={`h-3 w-3 transition-transform ${recoveryOpen ? 'rotate-180' : ''}`}
-            />
-            Code recovery options
-          </button>
-
-          {recoveryOpen && (
-            <div className="mt-3 space-y-3">
-              <p className="text-xs text-ink-3 leading-relaxed">
-                The invite code isn't actively used now that the household is
-                full, but you can regenerate it if you ever shared it where you
-                shouldn't have.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                {!confirmingRegenerate ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-ink-3"
-                    onClick={() => setConfirmingRegenerate(true)}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                    Regenerate code
-                  </Button>
-                ) : (
-                  <>
-                    <span className="text-xs text-ink-3">
-                      This will invalidate the current code. Continue?
-                    </span>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => void onRegenerate()}
-                      disabled={regeneratePending}
-                    >
-                      {regeneratePending ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        'Yes, regenerate'
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => setConfirmingRegenerate(false)}
-                      disabled={regeneratePending}
-                    >
-                      Cancel
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </>
   );
 }
