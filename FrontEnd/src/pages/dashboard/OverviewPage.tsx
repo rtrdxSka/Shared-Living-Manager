@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Loader2, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useDashboard } from '@/contexts/DashboardContext';
@@ -23,7 +23,6 @@ import {
 } from '@/utils/dashboardHelpers';
 import type { ExpenseResponse } from '@/types/expense.types';
 import type { HouseholdResponse } from '@/types/household.types';
-import type { Settlement } from '@/types/household.types';
 import type { JointAccountSummaryResponse } from '@/types/joint-account.types';
 import type { GoalResponse } from '@/types/goal.types';
 import type { TaskResponse } from '@/types/task.types';
@@ -54,7 +53,6 @@ export default function OverviewPage() {
     goals,
     goalsLoading,
     taskLevel,
-    handleSettleUp,
     setAddGoalOpen,
     setAddTransactionOpen,
     splitMethod: _splitMethod,
@@ -139,7 +137,6 @@ export default function OverviewPage() {
           myParticipatesInFinances={myParticipatesInFinances}
           hasFinancialPartner={hasFinancialPartner}
           currentMonth={effectiveMonth}
-          onSettleUp={handleSettleUp}
           household={household}
           tasks={tasks}
           taskLevel={taskLevel}
@@ -175,15 +172,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Friendly nudge */}
-        <div className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/10 to-transparent p-5 flex items-start gap-4">
-          <Sparkles className="h-5 w-5 text-accent mt-0.5 shrink-0" />
-          <div className="flex flex-col gap-1">
-            <EyebrowLabel as="span">HEADS UP</EyebrowLabel>
-            <p className="text-sm text-ink-2">
-              Keep going — your spending this month is on track.
-            </p>
-          </div>
-        </div>
+
       </div>
     </div>
   );
@@ -203,7 +192,6 @@ interface StatsRowProps {
   myParticipatesInFinances: boolean;
   hasFinancialPartner: boolean;
   currentMonth: string;
-  onSettleUp: (month: string, amount: number) => Promise<void>;
   household: HouseholdResponse;
   tasks: TaskResponse[];
   taskLevel: TaskManagementLevel;
@@ -222,19 +210,11 @@ const StatsRow = React.memo(function StatsRow({
   myParticipatesInFinances,
   hasFinancialPartner,
   currentMonth,
-  onSettleUp,
-  household,
   tasks,
   taskLevel,
   jointAccount,
 }: StatsRowProps) {
-  const [confirmSettle, setConfirmSettle] = useState(false);
-  const [settlingUp, setSettlingUp] = useState(false);
 
-  const settlementForMonth = useMemo(
-    () => (household.settlements ?? []).find((s: Settlement) => s.month === currentMonth) ?? null,
-    [household.settlements, currentMonth]
-  );
 
   const { totalAmount, myPaidTotal, partnerPaidTotal } = useMemo(() => {
     const paidExpenses = expenses.filter((e) => e.paidByUserId);
@@ -401,34 +381,7 @@ const StatsRow = React.memo(function StatsRow({
     </>
   );
 
-  const settleActions = Math.abs(balance) > 0 ? (
-    settlementForMonth ? (
-      <p className="text-xs text-pos">
-        ✓ Settled {new Date(settlementForMonth.settledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-      </p>
-    ) : confirmSettle ? (
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm text-ink-3">Mark as settled?</span>
-        <Button
-          size="sm"
-          onClick={async () => {
-            setSettlingUp(true);
-            try { await onSettleUp(currentMonth, Math.abs(balance)); setConfirmSettle(false); }
-            finally { setSettlingUp(false); }
-          }}
-          disabled={settlingUp}
-        >
-          {settlingUp ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Yes, mark settled'}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setConfirmSettle(false)}>Cancel</Button>
-      </div>
-    ) : (
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button size="sm" onClick={() => setConfirmSettle(true)}>Mark as settled</Button>
-        <Button variant="ghost" size="sm" disabled>Send a reminder</Button>
-      </div>
-    )
-  ) : null;
+
 
   const donutRightSlot = (
     <Donut
@@ -452,7 +405,7 @@ const StatsRow = React.memo(function StatsRow({
         eyebrow={<EyebrowLabel>THE CURRENT STATE OF THINGS</EyebrowLabel>}
         hero={<div className="space-y-2">{heroContent}</div>}
         subline={<span className="text-sm text-ink-3">{sublineLabel}</span>}
-        actions={settleActions}
+        
         rightSlot={donutRightSlot}
       />
 
