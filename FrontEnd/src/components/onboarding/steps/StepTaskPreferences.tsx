@@ -66,51 +66,47 @@ export function StepTaskPreferences() {
           <div className="space-y-2">
             <Label>Task management</Label>
             <div className="grid grid-cols-1 gap-2">
-              {TASK_MANAGEMENT_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() =>
-                    field.onChange(option.value as TaskManagementLevel)
-                  }
-                  className={cn(
-                    'flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
-                    field.value === option.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border/60 hover:border-border hover:bg-muted/30'
-                  )}
-                >
-                  <span
+              {TASK_MANAGEMENT_OPTIONS.map((option) => {
+                const selected = field.value === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() =>
+                      field.onChange(option.value as TaskManagementLevel)
+                    }
                     className={cn(
-                      'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                      field.value === option.value
-                        ? 'border-primary'
-                        : 'border-muted-foreground/40'
+                      'w-full text-left rounded-xl border p-4 transition-colors',
+                      selected
+                        ? 'border-accent bg-accent/[0.06] ring-1 ring-accent/30'
+                        : 'border-line bg-surface hover:border-line-2 hover:bg-surface-2'
                     )}
                   >
-                    {field.value === option.value && (
-                      <span className="h-2 w-2 rounded-full bg-primary" />
-                    )}
-                  </span>
-                  <div>
-                    <p
-                      className={cn(
-                        'text-sm font-medium',
-                        field.value === option.value
-                          ? 'text-foreground'
-                          : 'text-muted-foreground'
-                      )}
-                    >
-                      {option.label}
-                    </p>
-                    {option.description && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {option.description}
-                      </p>
-                    )}
-                  </div>
-                </button>
-              ))}
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={cn(
+                          'mt-0.5 h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center',
+                          selected ? 'border-accent' : 'border-line'
+                        )}
+                      >
+                        {selected && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                        )}
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-ink">{option.label}</p>
+                        {option.description && (
+                          <p className="text-xs text-ink-3 mt-0.5">
+                            {option.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             {errors.taskManagementEnabled && (
               <p className="text-sm text-destructive">
@@ -130,53 +126,49 @@ export function StepTaskPreferences() {
             <div className="space-y-2">
               <Label>Task distribution method</Label>
               <div className="grid grid-cols-1 gap-2">
-                {filteredDistributionOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      field.onChange(
-                        option.value as TaskDistributionMethod
-                      )
-                    }
-                    className={cn(
-                      'flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
-                      field.value === option.value
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border/60 hover:border-border hover:bg-muted/30'
-                    )}
-                  >
-                    <span
+                {filteredDistributionOptions.map((option) => {
+                  const selected = field.value === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() =>
+                        field.onChange(
+                          option.value as TaskDistributionMethod
+                        )
+                      }
                       className={cn(
-                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                        field.value === option.value
-                          ? 'border-primary'
-                          : 'border-muted-foreground/40'
+                        'w-full text-left rounded-xl border p-4 transition-colors',
+                        selected
+                          ? 'border-accent bg-accent/[0.06] ring-1 ring-accent/30'
+                          : 'border-line bg-surface hover:border-line-2 hover:bg-surface-2'
                       )}
                     >
-                      {field.value === option.value && (
-                        <span className="h-2 w-2 rounded-full bg-primary" />
-                      )}
-                    </span>
-                    <div>
-                      <p
-                        className={cn(
-                          'text-sm font-medium',
-                          field.value === option.value
-                            ? 'text-foreground'
-                            : 'text-muted-foreground'
-                        )}
-                      >
-                        {option.label}
-                      </p>
-                      {option.description && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {option.description}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                      <div className="flex items-start gap-3">
+                        <span
+                          className={cn(
+                            'mt-0.5 h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center',
+                            selected ? 'border-accent' : 'border-line'
+                          )}
+                        >
+                          {selected && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                          )}
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-ink">{option.label}</p>
+                          {option.description && (
+                            <p className="text-xs text-ink-3 mt-0.5">
+                              {option.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
               {errors.taskDistributionMethod && (
                 <p className="text-sm text-destructive">

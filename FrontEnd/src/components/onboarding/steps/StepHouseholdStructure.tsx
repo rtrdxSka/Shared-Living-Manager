@@ -120,10 +120,10 @@ export function StepHouseholdStructure() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* ── Creator profile ────────────────────────────────────────── */}
-      <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-5">
+      <div className="rounded-xl border border-accent/30 bg-accent/[0.06] p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
-          <User className="h-4 w-4 text-primary" />
-          <p className="text-sm font-semibold text-foreground">Your profile</p>
+          <User className="h-4 w-4 text-accent" />
+          <p className="text-sm font-semibold text-ink">Your profile</p>
         </div>
 
         <div className="space-y-4">
@@ -249,11 +249,11 @@ export function StepHouseholdStructure() {
       {/* ── Other members ──────────────────────────────────────────── */}
       {!isAlone && (
         <>
-          <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
-            <Users className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-            <p className="text-sm leading-relaxed text-muted-foreground">
+          <div className="flex items-start gap-3 rounded-xl bg-surface-2 border border-line p-4">
+            <Users className="mt-0.5 h-5 w-5 shrink-0 text-ink-3" />
+            <p className="text-sm leading-relaxed text-ink-3">
               Now describe the{' '}
-              <span className="font-medium text-foreground">
+              <span className="font-medium text-ink">
                 {expectedCount} other{' '}
                 {expectedCount === 1 ? 'person' : 'people'}
               </span>{' '}
@@ -269,9 +269,9 @@ export function StepHouseholdStructure() {
               return (
                 <div
                   key={field.id}
-                  className="rounded-xl border border-border/60 p-4 sm:p-5"
+                  className="rounded-xl border border-line bg-surface p-4 sm:p-5"
                 >
-                  <p className="mb-4 text-sm font-semibold text-foreground">
+                  <p className="mb-4 text-sm font-semibold text-ink">
                     Member {index + 1}
                   </p>
 
