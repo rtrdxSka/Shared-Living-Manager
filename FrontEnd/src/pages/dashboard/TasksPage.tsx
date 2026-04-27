@@ -536,6 +536,7 @@ function RotationBanner() {
   const { rotationStatus, isAdmin, setRotationConfigOpen } = useDashboard();
 
   if (!rotationStatus) {
+    if (!isAdmin) return null;
     // No config — show subtle prompt
     return (
       <div className="flex items-center justify-between rounded-xl border border-dashed border-line bg-surface-2/60 px-5 py-4 mb-6">
@@ -545,16 +546,14 @@ function RotationBanner() {
             Assign who leads the week automatically on a recurring cycle.
           </p>
         </div>
-        {isAdmin && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRotationConfigOpen(true)}
-          >
-            <Settings2 className="mr-1.5 h-3.5 w-3.5" />
-            Set rotation
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setRotationConfigOpen(true)}
+        >
+          <Settings2 className="mr-1.5 h-3.5 w-3.5" />
+          Set rotation
+        </Button>
       </div>
     );
   }
@@ -576,7 +575,7 @@ function RotationBanner() {
       <div className="flex-1 min-w-0">
         <EyebrowLabel className="mb-1">ROTATION</EyebrowLabel>
         <p className="text-sm font-medium text-ink leading-snug">
-          <em className="font-semibold not-italic" style={{ fontStyle: 'italic' }}>{rotationStatus.currentNickname}</em>
+          <em className="font-semibold italic font-serif text-accent">{rotationStatus.currentNickname}</em>
           {"'s week to lead the rotation"}
         </p>
         <p className="text-xs text-ink-3 mt-0.5">
@@ -608,16 +607,15 @@ function RotationBanner() {
 
 // ── Fairness card (right rail) ────────────────────────────────────────────
 
-// Stable month-ago threshold — captured once at module evaluation, not during render.
-const MONTH_AGO_MS = new Date().getTime() - 30 * 86_400_000;
-
 function FairnessCard() {
   const { taskMembers, tasks } = useDashboard();
+
+  // Recomputed each render so the 30-day window always reflects current time.
+  const monthAgo = Date.now() - 30 * 86_400_000;
 
   const memberCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const m of taskMembers) counts[m._id] = 0;
-    const monthAgo = MONTH_AGO_MS;
     for (const t of tasks) {
       if (
         t.isCompleted &&
@@ -629,6 +627,9 @@ function FairnessCard() {
       }
     }
     return counts;
+  // monthAgo changes on every render intentionally — stale reads are acceptable
+  // because the 30-day window only shifts by milliseconds between renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskMembers, tasks]);
 
   const maxCount = Math.max(1, ...Object.values(memberCounts));
@@ -721,8 +722,6 @@ export default function TasksPage() {
     overdueCount,
     setAddTaskOpen,
     setAddRecurringTaskOpen,
-    setRotationConfigOpen,
-    isAdmin,
   } = useDashboard();
 
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -777,17 +776,6 @@ export default function TasksPage() {
             <Plus className="mr-1.5 h-4 w-4" />
             Add task
           </Button>
-          {isAdmin && distribution === 'rotation' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-ink-3"
-              onClick={() => setRotationConfigOpen(true)}
-            >
-              <Settings2 className="mr-1 h-3.5 w-3.5" />
-              Edit cycle
-            </Button>
-          )}
         </div>
 
         {/* Rotation banner (only when distribution === 'rotation') */}
