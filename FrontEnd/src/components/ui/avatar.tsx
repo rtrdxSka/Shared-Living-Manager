@@ -9,8 +9,9 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 function getInitials(name?: string): string {
-  if (!name) return "?"
-  const parts = name.trim().split(/\s+/)
+  if (!name?.trim()) return "?"
+  const trimmed = name.trim()
+  const parts = trimmed.split(/\s+/)
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
 }
@@ -31,6 +32,8 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
     return (
       <div
         ref={ref}
+        role={props.role ?? (name ? "img" : undefined)}
+        aria-label={props["aria-label"] ?? (name ?? undefined)}
         className={cn(
           "rounded-full flex items-center justify-center font-medium select-none shrink-0",
           wh,
@@ -55,7 +58,8 @@ export interface AvatarGroupProps {
 }
 
 function AvatarGroup({ children, max = 3 }: AvatarGroupProps) {
-  const items = React.Children.toArray(children)
+  const items = React.Children.toArray(children).filter(React.isValidElement)
+  const overflow = max > 0 && items.length > max ? items.length - max : 0
   const visible = max > 0 ? items.slice(0, max) : items
 
   return (
@@ -71,6 +75,18 @@ function AvatarGroup({ children, max = 3 }: AvatarGroupProps) {
           {child}
         </div>
       ))}
+      {overflow > 0 && (
+        <div
+          className={cn(
+            "ring-2 ring-background rounded-full -ml-2",
+            "w-7 h-7 flex items-center justify-center",
+            "bg-surface-2 text-ink-3 text-[11px] font-medium select-none shrink-0"
+          )}
+          aria-label={`${overflow} more`}
+        >
+          +{overflow}
+        </div>
+      )}
     </div>
   )
 }

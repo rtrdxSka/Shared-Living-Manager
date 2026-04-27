@@ -39,6 +39,20 @@ const MoneyAmount = React.forwardRef<HTMLSpanElement, MoneyAmountProps>(
     },
     ref
   ) => {
+    // Guard against non-finite values (NaN, Infinity, -Infinity)
+    if (!Number.isFinite(amount)) {
+      return (
+        <span
+          ref={ref}
+          className={cn("num", SIZE_CLASSES[size], TONE_CLASSES[tone === "auto" ? "neutral" : tone], className)}
+          {...props}
+        >
+          {"—"}
+          {currency ? ` ${currency}` : ""}
+        </span>
+      )
+    }
+
     // Resolve tone class
     let toneClass = TONE_CLASSES[tone]
     if (tone === "auto") {
@@ -49,7 +63,7 @@ const MoneyAmount = React.forwardRef<HTMLSpanElement, MoneyAmountProps>(
     const absFormatted = Math.abs(amount).toFixed(decimals)
     let prefix = ""
     if (signed && amount > 0) prefix = "+"
-    else if (signed && amount < 0) prefix = "−" // Unicode minus U+2212
+    else if (amount < 0)      prefix = "−" // Unicode minus U+2212 — always shown for negatives
 
     const displayText = `${prefix}${absFormatted}${currency ? " " + currency : ""}`
 
