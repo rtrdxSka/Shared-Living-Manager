@@ -35,7 +35,7 @@ interface NavItem {
 }
 
 function useNavItems(): NavItem[] {
-  const { household, financeMode, taskLevel, overdueCount } = useDashboard();
+  const { financeMode, taskLevel, overdueCount } = useDashboard();
 
   const items: NavItem[] = [
     { id: 'overview', label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
@@ -53,11 +53,7 @@ function useNavItems(): NavItem[] {
   }
 
   items.push({ id: 'goals', label: 'Goals', href: '/dashboard/goals', icon: Target });
-
-  // Hide Invite from sidebar when no seats remain — page still reachable via direct URL.
-  if (household.members.length < household.totalMembers) {
-    items.push({ id: 'invite', label: 'Invite', href: '/dashboard/invite', icon: UserPlus });
-  }
+  items.push({ id: 'invite', label: 'Invite', href: '/dashboard/invite', icon: UserPlus });
 
   if (financeMode === 'joint') {
     items.push({ id: 'account', label: 'Account', href: '/dashboard/account', icon: Wallet });
