@@ -333,7 +333,7 @@ const StatsRow = React.memo(function StatsRow({
           hero={<MoneyAmount amount={totalAmount} currency={currency} size="hero" tone="neutral" />}
           subline={<span className="text-sm text-ink-3">{expenses.length} expenses</span>}
         />
-        <div className={`grid grid-cols-1 sm:grid-cols-${colCount} gap-4`}>
+        <div className={`grid grid-cols-1 ${colCount === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4`}>
           <StatTile
             eyebrow="SPENT THIS MONTH"
             hero={<MoneyAmount amount={totalAmount} currency={currency} size="lg" />}
@@ -456,7 +456,7 @@ const StatsRow = React.memo(function StatsRow({
         rightSlot={donutRightSlot}
       />
 
-      <div className={`grid grid-cols-1 sm:grid-cols-${colCount} gap-4`}>
+      <div className={`grid grid-cols-1 ${colCount === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4`}>
         <StatTile
           eyebrow="SPENT THIS MONTH"
           hero={<MoneyAmount amount={totalAmount} currency={currency} size="lg" />}
