@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { BlobBack } from '@/components/ui/blob-back';
 import { SurveyProgress } from './SurveyProgress';
 import { StepLivingArrangement } from './steps/StepLivingArrangement';
 import { StepHouseholdStructure } from './steps/StepHouseholdStructure';
@@ -61,27 +60,31 @@ const STEP_META: Record<
   },
 };
 
-// ── All steps are always active ──────────────────────────────────────
+// Per-step inner-content max-width. The outer shell is uniformly wide;
+// the form content inside is constrained per step for readability.
+const STEP_INNER_MAX: Record<number, string> = {
+  1: 'max-w-2xl',
+  2: 'max-w-3xl',
+  3: 'max-w-2xl',
+  4: 'max-w-2xl',
+  5: 'max-w-3xl',
+};
 
 const EFFECTIVE_STEPS = [1, 2, 3, 4, 5];
 
-// ── Wizard container ──────────────────────────────────────────────────
+// ── Wizard container — centered single column, wide shell ─────────────
 
 export function OnboardingSurvey() {
   const { currentStep } = useOnboarding();
-
   const meta = STEP_META[currentStep];
   const totalSteps = EFFECTIVE_STEPS.length;
+  const innerMax = STEP_INNER_MAX[currentStep] ?? 'max-w-2xl';
 
   return (
-    <div className="relative flex min-h-[calc(100vh-4rem)] items-start justify-center px-4 py-10 overflow-hidden">
-      <BlobBack className="absolute -top-20 -left-20" color="accent" size={400} />
-      <BlobBack className="absolute -bottom-20 -right-20" color="cat-rent" size={350} />
-
-      <div className="relative w-full max-w-3xl space-y-8">
-        {/* Top row: brand + progress + step number */}
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-start justify-center px-4 sm:px-6 lg:px-10 py-12">
+      <div className="relative w-full max-w-6xl space-y-10">
+        {/* Top header band: brand + progress + step counter */}
         <div className="flex items-center justify-between gap-6">
-          {/* Brand mark */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
               <span className="text-accent-ink font-mono font-semibold text-sm">H</span>
@@ -89,36 +92,31 @@ export function OnboardingSurvey() {
             <span className="text-sm font-semibold text-ink">HouseMate</span>
           </div>
 
-          {/* Progress bar */}
           <SurveyProgress
             currentStep={currentStep}
             effectiveSteps={EFFECTIVE_STEPS}
           />
 
-          {/* Mono step counter */}
           <div className="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-3 whitespace-nowrap shrink-0">
             STEP {currentStep} / {totalSteps}
           </div>
         </div>
 
-        {/* Body: 2-column — heading/copy on left, step content on right */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-          {/* Left: heading + helper copy */}
-          <div className="space-y-3 lg:pt-1">
-            <h1 className="text-3xl font-semibold tracking-tight text-ink leading-snug">
-              {meta.heading}
-            </h1>
-            <p className="text-sm text-ink-3 leading-relaxed">{meta.description}</p>
-          </div>
+        {/* Centered heading + helper copy */}
+        <div className="text-center space-y-3 max-w-prose mx-auto">
+          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink leading-snug">
+            {meta.heading}
+          </h1>
+          <p className="text-sm text-ink-3 leading-relaxed">{meta.description}</p>
+        </div>
 
-          {/* Right: step form */}
-          <div className="space-y-3">
-            {currentStep === 1 && <StepLivingArrangement />}
-            {currentStep === 2 && <StepHouseholdStructure />}
-            {currentStep === 3 && <StepFinancialPreferences />}
-            {currentStep === 4 && <StepTaskPreferences />}
-            {currentStep === 5 && <StepReview />}
-          </div>
+        {/* Form area — wide shell, inner content max-width per step */}
+        <div className={`${innerMax} mx-auto`}>
+          {currentStep === 1 && <StepLivingArrangement />}
+          {currentStep === 2 && <StepHouseholdStructure />}
+          {currentStep === 3 && <StepFinancialPreferences />}
+          {currentStep === 4 && <StepTaskPreferences />}
+          {currentStep === 5 && <StepReview />}
         </div>
       </div>
     </div>
