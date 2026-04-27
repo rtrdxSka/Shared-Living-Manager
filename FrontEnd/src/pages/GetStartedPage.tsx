@@ -3,20 +3,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { BlobBack } from '@/components/ui/blob-back';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, UserPlus, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { Home, Users, Loader2, KeyRound, ArrowLeft } from 'lucide-react';
 import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { OnboardingSurvey } from '@/components/onboarding/OnboardingSurvey';
-import { FormField } from '@/contexts/FormField';
 import { householdApi } from '@/api/household.api';
 import { joinHouseholdSchema, type JoinHouseholdFormData } from '@/schemas/household.schemas';
 import type { ApiErrorResponse } from '@/types/auth.types';
@@ -28,27 +22,23 @@ export default function GetStartedPage() {
   const [view, setView] = useState<GetStartedView>('choice');
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center px-4 py-8 sm:py-12">
-      <div className="absolute inset-0 bg-gradient-to-b from-muted/50 to-background" />
+    <>
+      {view === 'choice' && (
+        <ChoiceView
+          firstName={user?.firstName}
+          onCreateClick={() => setView('create')}
+          onJoinClick={() => setView('join')}
+        />
+      )}
 
-      <div className="relative w-full">
-        {view === 'choice' && (
-          <ChoiceView
-            firstName={user?.firstName}
-            onCreateClick={() => setView('create')}
-            onJoinClick={() => setView('join')}
-          />
-        )}
+      {view === 'create' && (
+        <CreateView onBack={() => setView('choice')} />
+      )}
 
-        {view === 'create' && (
-          <CreateView onBack={() => setView('choice')} />
-        )}
-
-        {view === 'join' && (
-          <JoinView onBack={() => setView('choice')} />
-        )}
-      </div>
-    </div>
+      {view === 'join' && (
+        <JoinView onBack={() => setView('choice')} />
+      )}
+    </>
   );
 }
 
@@ -60,59 +50,53 @@ interface ChoiceViewProps {
   onJoinClick: () => void;
 }
 
-function ChoiceView({
-  firstName,
-  onCreateClick,
-  onJoinClick,
-}: ChoiceViewProps) {
+function ChoiceView({ firstName, onCreateClick, onJoinClick }: ChoiceViewProps) {
   return (
-    <div className="mx-auto flex max-w-lg flex-col items-center">
-      <Card className="w-full rounded-2xl border-border/60 shadow-xl">
-        <CardHeader className="space-y-4 pb-2 pt-8 text-center">
-          <div className="space-y-2">
-            <CardTitle className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Welcome, {firstName}!
-            </CardTitle>
-            <CardDescription className="text-base">
-              How would you like to get started?
-            </CardDescription>
-          </div>
-        </CardHeader>
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-10 overflow-hidden">
+      <BlobBack className="absolute -top-10 -left-10" color="accent" size={320} />
+      <BlobBack className="absolute -bottom-10 -right-10" color="cat-rent" size={280} />
 
-        <CardContent className="flex flex-col gap-3 px-6 pb-8 pt-4 sm:px-8">
+      <div className="relative w-full max-w-[480px] rounded-2xl border border-line bg-surface text-ink shadow-hero p-8 space-y-6">
+        {/* Brand mark */}
+        <div className="flex items-center justify-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
+            <span className="text-accent-ink font-mono font-semibold text-sm">H</span>
+          </div>
+          <span className="text-sm font-semibold text-ink">HouseMate</span>
+        </div>
+
+        {/* Heading */}
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-semibold text-ink">
+            Welcome{firstName ? `, ${firstName}` : ''}{' '}
+            <span className="font-serif italic text-accent">home</span>
+          </h1>
+          <p className="text-sm text-ink-3">How would you like to get started?</p>
+        </div>
+
+        {/* Option cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
             onClick={onCreateClick}
-            className="group flex items-center gap-4 rounded-xl border border-border/60 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted/50"
+            className="rounded-xl border border-line bg-surface hover:border-line-2 hover:bg-surface-2 p-5 text-left transition-colors"
           >
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/15">
-              <Plus className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-semibold">Create a household</p>
-              <p className="text-sm text-muted-foreground">
-                Set up a new household and invite others to join
-              </p>
-            </div>
+            <Home className="h-6 w-6 text-accent mb-3" />
+            <p className="text-sm font-semibold text-ink">Create a household</p>
+            <p className="text-xs text-ink-3 mt-1">Start fresh and invite your person</p>
           </button>
 
           <button
             type="button"
             onClick={onJoinClick}
-            className="group flex items-center gap-4 rounded-xl border border-border/60 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted/50"
+            className="rounded-xl border border-line bg-surface hover:border-line-2 hover:bg-surface-2 p-5 text-left transition-colors"
           >
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/15">
-              <UserPlus className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-semibold">Join a household</p>
-              <p className="text-sm text-muted-foreground">
-                Enter an invite code to join an existing household
-              </p>
-            </div>
+            <Users className="h-6 w-6 text-accent mb-3" />
+            <p className="text-sm font-semibold text-ink">Join a household</p>
+            <p className="text-xs text-ink-3 mt-1">Use an invite link from your partner</p>
           </button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
@@ -122,16 +106,15 @@ function ChoiceView({
 function CreateView({ onBack }: { onBack: () => void }) {
   return (
     <OnboardingProvider>
-      <div className="mx-auto max-w-2xl">
-        <Button
+      <div className="mx-auto max-w-2xl px-4">
+        <button
           type="button"
-          variant="ghost"
-          className="mb-4 h-9 gap-2 rounded-xl text-muted-foreground"
           onClick={onBack}
+          className="mt-6 mb-4 flex items-center gap-1.5 text-xs text-ink-3 hover:text-ink transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           Back to options
-        </Button>
+        </button>
 
         <OnboardingSurvey />
       </div>
@@ -175,66 +158,85 @@ function JoinView({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="mx-auto flex max-w-lg flex-col items-center">
-      <Button
-        type="button"
-        variant="ghost"
-        className="mb-4 h-9 gap-2 self-start rounded-xl text-muted-foreground"
-        onClick={onBack}
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to options
-      </Button>
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-10 overflow-hidden">
+      <BlobBack className="absolute -top-10 -left-10" color="accent" size={320} />
+      <BlobBack className="absolute -bottom-10 -right-10" color="cat-rent" size={280} />
 
-      <Card className="w-full rounded-2xl border-border/60 shadow-xl">
-        <CardHeader className="space-y-4 pb-2 pt-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-sm">
-            <UserPlus className="h-7 w-7 text-primary-foreground" />
+      <div className="relative w-full max-w-[480px] rounded-2xl border border-line bg-surface text-ink shadow-hero p-8 space-y-6">
+        {/* Brand mark */}
+        <div className="flex items-center justify-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
+            <span className="text-accent-ink font-mono font-semibold text-sm">H</span>
           </div>
-          <div className="space-y-2">
-            <CardTitle className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Join a Household
-            </CardTitle>
-            <CardDescription className="text-base">
-              Enter the invite code shared by your household admin
-            </CardDescription>
-          </div>
-        </CardHeader>
+          <span className="text-sm font-semibold text-ink">HouseMate</span>
+        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-5 px-6 pb-8 pt-4 sm:px-8">
-            {serverError && (
-              <Alert variant="destructive" className="rounded-xl">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{serverError}</AlertDescription>
-              </Alert>
+        {/* Heading */}
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-semibold text-ink">
+            Join a{' '}
+            <span className="font-serif italic text-accent">household</span>
+          </h1>
+          <p className="text-sm text-ink-3">Paste your invite code or link.</p>
+        </div>
+
+        {/* Server error */}
+        {serverError && (
+          <p className="rounded-lg border border-neg/30 bg-neg/10 px-3 py-2 text-xs text-neg">
+            {serverError}
+          </p>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Invite code */}
+          <div>
+            <Label className="mb-1.5 block text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              Invite Code
+            </Label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3">
+                <KeyRound className="h-4 w-4" />
+              </span>
+              <Input
+                type="text"
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                autoComplete="off"
+                className="pl-10"
+                {...register('inviteCode')}
+              />
+            </div>
+            {errors.inviteCode && (
+              <p className="text-xs text-neg mt-1">{errors.inviteCode.message}</p>
             )}
+          </div>
 
-            <FormField
-              label="Invite Code"
-              type="text"
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              error={errors.inviteCode}
-              {...register('inviteCode')}
-            />
-
-            <Button
-              type="submit"
-              className="h-11 w-full rounded-xl text-base shadow-sm"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Joining...
-                </>
-              ) : (
-                'Join Household'
-              )}
-            </Button>
-          </CardContent>
+          <Button
+            type="submit"
+            className="w-full shadow-accent-glow"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Joining…
+              </>
+            ) : (
+              'Join →'
+            )}
+          </Button>
         </form>
-      </Card>
+
+        {/* Back link */}
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex w-full items-center justify-center gap-1.5 text-xs text-ink-3 hover:text-ink transition-colors"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to options
+        </button>
+      </div>
     </div>
   );
 }
