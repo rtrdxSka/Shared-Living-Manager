@@ -44,20 +44,30 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 border-b border-line bg-bg-sub/80 backdrop-blur-lg supports-[backdrop-filter]:bg-bg-sub/60">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
+        {/* Brand */}
         <Link
           to="/"
-          className="flex items-center gap-2 text-xl font-bold tracking-tight transition-opacity hover:opacity-80"
+          className="flex items-center gap-3 transition-opacity hover:opacity-80"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">H</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
+            <span className="font-mono font-semibold text-sm text-accent-ink">H</span>
           </div>
-          HouseMate
+          <span className="font-semibold text-base text-ink font-sans">HouseMate</span>
         </Link>
 
-        {/* Desktop navigation */}
+        {/* Center marketing nav — only when not authenticated, desktop only */}
+        {!isLoading && !isAuthenticated && (
+          <nav className="hidden md:flex items-center gap-7">
+            <a href="#" onClick={(e) => e.preventDefault()} className="text-sm text-ink-3 hover:text-ink transition-colors">How it works</a>
+            <a href="#" onClick={(e) => e.preventDefault()} className="text-sm text-ink-3 hover:text-ink transition-colors">Pricing</a>
+            <a href="#" onClick={(e) => e.preventDefault()} className="text-sm text-ink-3 hover:text-ink transition-colors">Stories</a>
+            <a href="#" onClick={(e) => e.preventDefault()} className="text-sm text-ink-3 hover:text-ink transition-colors">Help</a>
+          </nav>
+        )}
+
+        {/* Desktop navigation — right side */}
         {!isLoading && (
           <nav className="hidden items-center gap-3 md:flex">
             <Button
@@ -72,19 +82,19 @@ export default function Navbar() {
             </Button>
             {isAuthenticated ? (
               <>
-                <span className="text-sm font-medium text-muted-foreground">
+                <span className="text-sm font-medium text-ink-2">
                   {user?.firstName} {user?.lastName}
                 </span>
-                <Button asChild variant="ghost" size="sm" className="h-9 rounded-xl">
+                <Button asChild variant="ghost" size="sm">
                   <Link to={dashboardLink}>Dashboard</Link>
                 </Button>
-                <Button asChild variant="ghost" size="sm" className="h-9 rounded-xl">
+                <Button asChild variant="ghost" size="sm">
                   <Link to="/profile">Profile</Link>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-9 gap-2 rounded-xl"
+                  className="gap-2"
                   onClick={() => void handleLogout()}
                 >
                   <LogOut className="h-4 w-4" />
@@ -93,11 +103,11 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Button asChild variant="ghost" size="sm" className="h-9 rounded-xl">
-                  <Link to="/login">Login</Link>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/login">Sign in</Link>
                 </Button>
-                <Button asChild size="sm" className="h-9 rounded-xl px-4 shadow-sm">
-                  <Link to="/register">Register</Link>
+                <Button asChild size="sm">
+                  <Link to="/register">Start free</Link>
                 </Button>
               </>
             )}
@@ -118,22 +128,22 @@ export default function Navbar() {
               <SheetTitle className="sr-only">Navigation menu</SheetTitle>
 
               <div className="flex flex-col gap-6 pt-8">
-                {/* Logo in sheet */}
+                {/* Brand in sheet */}
                 <Link
                   to="/"
                   onClick={handleMobileLink}
-                  className="flex items-center gap-2 text-lg font-bold tracking-tight"
+                  className="flex items-center gap-3 transition-opacity hover:opacity-80"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                    <span className="text-sm font-bold text-primary-foreground">H</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
+                    <span className="font-mono font-semibold text-sm text-accent-ink">H</span>
                   </div>
-                  HouseMate
+                  <span className="font-semibold text-base text-ink font-sans">HouseMate</span>
                 </Link>
 
-                <div className="h-px bg-border" />
+                <div className="h-px bg-line" />
 
                 <div className="flex items-center justify-between px-3 py-2">
-                  <span className="text-sm font-medium text-muted-foreground">Theme</span>
+                  <span className="text-sm font-medium text-ink-2">Theme</span>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -146,19 +156,19 @@ export default function Navbar() {
                   </Button>
                 </div>
 
-                <div className="h-px bg-border" />
+                <div className="h-px bg-line" />
 
                 {/* Mobile links */}
                 <nav className="flex flex-col gap-2">
                   {isAuthenticated ? (
                     <>
-                      <div className="px-3 py-2 text-sm font-medium text-muted-foreground">
+                      <div className="px-3 py-2 text-sm font-medium text-ink-2">
                         {user?.firstName} {user?.lastName}
                       </div>
                       <Button
                         asChild
                         variant="ghost"
-                        className="h-11 justify-start rounded-xl"
+                        className="h-11 justify-start rounded-lg"
                       >
                         <Link to={dashboardLink} onClick={handleMobileLink}>
                           Dashboard
@@ -167,7 +177,7 @@ export default function Navbar() {
                       <Button
                         asChild
                         variant="ghost"
-                        className="h-11 justify-start rounded-xl"
+                        className="h-11 justify-start rounded-lg"
                       >
                         <Link to="/profile" onClick={handleMobileLink}>
                           Profile
@@ -175,7 +185,7 @@ export default function Navbar() {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="h-11 justify-start gap-2 rounded-xl text-destructive hover:text-destructive"
+                        className="h-11 justify-start gap-2 rounded-lg text-neg hover:text-neg"
                         onClick={() => void handleLogout()}
                       >
                         <LogOut className="h-4 w-4" />
@@ -187,18 +197,18 @@ export default function Navbar() {
                       <Button
                         asChild
                         variant="ghost"
-                        className="h-11 justify-start rounded-xl"
+                        className="h-11 justify-start rounded-lg"
                       >
                         <Link to="/login" onClick={handleMobileLink}>
-                          Login
+                          Sign in
                         </Link>
                       </Button>
                       <Button
                         asChild
-                        className="h-11 justify-start rounded-xl shadow-sm"
+                        className="h-11 justify-start rounded-lg"
                       >
                         <Link to="/register" onClick={handleMobileLink}>
-                          Register
+                          Start free
                         </Link>
                       </Button>
                     </>
