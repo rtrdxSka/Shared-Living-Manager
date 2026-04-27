@@ -29,7 +29,6 @@ import {
   useDeleteGoal,
   useRemoveContribution,
   useUpdateSettings,
-  useRecordSettlement,
   useDeleteJointTransaction,
   useTasks,
 } from '@/hooks/queries';
@@ -121,7 +120,6 @@ export interface DashboardContextValue {
   updateGoal: (goalId: string, input: { status: 'completed' | 'abandoned' }) => Promise<void>;
   deleteGoal: (goalId: string) => Promise<void>;
   removeContribution: (goalId: string, contributionId: string) => Promise<void>;
-  handleSettleUp: (month: string, amount: number) => Promise<void>;
   deleteJointTransaction: (txId: string) => Promise<void>;
   handleFinanceModeChange: (v: FinanceMode) => Promise<void>;
   handleSplitMethodChange: (v: ExpenseSplitMethod) => Promise<void>;
@@ -184,7 +182,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const deleteGoalMutation = useDeleteGoal(household._id);
   const removeContributionMutation = useRemoveContribution(household._id);
   const updateSettingsMutation = useUpdateSettings(household._id);
-  const settleMutation = useRecordSettlement(household._id);
   const deleteJointTxMutation = useDeleteJointTransaction(household._id);
 
   // ── Derived member data ───────────────────────────────────────────────
@@ -265,7 +262,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const updateGoalAsync = updateGoalMutation.mutateAsync;
   const deleteGoalAsync = deleteGoalMutation.mutateAsync;
   const removeContributionAsync = removeContributionMutation.mutateAsync;
-  const settleAsync = settleMutation.mutateAsync;
   const deleteJointTxAsync = deleteJointTxMutation.mutateAsync;
 
   const deleteExpense = useCallback(
@@ -330,12 +326,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     },
     [removeContributionAsync]
   );
-  const handleSettleUp = useCallback(
-    async (month: string, amount: number) => {
-      await settleAsync({ month, amount });
-    },
-    [settleAsync]
-  );
   const deleteJointTransaction = useCallback(
     async (txId: string) => { await deleteJointTxAsync(txId); },
     [deleteJointTxAsync]
@@ -397,7 +387,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     updateGoal,
     deleteGoal,
     removeContribution,
-    handleSettleUp,
     deleteJointTransaction,
     handleFinanceModeChange,
     handleSplitMethodChange,
@@ -449,7 +438,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     updateGoal,
     deleteGoal,
     removeContribution,
-    handleSettleUp,
     deleteJointTransaction,
     handleFinanceModeChange,
     handleSplitMethodChange,
