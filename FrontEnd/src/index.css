@@ -18,8 +18,8 @@
     --secondary-foreground: 60 5% 10%;
     --muted:                40 37% 88%;   /* #efe9da */
     --muted-foreground:     41 6% 39%;    /* #6b6760 */
-    --accent:               40 37% 88%;   /* #efe9da */
-    --accent-foreground:    60 5% 10%;
+    --accent:               72 80% 60%;   /* lime accent */
+    --accent-foreground:    100 14% 5%;   /* #0b0d0a */
     --destructive:          2 91% 71%;    /* #f97370 */
     --destructive-foreground: 100 14% 5%;
     --border:               41 31% 85%;   /* #e8e1d2 */
@@ -33,6 +33,7 @@
     --chart-5:              41 79% 74%;
 
     /* redesign-only tokens */
+    --bg:                   42 43% 93%;   /* #f5f0e8 — page canvas */
     --bg-sub:               45 100% 99%;  /* #fffdf8 */
     --surface:              45 100% 99%;  /* #fffdf8 */
     --surface-2:            40 37% 88%;   /* #efe9da */
@@ -69,8 +70,8 @@
     --secondary-foreground: 60 5% 10%;
     --muted:                40 37% 88%;
     --muted-foreground:     41 6% 39%;
-    --accent:               40 37% 88%;
-    --accent-foreground:    60 5% 10%;
+    --accent:               72 80% 60%;
+    --accent-foreground:    100 14% 5%;
     --destructive:          2 91% 71%;
     --destructive-foreground: 100 14% 5%;
     --border:               41 31% 85%;
@@ -83,6 +84,7 @@
     --chart-4:              280 87% 83%;
     --chart-5:              41 79% 74%;
 
+    --bg:                   42 43% 93%;
     --bg-sub:               45 100% 99%;
     --surface:              45 100% 99%;
     --surface-2:            40 37% 88%;
@@ -119,8 +121,8 @@
     --secondary-foreground: 40 33% 95%;
     --muted:                217 10% 15%;  /* #22252a */
     --muted-foreground:     43 5% 52%;    /* #8c8a83 */
-    --accent:               217 10% 15%;  /* #22252a */
-    --accent-foreground:    40 33% 95%;
+    --accent:               72 80% 60%;   /* lime accent */
+    --accent-foreground:    100 14% 5%;   /* #0b0d0a */
     --destructive:          2 91% 71%;    /* #f97370 */
     --destructive-foreground: 100 14% 5%;
     --border:               215 11% 19%;  /* #2a2e34 */
@@ -134,6 +136,7 @@
     --chart-5:              41 79% 74%;
 
     /* redesign-only tokens */
+    --bg:                   210 8% 5%;    /* #0c0d0e — page canvas */
     --bg-sub:               220 9% 9%;    /* #131517 */
     --surface:              220 8% 11%;   /* #1a1c1f */
     --surface-2:            217 10% 15%;  /* #22252a */

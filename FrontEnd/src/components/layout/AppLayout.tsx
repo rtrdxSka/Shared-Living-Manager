@@ -70,6 +70,7 @@ function SidebarItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
   return (
     <Link
       to={item.href}
+      aria-current={isActive ? 'page' : undefined}
       className={cn(
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
         isActive
@@ -130,7 +131,7 @@ function Sidebar() {
           <EyebrowLabel as="div" className="mb-1.5">HOUSEHOLD</EyebrowLabel>
           <p className="text-sm font-semibold text-ink leading-tight truncate">{household.name}</p>
           <div className="flex items-center gap-2 mt-2">
-            <AvatarGroup>
+            <AvatarGroup ringColor="surface-2">
               <Avatar name={myNickname} size={24} variant="filled" />
               <Avatar name={partnerNickname} size={24} variant="filled" />
             </AvatarGroup>
@@ -220,7 +221,7 @@ function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
             <EyebrowLabel as="div" className="mb-1.5">HOUSEHOLD</EyebrowLabel>
             <p className="text-sm font-semibold text-ink leading-tight truncate">{household.name}</p>
             <div className="flex items-center gap-2 mt-2">
-              <AvatarGroup>
+              <AvatarGroup ringColor="surface-2">
                 <Avatar name={myNickname} size={24} variant="filled" />
                 <Avatar name={partnerNickname} size={24} variant="filled" />
               </AvatarGroup>
@@ -235,21 +236,25 @@ function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
         {overflowItems.length > 0 && (
           <>
             <nav className="space-y-1 px-2 py-2">
-              {overflowItems.map((item) => (
-                <Link
-                  key={item.id}
-                  to={item.href}
-                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
-                >
-                  <item.icon className="h-5 w-5 shrink-0" />
-                  <span className="flex-1">{item.label}</span>
-                  {item.badge != null && (
-                    <Badge variant="destructive" className="h-5 min-w-[1.25rem] justify-center px-1 text-[10px]">
-                      {item.badge}
-                    </Badge>
-                  )}
-                </Link>
-              ))}
+              {overflowItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.id}
+                    to={item.href}
+                    aria-current={isActive ? 'page' : undefined}
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                  >
+                    <item.icon className="h-5 w-5 shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge != null && (
+                      <Badge variant="destructive" className="h-5 min-w-[1.25rem] justify-center px-1 text-[10px]">
+                        {item.badge}
+                      </Badge>
+                    )}
+                  </Link>
+                );
+              })}
             </nav>
             <Separator />
           </>
@@ -311,6 +316,7 @@ function MobileBottomNav() {
             <Link
               key={item.id}
               to={item.href}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors',
                 isActive ? 'text-accent' : 'text-ink-3'

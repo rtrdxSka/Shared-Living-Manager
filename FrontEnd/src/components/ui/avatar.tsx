@@ -55,12 +55,22 @@ Avatar.displayName = "Avatar"
 export interface AvatarGroupProps {
   children: React.ReactNode
   max?: number
+  ringColor?: 'background' | 'bg' | 'bg-sub' | 'surface' | 'surface-2'
 }
 
-function AvatarGroup({ children, max = 3 }: AvatarGroupProps) {
+const RING_CLASS: Record<NonNullable<AvatarGroupProps['ringColor']>, string> = {
+  background: 'ring-background',
+  bg: 'ring-bg',
+  'bg-sub': 'ring-bg-sub',
+  surface: 'ring-surface',
+  'surface-2': 'ring-surface-2',
+}
+
+function AvatarGroup({ children, max = 3, ringColor = 'background' }: AvatarGroupProps) {
   const items = React.Children.toArray(children).filter(React.isValidElement)
   const overflow = max > 0 && items.length > max ? items.length - max : 0
   const visible = max > 0 ? items.slice(0, max) : items
+  const ringClass = RING_CLASS[ringColor]
 
   return (
     <div className="flex items-center">
@@ -68,7 +78,8 @@ function AvatarGroup({ children, max = 3 }: AvatarGroupProps) {
         <div
           key={i}
           className={cn(
-            "ring-2 ring-background rounded-full",
+            "ring-2 rounded-full",
+            ringClass,
             i > 0 ? "-ml-2" : ""
           )}
         >
@@ -78,7 +89,8 @@ function AvatarGroup({ children, max = 3 }: AvatarGroupProps) {
       {overflow > 0 && (
         <div
           className={cn(
-            "ring-2 ring-background rounded-full -ml-2",
+            "ring-2 rounded-full -ml-2",
+            ringClass,
             "w-7 h-7 flex items-center justify-center",
             "bg-surface-2 text-ink-3 text-[11px] font-medium select-none shrink-0"
           )}

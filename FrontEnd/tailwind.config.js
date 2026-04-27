@@ -57,6 +57,7 @@ export default {
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
   			},
+  			bg: 'hsl(var(--bg))',
   			'bg-sub': 'hsl(var(--bg-sub))',
   			surface: 'hsl(var(--surface))',
   			'surface-2': 'hsl(var(--surface-2))',

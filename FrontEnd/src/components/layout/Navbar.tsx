@@ -60,10 +60,10 @@ export default function Navbar() {
         {/* Center marketing nav — only when not authenticated, desktop only */}
         {!isLoading && !isAuthenticated && (
           <nav className="hidden md:flex items-center gap-7">
-            <a href="#" onClick={(e) => e.preventDefault()} className="text-sm text-ink-3 hover:text-ink transition-colors">How it works</a>
-            <a href="#" onClick={(e) => e.preventDefault()} className="text-sm text-ink-3 hover:text-ink transition-colors">Pricing</a>
-            <a href="#" onClick={(e) => e.preventDefault()} className="text-sm text-ink-3 hover:text-ink transition-colors">Stories</a>
-            <a href="#" onClick={(e) => e.preventDefault()} className="text-sm text-ink-3 hover:text-ink transition-colors">Help</a>
+            <a href="#" onClick={(e) => e.preventDefault()} aria-disabled="true" tabIndex={-1} className="text-sm text-ink-3 hover:text-ink transition-colors">How it works</a>
+            <a href="#" onClick={(e) => e.preventDefault()} aria-disabled="true" tabIndex={-1} className="text-sm text-ink-3 hover:text-ink transition-colors">Pricing</a>
+            <a href="#" onClick={(e) => e.preventDefault()} aria-disabled="true" tabIndex={-1} className="text-sm text-ink-3 hover:text-ink transition-colors">Stories</a>
+            <a href="#" onClick={(e) => e.preventDefault()} aria-disabled="true" tabIndex={-1} className="text-sm text-ink-3 hover:text-ink transition-colors">Help</a>
           </nav>
         )}
 
