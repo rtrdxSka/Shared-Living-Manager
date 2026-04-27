@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { extractApiError } from '@/utils/extractApiError';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { useUpdateIncome } from '@/hooks/queries';
 import type { HouseholdResponse } from '@/types/household.types';
 
@@ -46,22 +47,17 @@ export default function IncomeEntryCard({ household, currentUserId }: IncomeEntr
   if (myIncomeSet && waitingMembers.length === 0) return null;
 
   return (
-    <Card className="border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30">
-      <CardContent className="space-y-3 px-4 py-4">
+    <Card className="p-5 border-warn/30 bg-warn-bg/30">
+      <CardContent className="space-y-3 p-0">
         {!myIncomeSet && (
           <>
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <div>
-                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Income data needed</p>
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  This household uses income-based splitting. Enter your monthly income to see your share.
-                </p>
-              </div>
-            </div>
+            <EyebrowLabel as="div" className="mb-3 text-warn">SET YOUR INCOME</EyebrowLabel>
+            <p className="text-sm text-ink mb-4">
+              This household uses income-based splitting. Enter your monthly income to see your share.
+            </p>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-amber-800 dark:text-amber-300">Monthly income:</span>
+              <span className="text-sm text-ink-3">Monthly income:</span>
               <Input
                 type="number"
                 min={0}
@@ -70,10 +66,10 @@ export default function IncomeEntryCard({ household, currentUserId }: IncomeEntr
                 placeholder="0"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                className="h-8 w-36 bg-white dark:bg-amber-950/60"
+                className="h-8 w-36"
                 disabled={updateIncomeMutation.isPending}
               />
-              <span className="text-sm text-amber-800 dark:text-amber-300">{currency}</span>
+              <span className="text-sm text-ink-3">{currency}</span>
               <Button
                 size="sm"
                 onClick={handleSave}
@@ -84,12 +80,12 @@ export default function IncomeEntryCard({ household, currentUserId }: IncomeEntr
               </Button>
             </div>
 
-            {error && <p className="text-xs text-destructive">{error}</p>}
+            {error && <p className="text-xs text-neg mt-1">{error}</p>}
           </>
         )}
 
         {waitingMembers.length > 0 && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
+          <p className="text-xs text-ink-3">
             Waiting for:{' '}
             {waitingMembers.map((m) => m.nickname).join(', ')} to enter their income
           </p>

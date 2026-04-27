@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import type { HouseholdMemberResponse } from '@/types/household.types';
 
 interface SetRotationDialogProps {
@@ -52,15 +53,18 @@ export default function SetRotationDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-lg">
-        <h2 className="mb-1 text-base font-semibold">Configure Rotation</h2>
-        <p className="mb-4 text-sm text-muted-foreground">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="relative bg-surface border border-line rounded-2xl shadow-hero p-6 max-w-md w-full mx-4">
+        <EyebrowLabel as="div" className="mb-2 text-ink-3">Task Rotation</EyebrowLabel>
+        <h2 className="mb-1 text-base font-semibold text-ink">Configure Rotation</h2>
+        <p className="mb-4 text-sm text-ink-3">
           Select who starts the rotation. The order follows member positions and advances every 7 days.
         </p>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Starts with</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              STARTS WITH
+            </label>
             <Select value={selectedId} onValueChange={setSelectedId} disabled={submitting}>
               <SelectTrigger className="h-9 w-full">
                 <SelectValue />
@@ -72,7 +76,7 @@ export default function SetRotationDialog({
               </SelectContent>
             </Select>
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-neg mt-1">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <Button
               variant="ghost"

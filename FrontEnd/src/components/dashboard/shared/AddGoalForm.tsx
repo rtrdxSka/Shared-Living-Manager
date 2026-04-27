@@ -79,7 +79,9 @@ export default function AddGoalForm({
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Name</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              NAME
+            </label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -91,8 +93,8 @@ export default function AddGoalForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Target Amount ({currency})
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              TARGET AMOUNT ({currency})
             </label>
             <Input
               type="number"
@@ -107,8 +109,8 @@ export default function AddGoalForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Description <span className="text-muted-foreground">(optional)</span>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              DESCRIPTION <span className="normal-case tracking-normal font-sans text-ink-3">(optional)</span>
             </label>
             <Input
               value={description}
@@ -120,8 +122,8 @@ export default function AddGoalForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Deadline <span className="text-muted-foreground">(optional)</span>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              DEADLINE <span className="normal-case tracking-normal font-sans text-ink-3">(optional)</span>
             </label>
             <Input
               type="date"
@@ -132,8 +134,8 @@ export default function AddGoalForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Category <span className="text-muted-foreground">(optional)</span>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              CATEGORY <span className="normal-case tracking-normal font-sans text-ink-3">(optional)</span>
             </label>
             <Select
               value={category || '__none__'}
@@ -154,7 +156,7 @@ export default function AddGoalForm({
             </Select>
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-neg mt-1">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
             {addGoalMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Goal'}

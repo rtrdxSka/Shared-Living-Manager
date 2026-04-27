@@ -68,15 +68,17 @@ export default function AddTransactionForm({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Type toggle */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Type</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              TYPE
+            </label>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setType('deposit')}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   type === 'deposit'
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                    : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-line bg-surface-2 text-ink-3 hover:border-line-2 hover:bg-surface-2 hover:text-ink'
                 }`}
                 disabled={addMutation.isPending}
               >
@@ -85,10 +87,10 @@ export default function AddTransactionForm({
               <button
                 type="button"
                 onClick={() => setType('withdrawal')}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   type === 'withdrawal'
-                    ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                    : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    ? 'border-warn/60 bg-warn-bg text-warn'
+                    : 'border-line bg-surface-2 text-ink-3 hover:border-line-2 hover:bg-surface-2 hover:text-ink'
                 }`}
                 disabled={addMutation.isPending}
               >
@@ -99,8 +101,8 @@ export default function AddTransactionForm({
 
           {/* Amount */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Amount ({currency})
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              AMOUNT ({currency})
             </label>
             <Input
               type="number"
@@ -117,8 +119,8 @@ export default function AddTransactionForm({
 
           {/* Note */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Note <span className="text-muted-foreground">(optional)</span>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              NOTE <span className="normal-case tracking-normal font-sans text-ink-3">(optional)</span>
             </label>
             <Input
               value={note}
@@ -129,7 +131,7 @@ export default function AddTransactionForm({
             />
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-neg mt-1">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
             {addMutation.isPending ? (

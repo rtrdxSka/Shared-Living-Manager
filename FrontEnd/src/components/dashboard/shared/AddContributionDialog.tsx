@@ -69,8 +69,8 @@ export default function AddContributionDialog({
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Amount ({currency})
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              AMOUNT ({currency})
             </label>
             <Input
               type="number"
@@ -85,8 +85,8 @@ export default function AddContributionDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Note <span className="text-muted-foreground">(optional)</span>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              NOTE <span className="normal-case tracking-normal font-sans text-ink-3">(optional)</span>
             </label>
             <Input
               value={note}
@@ -97,7 +97,7 @@ export default function AddContributionDialog({
             />
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-neg mt-1">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
             {addContributionMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Contribution'}

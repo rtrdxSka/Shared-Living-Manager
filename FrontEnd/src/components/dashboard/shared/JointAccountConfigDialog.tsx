@@ -78,8 +78,8 @@ export default function JointAccountConfigDialog({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Monthly target amount */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">
-              Monthly Target ({currency})
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              MONTHLY TARGET ({currency})
             </label>
             <Input
               type="number"
@@ -91,22 +91,24 @@ export default function JointAccountConfigDialog({
               placeholder="e.g. 1000"
               disabled={updateConfigMutation.isPending}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-ink-3 mt-1">
               Total monthly contribution target for the household
             </p>
           </div>
 
           {/* Target mode */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Split Mode</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              SPLIT MODE
+            </label>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setTargetMode('equal')}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   targetMode === 'equal'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-line bg-surface-2 text-ink-3 hover:border-line-2 hover:text-ink'
                 }`}
                 disabled={updateConfigMutation.isPending}
               >
@@ -115,24 +117,24 @@ export default function JointAccountConfigDialog({
               <button
                 type="button"
                 onClick={() => setTargetMode('proportional')}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   targetMode === 'proportional'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-line bg-surface-2 text-ink-3 hover:border-line-2 hover:text-ink'
                 }`}
                 disabled={updateConfigMutation.isPending}
               >
                 Income-based
               </button>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-ink-3 mt-1">
               {targetMode === 'equal'
                 ? 'Each member contributes the same amount'
                 : 'Contributions proportional to monthly income'}
             </p>
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-neg mt-1">{error}</p>}
 
           <Button
             type="submit"
