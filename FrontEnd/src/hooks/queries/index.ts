@@ -53,3 +53,11 @@ export {
   useDeleteJointTransaction,
   useUpdateJointAccountConfig,
 } from './useJointAccountQueries';
+
+export {
+  useShoppingList,
+  useAddShoppingItem,
+  useToggleShoppingItemBought,
+  useDeleteShoppingItem,
+  useClearBoughtShoppingItems,
+} from './useShoppingListQueries';

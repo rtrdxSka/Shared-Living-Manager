@@ -22,6 +22,10 @@ export const queryKeys = {
     list: (householdId: string) =>
       ['recurringTasks', householdId, 'list'] as const,
   },
+  shoppingList: {
+    all: (householdId: string) => ['shoppingList', householdId] as const,
+    list: (householdId: string) => ['shoppingList', householdId, 'list'] as const,
+  },
   goals: {
     all: (householdId: string) => ['goals', householdId] as const,
     list: (householdId: string) => ['goals', householdId, 'list'] as const,
