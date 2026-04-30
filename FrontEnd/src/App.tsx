@@ -24,6 +24,7 @@ const ProfilePage        = lazy(() => import('@/pages/ProfilePage'));
 const OverviewPage = lazy(() => import('@/pages/dashboard/OverviewPage'));
 const ExpensesPage = lazy(() => import('@/pages/dashboard/ExpensesPage'));
 const TasksPage    = lazy(() => import('@/pages/dashboard/TasksPage'));
+const ShoppingListPage = lazy(() => import('@/pages/dashboard/ShoppingListPage'));
 const GoalsPage    = lazy(() => import('@/pages/dashboard/GoalsPage'));
 const AccountPage  = lazy(() => import('@/pages/dashboard/AccountPage'));
 const InvitePage   = lazy(() => import('@/pages/dashboard/InvitePage'));
@@ -91,6 +92,7 @@ export default function App() {
                     <Route path="overview" element={<OverviewPage />} />
                     <Route path="expenses" element={<ExpensesPage />} />
                     <Route path="tasks" element={<TasksPage />} />
+                    <Route path="shopping-list" element={<ShoppingListPage />} />
                     <Route path="goals" element={<GoalsPage />} />
                     <Route path="account" element={<AccountPage />} />
                     <Route path="invite" element={<InvitePage />} />
