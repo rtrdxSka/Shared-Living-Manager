@@ -2,13 +2,16 @@ import { Router } from 'express';
 import { shoppingListController } from '../controllers/shopping-list.controller';
 import {
   addShoppingItemValidation,
+  updateShoppingItemValidation,
   shoppingItemIdValidation,
   householdIdOnlyValidation,
+  archiveBoughtValidation,
+  historyValidation,
 } from '../validators/shopping-list.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 
-const router = Router({ mergeParams: true }); // exposes :id from household router
+const router = Router({ mergeParams: true });
 
 // POST /api/households/:id/shopping-list
 router.post(
@@ -30,14 +33,34 @@ router.get(
   shoppingListController.listItems.bind(shoppingListController)
 );
 
-// POST /api/households/:id/shopping-list/clear-bought — must come before /:itemId routes
-router.post(
-  '/clear-bought',
+// GET /api/households/:id/shopping-list/history — must be before /:itemId routes
+router.get(
+  '/history',
   authMiddleware,
   emailVerifiedMiddleware,
-  householdIdOnlyValidation,
+  historyValidation,
   handleValidationErrors,
-  shoppingListController.clearBought.bind(shoppingListController)
+  shoppingListController.listArchivedHistory.bind(shoppingListController)
+);
+
+// POST /api/households/:id/shopping-list/archive-bought — must be before /:itemId routes
+router.post(
+  '/archive-bought',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  archiveBoughtValidation,
+  handleValidationErrors,
+  shoppingListController.archiveBought.bind(shoppingListController)
+);
+
+// PATCH /api/households/:id/shopping-list/:itemId
+router.patch(
+  '/:itemId',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  updateShoppingItemValidation,
+  handleValidationErrors,
+  shoppingListController.updateItem.bind(shoppingListController)
 );
 
 // PATCH /api/households/:id/shopping-list/:itemId/bought
@@ -48,6 +71,26 @@ router.patch(
   shoppingItemIdValidation,
   handleValidationErrors,
   shoppingListController.toggleBought.bind(shoppingListController)
+);
+
+// POST /api/households/:id/shopping-list/:itemId/archive
+router.post(
+  '/:itemId/archive',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  shoppingItemIdValidation,
+  handleValidationErrors,
+  shoppingListController.archiveItem.bind(shoppingListController)
+);
+
+// POST /api/households/:id/shopping-list/:itemId/restore
+router.post(
+  '/:itemId/restore',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  shoppingItemIdValidation,
+  handleValidationErrors,
+  shoppingListController.restoreItem.bind(shoppingListController)
 );
 
 // DELETE /api/households/:id/shopping-list/:itemId

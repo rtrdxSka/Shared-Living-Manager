@@ -3,9 +3,13 @@ import { ShoppingListItem } from '../models/shopping-list-item.model';
 import {
   IShoppingListItem,
   IAddShoppingItemInput,
+  IUpdateShoppingItemInput,
   IShoppingListItemResponse,
+  HistoryEntry,
+  IListHistoryResult,
 } from '../types/shopping-list.types';
-import { NotFoundError } from '../utils/error';
+import { ExpenseType } from '../types/household.types';
+import { NotFoundError, BadRequestError } from '../utils/error';
 import { getHouseholdForMember } from '../utils/household.helpers';
 
 class ShoppingListService {
@@ -21,6 +25,7 @@ class ShoppingListService {
       name: input.name.trim(),
       ...(input.quantity?.trim() && { quantity: input.quantity.trim() }),
       ...(input.notes?.trim() && { notes: input.notes.trim() }),
+      category: input.category,
       addedByUserId: userId,
     });
 
@@ -29,11 +34,19 @@ class ShoppingListService {
 
   async listItems(
     householdId: string,
-    userId: string
+    userId: string,
+    options: { archived?: boolean } = {}
   ): Promise<{ items: IShoppingListItemResponse[] }> {
     const { household } = await getHouseholdForMember(householdId, userId);
 
-    const items = await ShoppingListItem.find({ householdId: household._id })
+    const archivedFilter = options.archived
+      ? { archivedAt: { $ne: null } }
+      : { archivedAt: null };
+
+    const items = await ShoppingListItem.find({
+      householdId: household._id,
+      ...archivedFilter,
+    })
       .sort({ isBought: 1, createdAt: -1 })
       .lean();
 
@@ -62,6 +75,7 @@ class ShoppingListService {
 
     const item = await ShoppingListItem.findOne({ _id: itemId, householdId: household._id });
     if (!item) throw NotFoundError('Shopping list item not found');
+    if (item.archivedAt) throw BadRequestError('Cannot toggle bought on an archived item');
 
     item.isBought = !item.isBought;
     if (item.isBought) {
@@ -77,6 +91,33 @@ class ShoppingListService {
     return this.formatResponse(item, boughtByNickname);
   }
 
+  async updateItem(
+    householdId: string,
+    userId: string,
+    itemId: string,
+    input: IUpdateShoppingItemInput
+  ): Promise<IShoppingListItemResponse> {
+    const { household } = await getHouseholdForMember(householdId, userId);
+
+    const item = await ShoppingListItem.findOne({ _id: itemId, householdId: household._id });
+    if (!item) throw NotFoundError('Shopping list item not found');
+    if (item.archivedAt) throw BadRequestError('Cannot update an archived item');
+
+    if (input.name !== undefined) item.name = input.name.trim();
+    if (input.quantity !== undefined) {
+      const trimmed = input.quantity.trim();
+      item.quantity = trimmed.length > 0 ? trimmed : undefined;
+    }
+    if (input.notes !== undefined) {
+      const trimmed = input.notes.trim();
+      item.notes = trimmed.length > 0 ? trimmed : undefined;
+    }
+    if (input.category !== undefined) item.category = input.category;
+
+    await item.save();
+    return this.formatResponse(item);
+  }
+
   async deleteItem(
     householdId: string,
     userId: string,
@@ -90,18 +131,137 @@ class ShoppingListService {
     await item.deleteOne();
   }
 
-  async clearBought(
+  async archiveItem(
     householdId: string,
-    userId: string
-  ): Promise<{ deletedCount: number }> {
+    userId: string,
+    itemId: string
+  ): Promise<IShoppingListItemResponse> {
     const { household } = await getHouseholdForMember(householdId, userId);
 
-    const result = await ShoppingListItem.deleteMany({
-      householdId: household._id,
-      isBought: true,
-    });
+    const item = await ShoppingListItem.findOne({ _id: itemId, householdId: household._id });
+    if (!item) throw NotFoundError('Shopping list item not found');
+    if (item.archivedAt) throw BadRequestError('Item is already archived');
 
-    return { deletedCount: result.deletedCount ?? 0 };
+    item.archivedAt = new Date();
+    await item.save();
+
+    return this.formatResponse(item);
+  }
+
+  async restoreItem(
+    householdId: string,
+    userId: string,
+    itemId: string
+  ): Promise<IShoppingListItemResponse> {
+    const { household } = await getHouseholdForMember(householdId, userId);
+
+    const item = await ShoppingListItem.findOne({ _id: itemId, householdId: household._id });
+    if (!item) throw NotFoundError('Shopping list item not found');
+    if (!item.archivedAt) throw BadRequestError('Item is not archived');
+    if (item.archivedExpenseId) {
+      throw BadRequestError('Cannot restore an item that was archived as part of an expense');
+    }
+
+    item.archivedAt = undefined;
+    item.isBought = false;
+    item.boughtAt = undefined;
+    item.boughtByMemberId = undefined;
+    await item.save();
+
+    return this.formatResponse(item);
+  }
+
+  async archiveBought(
+    householdId: string,
+    userId: string,
+    expenseId: string,
+    dominantCategory: ExpenseType
+  ): Promise<{ archivedCount: number }> {
+    const { household } = await getHouseholdForMember(householdId, userId);
+
+    const now = new Date();
+    const result = await ShoppingListItem.updateMany(
+      {
+        householdId: household._id,
+        isBought: true,
+        archivedAt: null,
+      },
+      {
+        $set: {
+          archivedAt: now,
+          archivedExpenseId: new Types.ObjectId(expenseId),
+          archivedDominantCategory: dominantCategory,
+        },
+      }
+    );
+
+    return { archivedCount: result.modifiedCount ?? 0 };
+  }
+
+  async listArchivedHistory(
+    householdId: string,
+    userId: string,
+    cursor?: string,
+    limit: number = 10
+  ): Promise<IListHistoryResult> {
+    const { household } = await getHouseholdForMember(householdId, userId);
+
+    const archivedFilter: Record<string, unknown> = {
+      householdId: household._id,
+      archivedAt: { $ne: null },
+    };
+    if (cursor) {
+      archivedFilter.archivedAt = { $ne: null, $lt: new Date(cursor) };
+    }
+
+    const items = await ShoppingListItem.find(archivedFilter)
+      .sort({ archivedAt: -1 })
+      .lean();
+
+    const memberMap = new Map<string, string>();
+    for (const m of household.members) {
+      memberMap.set(m._id.toString(), m.nickname);
+    }
+
+    const entries: HistoryEntry[] = [];
+    const tripGroups = new Map<string, HistoryEntry & { type: 'trip' }>();
+
+    for (const item of items) {
+      const boughtByMemberId = item.boughtByMemberId?.toString();
+      const boughtByNickname = boughtByMemberId ? memberMap.get(boughtByMemberId) : undefined;
+      const formatted = this.formatLeanResponse(item, boughtByNickname);
+
+      if (item.archivedExpenseId) {
+        const key = item.archivedExpenseId.toString();
+        if (tripGroups.has(key)) {
+          tripGroups.get(key)!.items.push(formatted);
+        } else {
+          const tripEntry: HistoryEntry & { type: 'trip' } = {
+            type: 'trip',
+            archivedAt: item.archivedAt!.toISOString(),
+            items: [formatted],
+            expenseId: key,
+            dominantCategory: (item.archivedDominantCategory ?? item.category) as ExpenseType,
+          };
+          tripGroups.set(key, tripEntry);
+          entries.push(tripEntry);
+        }
+      } else {
+        entries.push({
+          type: 'manual',
+          archivedAt: item.archivedAt!.toISOString(),
+          items: [formatted],
+        });
+      }
+
+      if (entries.length > limit) break;
+    }
+
+    const pageEntries = entries.slice(0, limit);
+    const hasMore = entries.length > limit;
+    const nextCursor = hasMore ? pageEntries[pageEntries.length - 1].archivedAt : null;
+
+    return { entries: pageEntries, nextCursor };
   }
 
   private formatResponse(
@@ -114,11 +274,15 @@ class ShoppingListService {
       name: item.name,
       ...(item.quantity && { quantity: item.quantity }),
       ...(item.notes && { notes: item.notes }),
+      category: item.category,
       addedByUserId: item.addedByUserId.toString(),
       isBought: item.isBought,
       ...(item.boughtAt && { boughtAt: item.boughtAt.toISOString() }),
       ...(item.boughtByMemberId && { boughtByMemberId: item.boughtByMemberId.toString() }),
       ...(boughtByNickname && { boughtByNickname }),
+      ...(item.archivedAt && { archivedAt: item.archivedAt.toISOString() }),
+      ...(item.archivedExpenseId && { archivedExpenseId: item.archivedExpenseId.toString() }),
+      ...(item.archivedDominantCategory && { archivedDominantCategory: item.archivedDominantCategory }),
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     };
@@ -132,10 +296,14 @@ class ShoppingListService {
       name: string;
       quantity?: string;
       notes?: string;
+      category: ExpenseType;
       addedByUserId: Types.ObjectId;
       isBought: boolean;
       boughtAt?: Date;
       boughtByMemberId?: Types.ObjectId;
+      archivedAt?: Date;
+      archivedExpenseId?: Types.ObjectId;
+      archivedDominantCategory?: ExpenseType;
       createdAt: Date;
       updatedAt: Date;
     },
@@ -147,11 +315,15 @@ class ShoppingListService {
       name: item.name,
       ...(item.quantity && { quantity: item.quantity }),
       ...(item.notes && { notes: item.notes }),
+      category: item.category,
       addedByUserId: item.addedByUserId.toString(),
       isBought: item.isBought,
       ...(item.boughtAt && { boughtAt: item.boughtAt.toISOString() }),
       ...(item.boughtByMemberId && { boughtByMemberId: item.boughtByMemberId.toString() }),
       ...(boughtByNickname && { boughtByNickname }),
+      ...(item.archivedAt && { archivedAt: item.archivedAt.toISOString() }),
+      ...(item.archivedExpenseId && { archivedExpenseId: item.archivedExpenseId.toString() }),
+      ...(item.archivedDominantCategory && { archivedDominantCategory: item.archivedDominantCategory }),
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     };
