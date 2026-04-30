@@ -1,4 +1,14 @@
-import { body, param, ValidationChain } from 'express-validator';
+import { body, param, query, ValidationChain } from 'express-validator';
+
+const EXPENSE_TYPE_VALUES = [
+  'rent',
+  'utilities',
+  'internet',
+  'groceries',
+  'cleaning',
+  'subscriptions',
+  'other',
+] as const;
 
 export const addShoppingItemValidation: ValidationChain[] = [
   param('id')
@@ -21,6 +31,43 @@ export const addShoppingItemValidation: ValidationChain[] = [
     .trim()
     .isLength({ max: 500 })
     .withMessage('Notes cannot exceed 500 characters'),
+
+  body('category')
+    .isIn(EXPENSE_TYPE_VALUES)
+    .withMessage('Invalid category'),
+];
+
+export const updateShoppingItemValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
+
+  param('itemId')
+    .isMongoId()
+    .withMessage('Invalid shopping list item ID'),
+
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Name must be between 1 and 100 characters'),
+
+  body('quantity')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Quantity cannot exceed 50 characters'),
+
+  body('notes')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Notes cannot exceed 500 characters'),
+
+  body('category')
+    .optional()
+    .isIn(EXPENSE_TYPE_VALUES)
+    .withMessage('Invalid category'),
 ];
 
 export const shoppingItemIdValidation: ValidationChain[] = [
@@ -37,4 +84,34 @@ export const householdIdOnlyValidation: ValidationChain[] = [
   param('id')
     .isMongoId()
     .withMessage('Invalid household ID'),
+];
+
+export const archiveBoughtValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
+
+  body('expenseId')
+    .isMongoId()
+    .withMessage('Invalid expense ID'),
+
+  body('dominantCategory')
+    .isIn(EXPENSE_TYPE_VALUES)
+    .withMessage('Invalid dominant category'),
+];
+
+export const historyValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
+
+  query('cursor')
+    .optional()
+    .isISO8601()
+    .withMessage('Cursor must be an ISO 8601 date'),
+
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage('Limit must be between 1 and 50'),
 ];
