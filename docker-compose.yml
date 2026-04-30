@@ -74,6 +74,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:5000/api
       VITE_API_PROXY_TARGET: http://backend:5000
+      DOCKER: "true"
     volumes:
       - ./FrontEnd/src:/app/src
       - ./FrontEnd/public:/app/public
