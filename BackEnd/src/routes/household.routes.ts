@@ -7,6 +7,7 @@ import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
 import recurringExpenseRouter from './recurring-expense.routes';
 import taskRouter from './task.routes';
+import shoppingListRouter from './shopping-list.routes';
 import recurringTaskRouter from './recurring-task.routes';
 import goalRouter from './goal.routes';
 import jointAccountRouter from './joint-account.routes';
@@ -100,6 +101,7 @@ router.patch(
 router.use('/:id/expenses', expenseRouter);
 router.use('/:id/recurring-expenses', recurringExpenseRouter);
 router.use('/:id/tasks', taskRouter);
+router.use('/:id/shopping-list', shoppingListRouter);
 router.use('/:id/recurring-tasks', recurringTaskRouter);
 router.use('/:id/goals', goalRouter);
 router.use('/:id/joint-account', jointAccountRouter);
