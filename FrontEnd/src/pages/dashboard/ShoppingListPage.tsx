@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useDashboard } from '@/contexts/DashboardContext';
-import { useShoppingList, useClearBoughtShoppingItems } from '@/hooks/queries';
+import { useShoppingList, useArchiveBoughtShoppingItems } from '@/hooks/queries';
+import { useBeforeUnload } from '@/hooks/useBeforeUnload';
+import { computeDominantCategory } from '@/utils/computeDominantCategory';
 import AddShoppingItemForm from '@/components/dashboard/shared/AddShoppingItemForm';
 import ShoppingListView from '@/components/dashboard/shared/ShoppingListView';
+import ShoppingHistoryView from '@/components/dashboard/shared/ShoppingHistoryView';
 import DoneShoppingDialog from '@/components/dashboard/shared/DoneShoppingDialog';
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
+import { EXPENSE_TYPE_LABELS } from '@/types/onboarding.types';
 import type { AddExpenseInput } from '@/types/expense.types';
 import type { ShoppingListItemResponse } from '@/types/shoppingList.types';
 
-// Module-level stable empty array so the `items` fallback identity doesn't
-// churn each render — keeps useMemo dep arrays stable when the list is empty.
 const EMPTY_ITEMS: ShoppingListItemResponse[] = [];
 
 export default function ShoppingListPage() {
@@ -28,22 +31,33 @@ export default function ShoppingListPage() {
   const items = data?.items ?? EMPTY_ITEMS;
   const boughtItems = useMemo(() => items.filter((i) => i.isBought), [items]);
   const hasBought = boughtItems.length > 0;
+  const dominantCategory = useMemo(() => computeDominantCategory(boughtItems), [boughtItems]);
 
-  const clearBought = useClearBoughtShoppingItems(householdId);
+  const archiveBought = useArchiveBoughtShoppingItems(householdId);
 
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [addOpen, setAddOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ShoppingListItemResponse | null>(null);
   const [doneOpen, setDoneOpen] = useState(false);
   const [expenseSheetOpen, setExpenseSheetOpen] = useState(false);
   const [expensePrefill, setExpensePrefill] = useState<Partial<AddExpenseInput> | null>(null);
 
+  // Build the description that pre-fills the expense form, grouping items by category.
   function buildPrefillFromBought(bought: ShoppingListItemResponse[]): Partial<AddExpenseInput> {
-    const description = bought
-      .map((i) => (i.quantity ? `${i.quantity} ${i.name}` : i.name))
-      .join(', ');
+    const grouped = new Map<string, string[]>();
+    for (const item of bought) {
+      const piece = item.quantity ? `${item.quantity} ${item.name}` : item.name;
+      if (!grouped.has(item.category)) grouped.set(item.category, []);
+      grouped.get(item.category)!.push(piece);
+    }
+    const description = Array.from(grouped.entries())
+      .map(([cat, names]) => `${EXPENSE_TYPE_LABELS[cat as keyof typeof EXPENSE_TYPE_LABELS].toUpperCase()}: ${names.join(', ')}`)
+      .join(' · ');
+
     return {
       description,
       paidByUserId: currentUserId,
-      category: 'groceries',
+      category: dominantCategory,
       date: new Date().toISOString().slice(0, 10),
     };
   }
@@ -52,22 +66,28 @@ export default function ShoppingListPage() {
     setExpensePrefill(buildPrefillFromBought(boughtItems));
     setExpenseSheetOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boughtItems, currentUserId]);
+  }, [boughtItems, currentUserId, dominantCategory]);
 
-  // Push bought-count into context so AppLayout can detect dirty state
+  // Push bought-count into context (sidebar leave-guard)
   useEffect(() => {
     setShoppingListBoughtCount(boughtItems.length);
     return () => setShoppingListBoughtCount(0);
   }, [boughtItems.length, setShoppingListBoughtCount]);
 
-  // Register the convert handler so AppLayout's leave-guard can trigger it
+  // Register the convert handler for the in-app sidebar leave-guard
   useEffect(() => {
     setShoppingListConvertHandler(() => handleConvertConfirm);
     return () => setShoppingListConvertHandler(null);
-  }, [handleConvertConfirm, setShoppingListConvertHandler]);
+  }, [setShoppingListConvertHandler, handleConvertConfirm]);
 
-  async function handleExpenseCreated() {
-    await clearBought.mutateAsync();
+  // Hard nav guard via beforeunload (covers tab close, hard refresh, direct URL change)
+  useBeforeUnload(boughtItems.length > 0);
+
+  async function handleExpenseCreated(created: { _id: string }) {
+    await archiveBought.mutateAsync({
+      expenseId: created._id,
+      dominantCategory,
+    });
   }
 
   return (
@@ -83,30 +103,54 @@ export default function ShoppingListPage() {
         </Button>
       </header>
 
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : (
-        <ShoppingListView householdId={householdId} items={items} />
-      )}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'history')}>
+        <TabsList>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
 
-      {hasBought && (
-        <div className="sticky bottom-4 flex justify-end">
-          <Button size="lg" onClick={() => setDoneOpen(true)}>
-            Done shopping ({boughtItems.length})
-          </Button>
-        </div>
-      )}
+        <TabsContent value="active" className="mt-4 space-y-6">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            <ShoppingListView
+              householdId={householdId}
+              items={items}
+              onEditItem={setEditingItem}
+            />
+          )}
+
+          {hasBought && (
+            <div className="sticky bottom-4 flex justify-end">
+              <Button size="lg" onClick={() => setDoneOpen(true)}>
+                Done shopping ({boughtItems.length})
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4">
+          <ShoppingHistoryView householdId={householdId} />
+        </TabsContent>
+      </Tabs>
 
       <AddShoppingItemForm
-        open={addOpen}
-        onOpenChange={setAddOpen}
+        open={addOpen || editingItem !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setAddOpen(false);
+            setEditingItem(null);
+          }
+        }}
         householdId={householdId}
+        item={editingItem ?? undefined}
       />
 
       <DoneShoppingDialog
         open={doneOpen}
         onOpenChange={setDoneOpen}
         boughtItems={boughtItems}
+        dominantCategory={dominantCategory}
         onConfirm={handleConvertConfirm}
       />
 
