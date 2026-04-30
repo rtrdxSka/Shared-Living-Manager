@@ -57,7 +57,11 @@ export {
 export {
   useShoppingList,
   useAddShoppingItem,
+  useUpdateShoppingItem,
   useToggleShoppingItemBought,
+  useArchiveShoppingItem,
+  useRestoreShoppingItem,
   useDeleteShoppingItem,
-  useClearBoughtShoppingItems,
+  useArchiveBoughtShoppingItems,
+  useArchivedHistory,
 } from './useShoppingListQueries';

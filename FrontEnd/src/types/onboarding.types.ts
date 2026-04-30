@@ -63,6 +63,16 @@ export const EXPENSE_TYPES = [
 
 export type ExpenseType = (typeof EXPENSE_TYPES)[number];
 
+export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
+  rent: 'Rent',
+  utilities: 'Utilities',
+  internet: 'Internet',
+  groceries: 'Groceries',
+  cleaning: 'Cleaning',
+  subscriptions: 'Subscriptions',
+  other: 'Other',
+};
+
 // ── Task Management Level ─────────────────────────────────────────────
 
 export const TASK_MANAGEMENT_LEVELS = [

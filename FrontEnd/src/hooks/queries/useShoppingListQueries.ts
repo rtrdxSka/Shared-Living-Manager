@@ -1,6 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { shoppingListApi, type ShoppingListResult } from '@/api/shoppingList.api';
-import type { ShoppingListItemResponse, AddShoppingItemInput } from '@/types/shoppingList.types';
+import type {
+  ShoppingListItemResponse,
+  AddShoppingItemInput,
+  UpdateShoppingItemInput,
+  HistoryPage,
+} from '@/types/shoppingList.types';
+import type { ExpenseType } from '@/types/onboarding.types';
 import { queryKeys } from '@/lib/queryKeys';
 
 export function useShoppingList(householdId: string) {
@@ -17,6 +28,20 @@ export function useAddShoppingItem(householdId: string) {
   const queryClient = useQueryClient();
   return useMutation<ShoppingListItemResponse, Error, AddShoppingItemInput>({
     mutationFn: (input) => shoppingListApi.addItem(householdId, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.all(householdId) });
+    },
+  });
+}
+
+export function useUpdateShoppingItem(householdId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    ShoppingListItemResponse,
+    Error,
+    { itemId: string; input: UpdateShoppingItemInput }
+  >({
+    mutationFn: ({ itemId, input }) => shoppingListApi.updateItem(householdId, itemId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.all(householdId) });
     },
@@ -57,6 +82,26 @@ export function useToggleShoppingItemBought(householdId: string) {
   });
 }
 
+export function useArchiveShoppingItem(householdId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<ShoppingListItemResponse, Error, string>({
+    mutationFn: (itemId: string) => shoppingListApi.archiveItem(householdId, itemId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.all(householdId) });
+    },
+  });
+}
+
+export function useRestoreShoppingItem(householdId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<ShoppingListItemResponse, Error, string>({
+    mutationFn: (itemId: string) => shoppingListApi.restoreItem(householdId, itemId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.all(householdId) });
+    },
+  });
+}
+
 export function useDeleteShoppingItem(householdId: string) {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
@@ -67,12 +112,32 @@ export function useDeleteShoppingItem(householdId: string) {
   });
 }
 
-export function useClearBoughtShoppingItems(householdId: string) {
+export function useArchiveBoughtShoppingItems(householdId: string) {
   const queryClient = useQueryClient();
-  return useMutation<{ deletedCount: number }, Error, void>({
-    mutationFn: () => shoppingListApi.clearBought(householdId),
+  return useMutation<
+    { archivedCount: number },
+    Error,
+    { expenseId: string; dominantCategory: ExpenseType }
+  >({
+    mutationFn: (input) => shoppingListApi.archiveBought(householdId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.all(householdId) });
     },
+  });
+}
+
+export function useArchivedHistory(householdId: string) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.shoppingList.history(householdId),
+    queryFn: ({ pageParam }) =>
+      shoppingListApi.listArchivedHistory(householdId, {
+        cursor: pageParam as string | undefined,
+        limit: 10,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: HistoryPage) => lastPage.nextCursor ?? undefined,
+    enabled: Boolean(householdId),
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
   });
 }
