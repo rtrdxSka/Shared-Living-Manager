@@ -26,6 +26,8 @@ interface AddExpenseFormProps {
   expense?: ExpenseResponse;
   isAdmin: boolean;
   currentUserId: string;
+  initialValues?: Partial<AddExpenseInput>;  // prefill in create mode (ignored when `expense` is provided)
+  onCreated?: (expense: ExpenseResponse) => void;  // optional callback fired after a successful create
 }
 
 function todayISO() {
@@ -39,6 +41,8 @@ export default function AddExpenseForm({
   expense,
   isAdmin,
   currentUserId,
+  initialValues,
+  onCreated,
 }: AddExpenseFormProps) {
   const isEditMode = expense !== undefined;
   const payableMembers = household.members.filter(
@@ -48,13 +52,19 @@ export default function AddExpenseForm({
     ? payableMembers
     : payableMembers.filter((m) => m.userId === currentUserId);
 
-  const [description, setDescription] = useState(expense?.description ?? '');
-  const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
-  const [category, setCategory] = useState(expense?.category ?? EXPENSE_TYPES[0]);
-  const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : todayISO());
-  const [paidByUserId, setPaidByUserId] = useState(expense?.paidByUserId ?? '');
-  const [notes, setNotes] = useState(expense?.notes ?? '');
-  const [splitMode, setSplitMode] = useState<'default' | 'full'>(expense?.isFullRepayment ? 'full' : 'default');
+  const [description, setDescription] = useState(expense?.description ?? initialValues?.description ?? '');
+  const [amount, setAmount] = useState(
+    expense ? String(expense.amount) : initialValues?.amount != null ? String(initialValues.amount) : ''
+  );
+  const [category, setCategory] = useState(expense?.category ?? initialValues?.category ?? EXPENSE_TYPES[0]);
+  const [date, setDate] = useState(
+    expense ? expense.date.slice(0, 10) : (initialValues?.date ?? todayISO())
+  );
+  const [paidByUserId, setPaidByUserId] = useState(expense?.paidByUserId ?? initialValues?.paidByUserId ?? '');
+  const [notes, setNotes] = useState(expense?.notes ?? initialValues?.notes ?? '');
+  const [splitMode, setSplitMode] = useState<'default' | 'full'>(
+    expense?.isFullRepayment ? 'full' : initialValues?.isFullRepayment ? 'full' : 'default'
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Recurring state (not available in edit mode)
@@ -68,7 +78,8 @@ export default function AddExpenseForm({
 
   const submitting = addExpenseMutation.isPending || updateExpenseMutation.isPending || createRecurringMutation.isPending;
 
-  // Re-populate form whenever the expense being edited changes
+  // Re-populate form whenever the expense being edited or initialValues prefill changes,
+  // or when the sheet opens in create mode with prefill data.
   useEffect(() => {
     if (expense) {
       setDescription(expense.description);
@@ -79,8 +90,21 @@ export default function AddExpenseForm({
       setNotes(expense.notes ?? '');
       setSplitMode(expense.isFullRepayment ? 'full' : 'default');
       setError(null);
+      return;
     }
-  }, [expense?._id]);
+    if (open && initialValues) {
+      if (initialValues.description !== undefined) setDescription(initialValues.description);
+      if (initialValues.amount !== undefined) setAmount(String(initialValues.amount));
+      if (initialValues.category !== undefined) setCategory(initialValues.category);
+      if (initialValues.date !== undefined) setDate(initialValues.date);
+      if (initialValues.paidByUserId !== undefined) setPaidByUserId(initialValues.paidByUserId);
+      if (initialValues.notes !== undefined) setNotes(initialValues.notes);
+      if (initialValues.isFullRepayment !== undefined) {
+        setSplitMode(initialValues.isFullRepayment ? 'full' : 'default');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expense, open]);
 
   // Reset all fields when the sheet is dismissed
   useEffect(() => {
@@ -139,7 +163,8 @@ export default function AddExpenseForm({
           ...(notes.trim() && { notes: notes.trim() }),
           isFullRepayment: splitMode === 'full',
         };
-        await addExpenseMutation.mutateAsync(input);
+        const created = await addExpenseMutation.mutateAsync(input);
+        if (onCreated) onCreated(created);
       }
       if (!isEditMode) resetForm();
       onOpenChange(false);
