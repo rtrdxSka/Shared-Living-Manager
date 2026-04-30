@@ -1,18 +1,22 @@
-import { Trash2 } from 'lucide-react';
+import { Pencil, Archive, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   useToggleShoppingItemBought,
+  useArchiveShoppingItem,
   useDeleteShoppingItem,
 } from '@/hooks/queries';
+import { EXPENSE_TYPE_LABELS } from '@/types/onboarding.types';
 import type { ShoppingListItemResponse } from '@/types/shoppingList.types';
 
 interface ShoppingListViewProps {
   householdId: string;
   items: ShoppingListItemResponse[];
+  onEditItem: (item: ShoppingListItemResponse) => void;
 }
 
-export default function ShoppingListView({ householdId, items }: ShoppingListViewProps) {
+export default function ShoppingListView({ householdId, items, onEditItem }: ShoppingListViewProps) {
   const toggle = useToggleShoppingItemBought(householdId);
+  const archive = useArchiveShoppingItem(householdId);
   const remove = useDeleteShoppingItem(householdId);
 
   if (items.length === 0) {
@@ -35,14 +39,37 @@ export default function ShoppingListView({ householdId, items }: ShoppingListVie
             aria-label={`Mark ${item.name} as bought`}
           />
           <div className="flex-1 min-w-0">
-            <p className={`text-sm ${item.isBought ? 'line-through text-muted-foreground' : ''}`}>
-              {item.quantity ? `${item.quantity} ` : ''}
-              {item.name}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className={`text-sm ${item.isBought ? 'line-through text-muted-foreground' : ''}`}>
+                {item.quantity ? `${item.quantity} ` : ''}
+                {item.name}
+              </p>
+              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {EXPENSE_TYPE_LABELS[item.category]}
+              </span>
+            </div>
             {item.notes && (
               <p className="text-xs text-muted-foreground truncate">{item.notes}</p>
             )}
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onEditItem(item)}
+            aria-label={`Edit ${item.name}`}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => archive.mutate(item._id)}
+            aria-label={`Archive ${item.name}`}
+          >
+            <Archive className="h-4 w-4" />
+          </Button>
           <Button
             type="button"
             variant="ghost"
