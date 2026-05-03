@@ -1,5 +1,16 @@
 import { Resend } from 'resend';
 
+const RESEND_TIMEOUT_MS = Number(process.env.RESEND_TIMEOUT_MS ?? 5000);
+
+async function sendWithTimeout<T>(promise: Promise<T>): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Resend request timed out')), RESEND_TIMEOUT_MS)
+    ),
+  ]);
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -42,7 +53,7 @@ export const sendVerificationEmail = async (
   const resend = getResendClient();
   const verificationUrl = `${getFrontendUrl()}/verify-email?token=${token}`;
 
-  await resend.emails.send({
+  await sendWithTimeout(resend.emails.send({
     from: `HouseMate <${getFromEmail()}>`,
     to,
     subject: 'Verify your email address',
@@ -60,7 +71,7 @@ export const sendVerificationEmail = async (
         </p>
       </div>
     `,
-  });
+  }));
 };
 
 export const sendPasswordResetEmail = async (
@@ -71,7 +82,7 @@ export const sendPasswordResetEmail = async (
   const resend = getResendClient();
   const resetUrl = `${getFrontendUrl()}/reset-password?token=${token}`;
 
-  await resend.emails.send({
+  await sendWithTimeout(resend.emails.send({
     from: `HouseMate <${getFromEmail()}>`,
     to,
     subject: 'Reset your password',
@@ -89,5 +100,5 @@ export const sendPasswordResetEmail = async (
         </p>
       </div>
     `,
-  });
+  }));
 };
