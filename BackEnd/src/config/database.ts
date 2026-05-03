@@ -12,7 +12,7 @@ export const connectDatabase = async (): Promise<void> => {
     await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      maxPoolSize: 10,
+      maxPoolSize: Number(process.env.MONGO_POOL_SIZE ?? 30),
       // Keep a minimum of 2 warm connections so the first request after
       // an idle period doesn't pay the TCP/TLS setup cost (~50ms).
       minPoolSize: 2,
