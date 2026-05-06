@@ -5,9 +5,33 @@ import {
   IAddShoppingItemInput,
   IUpdateShoppingItemInput,
   IArchiveBoughtInput,
+  BoughtState,
 } from '../types/shopping-list.types';
+import type { ExpenseType } from '../types/household.types';
 
 class ShoppingListController {
+  private parseFilterQuery(req: AuthRequest): {
+    search?: string;
+    categories?: ExpenseType[];
+    boughtState?: BoughtState;
+  } {
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+
+    let categories: ExpenseType[] | undefined;
+    if (Array.isArray(req.query.categories)) {
+      categories = req.query.categories.filter((v): v is string => typeof v === 'string') as ExpenseType[];
+    } else if (typeof req.query.categories === 'string') {
+      categories = [req.query.categories as ExpenseType];
+    }
+
+    const boughtState =
+      req.query.boughtState === 'bought' || req.query.boughtState === 'unbought' || req.query.boughtState === 'all'
+        ? (req.query.boughtState as BoughtState)
+        : undefined;
+
+    return { search, categories, boughtState };
+  }
+
   // POST /api/households/:id/shopping-list
   async addItem(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -33,7 +57,13 @@ class ShoppingListController {
       }
       const householdId = req.params.id as string;
       const archived = req.query.archived === 'true';
-      const result = await shoppingListService.listItems(householdId, req.user.userId, { archived });
+      const { search, categories, boughtState } = this.parseFilterQuery(req);
+      const result = await shoppingListService.listItems(householdId, req.user.userId, {
+        archived,
+        search,
+        categories,
+        boughtState,
+      });
       res.status(200).json({ status: 'success', data: result });
     } catch (error) {
       next(error);
@@ -152,11 +182,11 @@ class ShoppingListController {
       const householdId = req.params.id as string;
       const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
       const limit = req.query.limit ? Number(req.query.limit) : 10;
+      const { search, categories } = this.parseFilterQuery(req);
       const result = await shoppingListService.listArchivedHistory(
         householdId,
         req.user.userId,
-        cursor,
-        limit
+        { cursor, limit, search, categories }
       );
       res.status(200).json({ status: 'success', data: result });
     } catch (error) {
