@@ -7,7 +7,10 @@ import {
   IShoppingListItemResponse,
   HistoryEntry,
   IListHistoryResult,
+  IListItemsOptions,
+  IListHistoryOptions,
 } from '../types/shopping-list.types';
+import { escapeRegex } from '../utils/regex';
 import { ExpenseType } from '../types/household.types';
 import { NotFoundError, BadRequestError } from '../utils/error';
 import { getHouseholdForMember } from '../utils/household.helpers';
@@ -35,7 +38,7 @@ class ShoppingListService {
   async listItems(
     householdId: string,
     userId: string,
-    options: { archived?: boolean } = {}
+    options: IListItemsOptions = {}
   ): Promise<{ items: IShoppingListItemResponse[] }> {
     const { household } = await getHouseholdForMember(householdId, userId);
 
@@ -43,10 +46,27 @@ class ShoppingListService {
       ? { archivedAt: { $ne: null } }
       : { archivedAt: null };
 
-    const items = await ShoppingListItem.find({
+    const query: Record<string, unknown> = {
       householdId: household._id,
       ...archivedFilter,
-    })
+    };
+
+    if (options.search && options.search.trim().length > 0) {
+      query.name = { $regex: escapeRegex(options.search.trim()), $options: 'i' };
+    }
+
+    if (options.categories && options.categories.length > 0) {
+      query.category = { $in: options.categories };
+    }
+
+    if (options.boughtState === 'bought') {
+      query.isBought = true;
+    } else if (options.boughtState === 'unbought') {
+      query.isBought = false;
+    }
+    // 'all' (or undefined) → no isBought filter.
+
+    const items = await ShoppingListItem.find(query)
       .sort({ isBought: 1, createdAt: -1 })
       .lean();
 
@@ -201,17 +221,25 @@ class ShoppingListService {
   async listArchivedHistory(
     householdId: string,
     userId: string,
-    cursor?: string,
-    limit: number = 10
+    options: IListHistoryOptions = {}
   ): Promise<IListHistoryResult> {
     const { household } = await getHouseholdForMember(householdId, userId);
+    const limit = options.limit ?? 10;
 
     const archivedFilter: Record<string, unknown> = {
       householdId: household._id,
       archivedAt: { $ne: null },
     };
-    if (cursor) {
-      archivedFilter.archivedAt = { $ne: null, $lt: new Date(cursor) };
+    if (options.cursor) {
+      archivedFilter.archivedAt = { $ne: null, $lt: new Date(options.cursor) };
+    }
+
+    if (options.search && options.search.trim().length > 0) {
+      archivedFilter.name = { $regex: escapeRegex(options.search.trim()), $options: 'i' };
+    }
+
+    if (options.categories && options.categories.length > 0) {
+      archivedFilter.category = { $in: options.categories };
     }
 
     const items = await ShoppingListItem.find(archivedFilter)
