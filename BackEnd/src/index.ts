@@ -19,6 +19,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { startRecurringScheduler } from './scheduler/recurringExpenses';
 import { startRecurringTaskScheduler } from './scheduler/recurringTasks';
 import { startPendingExpenseScheduler } from './scheduler/pendingExpenses';
+import { startRecurringShoppingItemScheduler } from './scheduler/recurringShoppingItems';
 import { logger } from './utils/logger';
 
 type RequestWithId = Request & { requestId?: string };
@@ -130,6 +131,7 @@ const startServer = async () => {
     startRecurringScheduler();
     startRecurringTaskScheduler();
     startPendingExpenseScheduler();
+    startRecurringShoppingItemScheduler();
 
     const server = app.listen(Number(PORT), '0.0.0.0', () => {
       logger.info(`🚀 Server running on port ${PORT}`);
