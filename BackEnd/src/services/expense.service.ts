@@ -324,24 +324,42 @@ class ExpenseService {
     return this.formatExpenseResponse(expense, nicknameMap, requestingUserId);
   }
 
+  async assertExpenseInHousehold(householdId: string, expenseId: string): Promise<void> {
+    const exists = await Expense.exists({ _id: expenseId, householdId });
+    if (!exists) throw NotFoundError('Expense not found in this household');
+  }
+
   async autoConfirmExpiredPending(): Promise<number> {
     const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
     const expenses = await Expense.find({
       pendingConfirmation: true,
       pendingConfirmationAt: { $lt: cutoff },
       isResolved: false,
-    });
+    })
+      .select({ _id: 1, pendingConfirmationByUserId: 1 })
+      .lean();
 
-    await Promise.all(
-      expenses.map((expense) => {
-        expense.isResolved = true;
-        expense.resolvedAt = new Date();
-        expense.resolvedByUserId = expense.pendingConfirmationByUserId as unknown as typeof expense.resolvedByUserId;
-        expense.pendingConfirmation = false;
-        expense.pendingConfirmationAt = undefined;
-        expense.pendingConfirmationByUserId = undefined;
-        return expense.save();
-      })
+    if (expenses.length === 0) return 0;
+
+    const now = new Date();
+    await Expense.bulkWrite(
+      expenses.map((e) => ({
+        updateOne: {
+          filter: { _id: e._id },
+          update: {
+            $set: {
+              isResolved: true,
+              resolvedAt: now,
+              resolvedByUserId: e.pendingConfirmationByUserId,
+              pendingConfirmation: false,
+            },
+            $unset: {
+              pendingConfirmationAt: '',
+              pendingConfirmationByUserId: '',
+            },
+          },
+        },
+      }))
     );
 
     return expenses.length;

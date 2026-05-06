@@ -88,35 +88,44 @@ class RecurringShoppingItemService {
 
   async fireRulesForCadence(cadence: RecurrenceCadence): Promise<IFireRulesResult> {
     const rules = await RecurringShoppingItem.find({ active: true, cadence }).lean();
+    if (rules.length === 0) return { created: 0, skipped: 0 };
+
+    const householdIds = [...new Set(rules.map((r) => r.householdId.toString()))];
+
+    const activeItems = await ShoppingListItem.find({
+      householdId: { $in: householdIds.map((id) => new Types.ObjectId(id)) },
+      archivedAt: null,
+    })
+      .select({ householdId: 1, name: 1, category: 1 })
+      .lean();
+
+    const existingByHousehold = new Map<string, Set<string>>();
+    for (const item of activeItems) {
+      const hid = item.householdId.toString();
+      const key = `${item.name.toLowerCase()}||${item.category}`;
+      if (!existingByHousehold.has(hid)) existingByHousehold.set(hid, new Set());
+      existingByHousehold.get(hid)!.add(key);
+    }
 
     let created = 0;
     let skipped = 0;
-
     for (const rule of rules) {
-      // Case-insensitive name + same category + active (not archived) match in the same household.
-      const existing = await ShoppingListItem.findOne({
-        householdId: rule.householdId,
-        archivedAt: { $exists: false },
-        name: rule.name,
-        category: rule.category,
-      })
-        .collation({ locale: 'en', strength: 2 })
-        .lean();
-
-      if (existing) {
+      const hid = rule.householdId.toString();
+      const key = `${rule.name.toLowerCase()}||${rule.category}`;
+      if (existingByHousehold.get(hid)?.has(key)) {
         skipped++;
         continue;
       }
-
+      // Don't let a single bad rule (e.g. household deleted) abort the whole sweep.
       try {
-        await shoppingListService.addItem(
-          rule.householdId.toString(),
-          rule.createdBy.toString(),
-          { name: rule.name, category: rule.category }
-        );
+        await shoppingListService.addItem(hid, rule.createdBy.toString(), {
+          name: rule.name,
+          category: rule.category,
+        });
+        if (!existingByHousehold.has(hid)) existingByHousehold.set(hid, new Set());
+        existingByHousehold.get(hid)!.add(key);
         created++;
       } catch (err) {
-        // Don't let a single bad rule (e.g. household deleted) abort the whole sweep.
         logger.error(
           { err, ruleId: rule._id.toString(), cadence },
           '[RecurringShoppingItem] Failed to materialize rule'

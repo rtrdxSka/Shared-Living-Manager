@@ -8,12 +8,43 @@ import {
   HistoryEntry,
   IListHistoryResult,
   IListItemsOptions,
+  IListItemsResult,
   IListHistoryOptions,
 } from '../types/shopping-list.types';
 import { escapeRegex } from '../utils/regex';
 import { ExpenseType } from '../types/household.types';
 import { NotFoundError, BadRequestError } from '../utils/error';
 import { getHouseholdForMember } from '../utils/household.helpers';
+import { expenseService } from './expense.service';
+
+function encodeActiveCursor(c: { isBought: boolean; createdAt: Date; itemId: Types.ObjectId }): string {
+  return `${c.isBought ? 1 : 0}|${c.createdAt.toISOString()}|${c.itemId.toString()}`;
+}
+
+function parseActiveCursor(raw: string): { isBought: boolean; createdAt: Date; itemId: Types.ObjectId } {
+  const parts = raw.split('|');
+  if (parts.length !== 3) throw BadRequestError('Invalid cursor');
+  const [boughtStr, createdAtStr, itemIdStr] = parts;
+  if (boughtStr !== '0' && boughtStr !== '1') throw BadRequestError('Invalid cursor');
+  const createdAt = new Date(createdAtStr);
+  if (Number.isNaN(createdAt.getTime())) throw BadRequestError('Invalid cursor');
+  if (!Types.ObjectId.isValid(itemIdStr)) throw BadRequestError('Invalid cursor');
+  return { isBought: boughtStr === '1', createdAt, itemId: new Types.ObjectId(itemIdStr) };
+}
+
+function encodeHistoryCursor(c: { archivedAt: Date; itemId: Types.ObjectId }): string {
+  return `${c.archivedAt.toISOString()}|${c.itemId.toString()}`;
+}
+
+function parseHistoryCursor(raw: string): { archivedAt: Date; itemId: Types.ObjectId } {
+  const parts = raw.split('|');
+  if (parts.length !== 2) throw BadRequestError('Invalid cursor');
+  const [archivedAtStr, itemIdStr] = parts;
+  const archivedAt = new Date(archivedAtStr);
+  if (Number.isNaN(archivedAt.getTime())) throw BadRequestError('Invalid cursor');
+  if (!Types.ObjectId.isValid(itemIdStr)) throw BadRequestError('Invalid cursor');
+  return { archivedAt, itemId: new Types.ObjectId(itemIdStr) };
+}
 
 class ShoppingListService {
   async addItem(
@@ -39,8 +70,10 @@ class ShoppingListService {
     householdId: string,
     userId: string,
     options: IListItemsOptions = {}
-  ): Promise<{ items: IShoppingListItemResponse[] }> {
+  ): Promise<IListItemsResult> {
     const { household } = await getHouseholdForMember(householdId, userId);
+
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
 
     const archivedFilter = options.archived
       ? { archivedAt: { $ne: null } }
@@ -64,18 +97,30 @@ class ShoppingListService {
     } else if (options.boughtState === 'unbought') {
       query.isBought = false;
     }
-    // 'all' (or undefined) → no isBought filter.
+
+    if (options.cursor) {
+      const c = parseActiveCursor(options.cursor);
+      query.$or = [
+        { isBought: { $gt: c.isBought } },
+        { isBought: c.isBought, createdAt: { $lt: c.createdAt } },
+        { isBought: c.isBought, createdAt: c.createdAt, _id: { $lt: c.itemId } },
+      ];
+    }
 
     const items = await ShoppingListItem.find(query)
-      .sort({ isBought: 1, createdAt: -1 })
+      .sort({ isBought: 1, createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .lean();
+
+    const hasMore = items.length > limit;
+    const pageItems = items.slice(0, limit);
 
     const memberMap = new Map<string, string>();
     for (const m of household.members) {
       memberMap.set(m._id.toString(), m.nickname);
     }
 
-    const formatted = items.map((item) => {
+    const formatted = pageItems.map((item) => {
       const boughtByMemberId = item.boughtByMemberId?.toString();
       const boughtByNickname = boughtByMemberId
         ? memberMap.get(boughtByMemberId)
@@ -83,7 +128,17 @@ class ShoppingListService {
       return this.formatLeanResponse(item, boughtByNickname);
     });
 
-    return { items: formatted };
+    let nextCursor: string | null = null;
+    if (hasMore && pageItems.length > 0) {
+      const last = pageItems[pageItems.length - 1];
+      nextCursor = encodeActiveCursor({
+        isBought: last.isBought,
+        createdAt: last.createdAt,
+        itemId: last._id,
+      });
+    }
+
+    return { items: formatted, nextCursor };
   }
 
   async toggleBought(
@@ -198,6 +253,7 @@ class ShoppingListService {
     dominantCategory: ExpenseType
   ): Promise<{ archivedCount: number }> {
     const { household } = await getHouseholdForMember(householdId, userId);
+    await expenseService.assertExpenseInHousehold(household._id.toString(), expenseId);
 
     const now = new Date();
     const result = await ShoppingListItem.updateMany(
@@ -231,7 +287,13 @@ class ShoppingListService {
       archivedAt: { $ne: null },
     };
     if (options.cursor) {
-      archivedFilter.archivedAt = { $ne: null, $lt: new Date(options.cursor) };
+      const c = parseHistoryCursor(options.cursor);
+      archivedFilter.$or = [
+        { archivedAt: { $lt: c.archivedAt } },
+        { archivedAt: c.archivedAt, _id: { $lt: c.itemId } },
+      ];
+      // $or branches both constrain archivedAt; the outer $ne: null becomes redundant.
+      delete archivedFilter.archivedAt;
     }
 
     if (options.search && options.search.trim().length > 0) {
@@ -243,7 +305,8 @@ class ShoppingListService {
     }
 
     const items = await ShoppingListItem.find(archivedFilter)
-      .sort({ archivedAt: -1 })
+      .sort({ archivedAt: -1, _id: -1 })
+      .limit(500)
       .lean();
 
     const memberMap = new Map<string, string>();
@@ -286,8 +349,19 @@ class ShoppingListService {
     }
 
     const pageEntries = entries.slice(0, limit);
-    const hasMore = entries.length > limit;
-    const nextCursor = hasMore ? pageEntries[pageEntries.length - 1].archivedAt : null;
+    // Conservative hasMore: if we hit the 500 fetch ceiling, signal more even if entry
+    // count fits — may produce one empty next page in rare boundary cases.
+    const hasMore = entries.length > limit || items.length === 500;
+
+    let nextCursor: string | null = null;
+    if (hasMore && pageEntries.length > 0) {
+      const lastEntry = pageEntries[pageEntries.length - 1];
+      const lastFormattedItem = lastEntry.items[lastEntry.items.length - 1];
+      nextCursor = encodeHistoryCursor({
+        archivedAt: new Date(lastEntry.archivedAt),
+        itemId: new Types.ObjectId(lastFormattedItem._id),
+      });
+    }
 
     return { entries: pageEntries, nextCursor };
   }
