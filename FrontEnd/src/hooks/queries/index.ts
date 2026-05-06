@@ -65,3 +65,10 @@ export {
   useArchiveBoughtShoppingItems,
   useArchivedHistory,
 } from './useShoppingListQueries';
+
+export {
+  useRecurringRules,
+  useCreateRecurringRule,
+  useUpdateRecurringRule,
+  useDeleteRecurringRule,
+} from './useRecurringShoppingItemQueries';

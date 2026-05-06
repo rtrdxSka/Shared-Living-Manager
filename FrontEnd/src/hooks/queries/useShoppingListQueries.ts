@@ -10,14 +10,27 @@ import type {
   AddShoppingItemInput,
   UpdateShoppingItemInput,
   HistoryPage,
+  ShoppingListFilter,
 } from '@/types/shoppingList.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 import { queryKeys } from '@/lib/queryKeys';
 
-export function useShoppingList(householdId: string) {
+export function useShoppingList(householdId: string, filter?: ShoppingListFilter) {
+  const params = filter
+    ? {
+        search: filter.search.trim() || undefined,
+        categories: filter.categories.length > 0 ? filter.categories : undefined,
+        boughtState: filter.boughtState !== 'all' ? filter.boughtState : undefined,
+      }
+    : undefined;
+
   return useQuery({
-    queryKey: queryKeys.shoppingList.list(householdId),
-    queryFn: () => shoppingListApi.listItems(householdId),
+    queryKey: queryKeys.shoppingList.list(householdId, {
+      search: params?.search,
+      categories: params?.categories,
+      boughtState: params?.boughtState,
+    }),
+    queryFn: () => shoppingListApi.listItems(householdId, params),
     enabled: Boolean(householdId),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
@@ -50,13 +63,14 @@ export function useUpdateShoppingItem(householdId: string) {
 
 export function useToggleShoppingItemBought(householdId: string) {
   const queryClient = useQueryClient();
-  return useMutation<unknown, Error, string, { previous: ShoppingListResult | undefined }>({
+  const listPrefix = ['shoppingList', householdId, 'list'] as const;
+
+  return useMutation<unknown, Error, string, { snapshots: Array<[readonly unknown[], ShoppingListResult | undefined]> }>({
     mutationFn: (itemId: string) => shoppingListApi.toggleBought(householdId, itemId),
     onMutate: async (itemId) => {
-      const listKey = queryKeys.shoppingList.list(householdId);
-      await queryClient.cancelQueries({ queryKey: listKey });
-      const previous = queryClient.getQueryData<ShoppingListResult>(listKey);
-      queryClient.setQueryData<ShoppingListResult>(listKey, (old) =>
+      await queryClient.cancelQueries({ queryKey: listPrefix });
+      const snapshots = queryClient.getQueriesData<ShoppingListResult>({ queryKey: listPrefix });
+      queryClient.setQueriesData<ShoppingListResult>({ queryKey: listPrefix }, (old) =>
         old
           ? {
               ...old,
@@ -66,11 +80,13 @@ export function useToggleShoppingItemBought(householdId: string) {
             }
           : old
       );
-      return { previous };
+      return { snapshots };
     },
     onError: (_err, _itemId, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKeys.shoppingList.list(householdId), context.previous);
+      if (context?.snapshots) {
+        for (const [key, data] of context.snapshots) {
+          queryClient.setQueryData(key, data);
+        }
       }
     },
     onSettled: () => {
@@ -126,13 +142,27 @@ export function useArchiveBoughtShoppingItems(householdId: string) {
   });
 }
 
-export function useArchivedHistory(householdId: string) {
+export function useArchivedHistory(
+  householdId: string,
+  filter?: Pick<ShoppingListFilter, 'search' | 'categories'>
+) {
+  const params = filter
+    ? {
+        search: filter.search.trim() || undefined,
+        categories: filter.categories.length > 0 ? filter.categories : undefined,
+      }
+    : undefined;
+
   return useInfiniteQuery({
-    queryKey: queryKeys.shoppingList.history(householdId),
+    queryKey: queryKeys.shoppingList.history(householdId, {
+      search: params?.search,
+      categories: params?.categories,
+    }),
     queryFn: ({ pageParam }) =>
       shoppingListApi.listArchivedHistory(householdId, {
         cursor: pageParam as string | undefined,
         limit: 10,
+        ...params,
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: HistoryPage) => lastPage.nextCursor ?? undefined,
