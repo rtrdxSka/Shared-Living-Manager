@@ -43,6 +43,22 @@ export interface IListHistoryInput {
   limit?: number;
 }
 
+export type BoughtState = 'bought' | 'unbought' | 'all';
+
+export interface IListItemsOptions {
+  archived?: boolean;
+  search?: string;
+  categories?: ExpenseType[];
+  boughtState?: BoughtState;
+}
+
+export interface IListHistoryOptions {
+  cursor?: string;
+  limit?: number;
+  search?: string;
+  categories?: ExpenseType[];
+}
+
 export interface IShoppingListItemResponse {
   _id: string;
   householdId: string;
