@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useDashboard } from '@/contexts/DashboardContext';
-import { useShoppingList, useArchiveBoughtShoppingItems } from '@/hooks/queries';
+import { useShoppingList, useArchiveBoughtShoppingItems, useBoughtShoppingItems } from '@/hooks/queries';
 import { useBeforeUnload } from '@/hooks/useBeforeUnload';
 import { computeDominantCategory } from '@/utils/computeDominantCategory';
 import AddShoppingItemForm from '@/components/dashboard/shared/AddShoppingItemForm';
@@ -15,6 +15,7 @@ import DoneShoppingDialog from '@/components/dashboard/shared/DoneShoppingDialog
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import ShoppingFilterBar from '@/components/dashboard/shared/ShoppingFilterBar';
 import AddRecurringItemForm from '@/components/dashboard/shared/AddRecurringItemForm';
+import ConfirmDeleteDialog from '@/components/dashboard/shared/ConfirmDeleteDialog';
 import {
   useRecurringRules,
   useUpdateRecurringRule,
@@ -27,6 +28,7 @@ import type { BoughtState, ShoppingListFilter, ShoppingListItemResponse } from '
 import type { RecurringShoppingItemResponse } from '@/types/recurringShoppingItem.types';
 
 const EMPTY_ITEMS: ShoppingListItemResponse[] = [];
+const EMPTY_RULES: RecurringShoppingItemResponse[] = [];
 
 export default function ShoppingListPage() {
   const {
@@ -49,9 +51,12 @@ export default function ShoppingListPage() {
   const filter: ShoppingListFilter = { search, categories, boughtState };
   const historyFilter = { search, categories };
 
-  const { data, isLoading } = useShoppingList(householdId, filter);
-  const items = data?.items ?? EMPTY_ITEMS;
-  const boughtItems = useMemo(() => items.filter((i) => i.isBought), [items]);
+  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useShoppingList(householdId, filter);
+  const items = useMemo(
+    () => data?.pages.flatMap((p) => p.items) ?? EMPTY_ITEMS,
+    [data]
+  );
+  const { data: boughtItems = EMPTY_ITEMS } = useBoughtShoppingItems(householdId);
   const hasBought = boughtItems.length > 0;
   const dominantCategory = useMemo(() => computeDominantCategory(boughtItems), [boughtItems]);
 
@@ -64,9 +69,10 @@ export default function ShoppingListPage() {
 
   const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RecurringShoppingItemResponse | null>(null);
+  const [pendingDeleteRule, setPendingDeleteRule] = useState<RecurringShoppingItemResponse | null>(null);
 
   const { data: rulesData, isLoading: rulesLoading } = useRecurringRules(householdId);
-  const rules = rulesData?.rules ?? [];
+  const rules = rulesData?.rules ?? EMPTY_RULES;
 
   const updateRule = useUpdateRecurringRule(householdId);
   const deleteRule = useDeleteRecurringRule(householdId);
@@ -78,10 +84,7 @@ export default function ShoppingListPage() {
   }
 
   function handleDeleteRule(rule: RecurringShoppingItemResponse) {
-    if (!window.confirm(`Delete recurring item "${rule.name}"?`)) return;
-    deleteRule.mutateAsync(rule._id).catch(() => {
-      window.alert('Failed to delete recurring item. Please try again.');
-    });
+    setPendingDeleteRule(rule);
   }
 
   const cadenceLabel = (c: 'daily' | 'weekly' | 'monthly') =>
@@ -177,6 +180,9 @@ export default function ShoppingListPage() {
               householdId={householdId}
               items={items}
               onEditItem={setEditingItem}
+              hasNextPage={hasNextPage ?? false}
+              onLoadMore={() => { void fetchNextPage(); }}
+              isFetchingNextPage={isFetchingNextPage}
             />
           )}
 
@@ -278,6 +284,22 @@ export default function ShoppingListPage() {
         }}
         householdId={householdId}
         rule={editingRule ?? undefined}
+      />
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteRule !== null}
+        onOpenChange={(o) => { if (!o) setPendingDeleteRule(null); }}
+        title="Delete recurring item?"
+        description={
+          pendingDeleteRule
+            ? `"${pendingDeleteRule.name}" will stop appearing on your active list automatically.`
+            : undefined
+        }
+        onConfirm={async () => {
+          if (!pendingDeleteRule) return;
+          await deleteRule.mutateAsync(pendingDeleteRule._id);
+          setPendingDeleteRule(null);
+        }}
       />
 
       {expensePrefill && (
