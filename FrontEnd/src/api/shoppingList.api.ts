@@ -5,6 +5,7 @@ import type {
   AddShoppingItemInput,
   UpdateShoppingItemInput,
   HistoryPage,
+  BoughtState,
 } from '@/types/shoppingList.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 
@@ -12,10 +13,27 @@ export interface ShoppingListResult {
   items: ShoppingListItemResponse[];
 }
 
+export interface ListItemsParams {
+  search?: string;
+  categories?: string[];
+  boughtState?: BoughtState;
+}
+
+export interface ListHistoryParams {
+  cursor?: string;
+  limit?: number;
+  search?: string;
+  categories?: string[];
+}
+
 export const shoppingListApi = {
-  async listItems(householdId: string): Promise<ShoppingListResult> {
+  async listItems(householdId: string, params: ListItemsParams = {}): Promise<ShoppingListResult> {
     const { data } = await api.get<ApiSuccessResponse<ShoppingListResult>>(
-      `/households/${householdId}/shopping-list`
+      `/households/${householdId}/shopping-list`,
+      {
+        params,
+        paramsSerializer: { indexes: null },
+      }
     );
     return data.data;
   },
@@ -78,11 +96,14 @@ export const shoppingListApi = {
 
   async listArchivedHistory(
     householdId: string,
-    params: { cursor?: string; limit?: number } = {}
+    params: ListHistoryParams = {}
   ): Promise<HistoryPage> {
     const { data } = await api.get<ApiSuccessResponse<HistoryPage>>(
       `/households/${householdId}/shopping-list/history`,
-      { params }
+      {
+        params,
+        paramsSerializer: { indexes: null },
+      }
     );
     return data.data;
   },
