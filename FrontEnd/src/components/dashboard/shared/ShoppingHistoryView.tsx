@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ConfirmDeleteDialog from '@/components/dashboard/shared/ConfirmDeleteDialog';
 import {
   useArchivedHistory,
   useRestoreShoppingItem,
@@ -8,7 +10,12 @@ import {
 } from '@/hooks/queries';
 import { EXPENSE_TYPE_LABELS } from '@/types/onboarding.types';
 import type { ExpenseType } from '@/types/onboarding.types';
-import type { HistoryEntry } from '@/types/shoppingList.types';
+import type { HistoryEntry, ShoppingListItemResponse } from '@/types/shoppingList.types';
+
+type PendingDelete =
+  | { kind: 'trip'; entry: HistoryEntry & { type: 'trip' } }
+  | { kind: 'item'; item: ShoppingListItemResponse }
+  | null;
 
 export interface ShoppingHistoryViewProps {
   householdId: string;
@@ -27,6 +34,7 @@ export default function ShoppingHistoryView({ householdId, filter }: ShoppingHis
 
   const restore = useRestoreShoppingItem(householdId);
   const remove = useDeleteShoppingItem(householdId);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
 
   if (isLoading) {
     return (
@@ -44,12 +52,6 @@ export default function ShoppingHistoryView({ householdId, filter }: ShoppingHis
         No history yet. Items appear here after you mark them bought and convert to an expense, or after archiving from the active list.
       </div>
     );
-  }
-
-  function handleDeleteEntry(entry: HistoryEntry) {
-    Promise.all(entry.items.map((i) => remove.mutateAsync(i._id))).catch(() => {
-      // Errors surfaced by the mutation's onError; no extra handling needed here.
-    });
   }
 
   return (
@@ -78,7 +80,7 @@ export default function ShoppingHistoryView({ householdId, filter }: ShoppingHis
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => handleDeleteEntry(entry)}
+                  onClick={() => setPendingDelete({ kind: 'trip', entry })}
                   aria-label="Hard-delete this trip from history"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -124,7 +126,7 @@ export default function ShoppingHistoryView({ householdId, filter }: ShoppingHis
                 type="button"
                 variant="ghost"
                 size="icon"
-                onClick={() => remove.mutate(entry.items[0]._id)}
+                onClick={() => setPendingDelete({ kind: 'item', item: entry.items[0] })}
                 aria-label="Delete archived item"
               >
                 <Trash2 className="h-4 w-4" />
@@ -147,6 +149,27 @@ export default function ShoppingHistoryView({ householdId, filter }: ShoppingHis
           </Button>
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        onOpenChange={(o) => { if (!o) setPendingDelete(null); }}
+        title={pendingDelete?.kind === 'trip' ? 'Delete trip from history?' : 'Delete archived item?'}
+        description={
+          pendingDelete?.kind === 'trip'
+            ? `Permanently removes ${pendingDelete.entry.items.length} ${pendingDelete.entry.items.length === 1 ? 'item' : 'items'} archived under this expense. The expense itself stays.`
+            : pendingDelete?.kind === 'item'
+              ? `"${pendingDelete.item.name}" will be removed permanently from history.`
+              : undefined
+        }
+        onConfirm={async () => {
+          if (pendingDelete?.kind === 'trip') {
+            await Promise.all(pendingDelete.entry.items.map((i) => remove.mutateAsync(i._id)));
+          } else if (pendingDelete?.kind === 'item') {
+            await remove.mutateAsync(pendingDelete.item._id);
+          }
+          setPendingDelete(null);
+        }}
+      />
     </div>
   );
 }
