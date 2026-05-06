@@ -84,6 +84,27 @@ export const householdIdOnlyValidation: ValidationChain[] = [
   param('id')
     .isMongoId()
     .withMessage('Invalid household ID'),
+
+  query('search')
+    .optional()
+    .isString()
+    .withMessage('Search must be a string')
+    .isLength({ max: 120 })
+    .withMessage('Search cannot exceed 120 characters'),
+
+  query('categories')
+    .optional()
+    .toArray()
+    .custom((value: unknown) => {
+      if (!Array.isArray(value)) return false;
+      return value.every((v) => typeof v === 'string' && EXPENSE_TYPE_VALUES.includes(v as typeof EXPENSE_TYPE_VALUES[number]));
+    })
+    .withMessage('Each category must be a valid expense type'),
+
+  query('boughtState')
+    .optional()
+    .isIn(['bought', 'unbought', 'all'])
+    .withMessage('boughtState must be one of: bought, unbought, all'),
 ];
 
 export const archiveBoughtValidation: ValidationChain[] = [
@@ -114,4 +135,20 @@ export const historyValidation: ValidationChain[] = [
     .optional()
     .isInt({ min: 1, max: 50 })
     .withMessage('Limit must be between 1 and 50'),
+
+  query('search')
+    .optional()
+    .isString()
+    .withMessage('Search must be a string')
+    .isLength({ max: 120 })
+    .withMessage('Search cannot exceed 120 characters'),
+
+  query('categories')
+    .optional()
+    .toArray()
+    .custom((value: unknown) => {
+      if (!Array.isArray(value)) return false;
+      return value.every((v) => typeof v === 'string' && EXPENSE_TYPE_VALUES.includes(v as typeof EXPENSE_TYPE_VALUES[number]));
+    })
+    .withMessage('Each category must be a valid expense type'),
 ];
