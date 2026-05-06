@@ -11,12 +11,15 @@ import type { ExpenseType } from '@/types/onboarding.types';
 
 export interface ShoppingListResult {
   items: ShoppingListItemResponse[];
+  nextCursor: string | null;
 }
 
 export interface ListItemsParams {
   search?: string;
   categories?: string[];
   boughtState?: BoughtState;
+  cursor?: string;
+  limit?: number;
 }
 
 export interface ListHistoryParams {
