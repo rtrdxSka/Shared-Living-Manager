@@ -56,6 +56,7 @@ export {
 
 export {
   useShoppingList,
+  useBoughtShoppingItems,
   useAddShoppingItem,
   useUpdateShoppingItem,
   useToggleShoppingItemBought,

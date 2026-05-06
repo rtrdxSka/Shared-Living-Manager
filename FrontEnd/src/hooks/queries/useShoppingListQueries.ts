@@ -3,6 +3,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
 } from '@tanstack/react-query';
 import { shoppingListApi, type ShoppingListResult } from '@/api/shoppingList.api';
 import type {
@@ -15,6 +16,8 @@ import type {
 import type { ExpenseType } from '@/types/onboarding.types';
 import { queryKeys } from '@/lib/queryKeys';
 
+const ACTIVE_PAGE_SIZE = 50;
+
 export function useShoppingList(householdId: string, filter?: ShoppingListFilter) {
   const params = filter
     ? {
@@ -24,16 +27,35 @@ export function useShoppingList(householdId: string, filter?: ShoppingListFilter
       }
     : undefined;
 
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.shoppingList.list(householdId, {
       search: params?.search,
       categories: params?.categories,
       boughtState: params?.boughtState,
     }),
-    queryFn: () => shoppingListApi.listItems(householdId, params),
+    queryFn: ({ pageParam }) =>
+      shoppingListApi.listItems(householdId, {
+        ...params,
+        cursor: pageParam as string | undefined,
+        limit: ACTIVE_PAGE_SIZE,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: ShoppingListResult) => lastPage.nextCursor ?? undefined,
     enabled: Boolean(householdId),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
+  });
+}
+
+export function useBoughtShoppingItems(householdId: string) {
+  return useQuery({
+    queryKey: queryKeys.shoppingList.bought(householdId),
+    queryFn: () =>
+      shoppingListApi.listItems(householdId, { boughtState: 'bought', limit: 100 }),
+    enabled: Boolean(householdId),
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+    select: (page) => page.items,
   });
 }
 
@@ -65,18 +87,26 @@ export function useToggleShoppingItemBought(householdId: string) {
   const queryClient = useQueryClient();
   const listPrefix = ['shoppingList', householdId, 'list'] as const;
 
-  return useMutation<unknown, Error, string, { snapshots: Array<[readonly unknown[], ShoppingListResult | undefined]> }>({
+  return useMutation<
+    unknown,
+    Error,
+    string,
+    { snapshots: Array<[readonly unknown[], InfiniteData<ShoppingListResult> | undefined]> }
+  >({
     mutationFn: (itemId: string) => shoppingListApi.toggleBought(householdId, itemId),
     onMutate: async (itemId) => {
       await queryClient.cancelQueries({ queryKey: listPrefix });
-      const snapshots = queryClient.getQueriesData<ShoppingListResult>({ queryKey: listPrefix });
-      queryClient.setQueriesData<ShoppingListResult>({ queryKey: listPrefix }, (old) =>
+      const snapshots = queryClient.getQueriesData<InfiniteData<ShoppingListResult>>({ queryKey: listPrefix });
+      queryClient.setQueriesData<InfiniteData<ShoppingListResult>>({ queryKey: listPrefix }, (old) =>
         old
           ? {
               ...old,
-              items: old.items.map((i) =>
-                i._id === itemId ? { ...i, isBought: !i.isBought } : i
-              ),
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.map((i) =>
+                  i._id === itemId ? { ...i, isBought: !i.isBought } : i
+                ),
+              })),
             }
           : old
       );
