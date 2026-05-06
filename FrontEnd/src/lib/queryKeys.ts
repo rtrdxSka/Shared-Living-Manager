@@ -33,6 +33,7 @@ export const queryKeys = {
       filter?: { search?: string; categories?: string[] }
     ) => ['shoppingList', householdId, 'history', filter ?? {}] as const,
     recurring: (householdId: string) => ['shoppingList', householdId, 'recurring'] as const,
+    bought: (householdId: string) => ['shoppingList', householdId, 'bought'] as const,
   },
   goals: {
     all: (householdId: string) => ['goals', householdId] as const,
