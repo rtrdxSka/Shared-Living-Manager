@@ -56,13 +56,17 @@ class ShoppingListController {
         return;
       }
       const householdId = req.params.id as string;
-      const archived = req.query.archived === 'true';
+      const archived = (req.query.archived as unknown) === true || req.query.archived === 'true';
       const { search, categories, boughtState } = this.parseFilterQuery(req);
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+      const limit = typeof req.query.limit === 'number' ? req.query.limit : undefined;
       const result = await shoppingListService.listItems(householdId, req.user.userId, {
         archived,
         search,
         categories,
         boughtState,
+        cursor,
+        limit,
       });
       res.status(200).json({ status: 'success', data: result });
     } catch (error) {
