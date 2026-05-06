@@ -50,4 +50,14 @@ shoppingListItemSchema.index({ householdId: 1, isBought: 1, createdAt: -1 });
 shoppingListItemSchema.index({ _id: 1, householdId: 1 });
 shoppingListItemSchema.index({ householdId: 1, archivedAt: -1 });
 
+// Auto-prune archived items 90 days after archivedAt (Mongo TTL monitor sweeps ~every 60s).
+// Partial filter ensures only docs with a real archivedAt are eligible — active items are never affected.
+shoppingListItemSchema.index(
+  { archivedAt: 1 },
+  {
+    expireAfterSeconds: 90 * 86400,
+    partialFilterExpression: { archivedAt: { $type: 'date' } },
+  }
+);
+
 export const ShoppingListItem = model<IShoppingListItem>('ShoppingListItem', shoppingListItemSchema);
