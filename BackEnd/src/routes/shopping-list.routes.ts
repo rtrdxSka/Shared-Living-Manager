@@ -10,8 +10,12 @@ import {
 } from '../validators/shopping-list.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
+import recurringShoppingItemRouter from './recurring-shopping-item.routes';
 
 const router = Router({ mergeParams: true });
+
+// Sub-mount recurring rules at /recurring (must come before /:itemId routes).
+router.use('/recurring', recurringShoppingItemRouter);
 
 // POST /api/households/:id/shopping-list
 router.post(
