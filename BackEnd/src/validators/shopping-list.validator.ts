@@ -105,6 +105,25 @@ export const householdIdOnlyValidation: ValidationChain[] = [
     .optional()
     .isIn(['bought', 'unbought', 'all'])
     .withMessage('boughtState must be one of: bought, unbought, all'),
+
+  query('archived')
+    .optional()
+    .isBoolean()
+    .withMessage('archived must be a boolean')
+    .toBoolean(),
+
+  query('cursor')
+    .optional()
+    .isString()
+    .withMessage('cursor must be a string')
+    .isLength({ max: 100 })
+    .withMessage('cursor cannot exceed 100 characters'),
+
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('limit must be between 1 and 100')
+    .toInt(),
 ];
 
 export const archiveBoughtValidation: ValidationChain[] = [
@@ -128,8 +147,10 @@ export const historyValidation: ValidationChain[] = [
 
   query('cursor')
     .optional()
-    .isISO8601()
-    .withMessage('Cursor must be an ISO 8601 date'),
+    .isString()
+    .withMessage('cursor must be a string')
+    .isLength({ max: 100 })
+    .withMessage('cursor cannot exceed 100 characters'),
 
   query('limit')
     .optional()
