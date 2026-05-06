@@ -7,13 +7,15 @@ import {
   useDeleteShoppingItem,
 } from '@/hooks/queries';
 import { EXPENSE_TYPE_LABELS } from '@/types/onboarding.types';
+import type { ExpenseType } from '@/types/onboarding.types';
 import type { HistoryEntry } from '@/types/shoppingList.types';
 
-interface ShoppingHistoryViewProps {
+export interface ShoppingHistoryViewProps {
   householdId: string;
+  filter?: { search: string; categories: ExpenseType[] };
 }
 
-export default function ShoppingHistoryView({ householdId }: ShoppingHistoryViewProps) {
+export default function ShoppingHistoryView({ householdId, filter }: ShoppingHistoryViewProps) {
   const navigate = useNavigate();
   const {
     data,
@@ -21,7 +23,7 @@ export default function ShoppingHistoryView({ householdId }: ShoppingHistoryView
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useArchivedHistory(householdId);
+  } = useArchivedHistory(householdId, filter);
 
   const restore = useRestoreShoppingItem(householdId);
   const remove = useDeleteShoppingItem(householdId);
