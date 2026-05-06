@@ -50,6 +50,13 @@ export interface IListItemsOptions {
   search?: string;
   categories?: ExpenseType[];
   boughtState?: BoughtState;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface IListItemsResult {
+  items: IShoppingListItemResponse[];
+  nextCursor: string | null;
 }
 
 export interface IListHistoryOptions {
