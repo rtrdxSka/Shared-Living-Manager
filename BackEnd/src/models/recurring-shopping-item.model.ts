@@ -44,6 +44,7 @@ const recurringShoppingItemSchema = new Schema<IRecurringShoppingItem>(
 
 // Compound index — keeps the cron's per-cadence sweep cheap.
 recurringShoppingItemSchema.index({ householdId: 1, active: 1, cadence: 1 });
+recurringShoppingItemSchema.index({ active: 1, cadence: 1 });
 
 export const RecurringShoppingItem = model<IRecurringShoppingItem>(
   'RecurringShoppingItem',
