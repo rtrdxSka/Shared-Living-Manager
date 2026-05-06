@@ -51,3 +51,11 @@ export interface HistoryPage {
   entries: HistoryEntry[];
   nextCursor: string | null;
 }
+
+export type BoughtState = 'bought' | 'unbought' | 'all';
+
+export interface ShoppingListFilter {
+  search: string;
+  categories: ExpenseType[];
+  boughtState: BoughtState;
+}
