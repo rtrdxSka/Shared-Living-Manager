@@ -4,6 +4,17 @@ import { BadRequestError } from './error';
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
 
+/**
+ * Clamps a limit value into [1, MAX_PAGE_SIZE]. NaN / non-finite inputs fall
+ * back to DEFAULT_PAGE_SIZE.
+ *
+ * Caveat: Number(null) === 0 and Number(false) === 0 are FINITE, so they
+ * clamp to 1 instead of returning DEFAULT_PAGE_SIZE. Same for any input that
+ * coerces to <= 0 (e.g. negative numbers). HTTP routes are protected by the
+ * `.isInt({ min: 1, max: 100 })` validator chain, so this only matters if you
+ * call clampLimit directly from a service or script. Validate the input range
+ * upstream before calling.
+ */
 export function clampLimit(raw: unknown): number {
   const parsed = typeof raw === 'number' ? raw : Number(raw);
   if (!Number.isFinite(parsed)) return DEFAULT_PAGE_SIZE;
