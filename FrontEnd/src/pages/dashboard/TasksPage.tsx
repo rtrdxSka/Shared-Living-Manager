@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useDashboard } from '@/contexts/DashboardContext';
-import { useRecurringTasks } from '@/hooks/queries';
+import { useRecurringTasks, useTasks } from '@/hooks/queries';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
@@ -707,6 +707,10 @@ export default function TasksPage() {
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
 
+  // Re-subscribes to the same query the dashboard context uses (shared cache
+  // via identical query key) so this page can drive fetchNextPage.
+  const { hasNextPage, fetchNextPage, isFetchingNextPage } = useTasks(household._id);
+
   const { data: recurringTasksData, isLoading: recurringLoading } = useRecurringTasks(
     household._id,
     taskLevel === 'full'
@@ -818,6 +822,23 @@ export default function TasksPage() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Load-more footer */}
+            {!tasksLoading && hasNextPage && (
+              <div className="flex justify-center py-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { void fetchNextPage(); }}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? 'Loading…' : 'Load more'}
+                </Button>
+              </div>
+            )}
+            {!tasksLoading && !hasNextPage && tasks.length > 0 && (
+              <p className="text-center text-xs text-ink-3 py-2">No more tasks.</p>
             )}
 
             {/* Recurring templates (full level only) */}

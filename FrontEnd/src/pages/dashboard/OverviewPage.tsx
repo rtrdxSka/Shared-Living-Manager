@@ -66,7 +66,10 @@ export default function OverviewPage() {
     viewMode === 'month'   ? selectedMonth         : 'all';
 
   const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, effectiveMonth);
-  const expenses = expensesData?.expenses ?? [];
+  const expenses = useMemo(
+    () => expensesData?.pages.flatMap((p) => p.items) ?? [],
+    [expensesData]
+  );
 
   const { data: jointAccountData } = useJointAccountSummary(
     household._id,

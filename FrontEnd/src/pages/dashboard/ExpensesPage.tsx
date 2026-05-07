@@ -7,6 +7,7 @@ import { useDashboard } from '@/contexts/DashboardContext';
 import { useExpenses, useRecurringExpenses } from '@/hooks/queries';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
 import DashboardHeader from '@/components/layout/DashboardHeader';
+import ExpenseFilterBar from '@/components/dashboard/shared/ExpenseFilterBar';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { CategoryChip } from '@/components/ui/category-chip';
 import { Avatar } from '@/components/ui/avatar';
@@ -19,10 +20,9 @@ import {
   getMyShareLabel,
   getBalanceSplitLabel,
 } from '@/utils/dashboardHelpers';
-import type { ExpenseResponse } from '@/types/expense.types';
+import type { ExpenseResponse, ExpenseFilters } from '@/types/expense.types';
+import { EMPTY_EXPENSE_FILTERS } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
-import { EXPENSE_TYPES } from '@/types/onboarding.types';
-import type { ExpenseType } from '@/types/onboarding.types';
 
 // ── Category key helper ───────────────────────────────────────────────────
 
@@ -46,6 +46,15 @@ const CAT_BAR_CLASS: Record<'rent' | 'utilities' | 'groceries' | 'internet' | 'o
   internet:  'bg-cat-internet',
   other:     'bg-cat-other',
 };
+
+function hasActiveFilters(f: ExpenseFilters): boolean {
+  return (
+    f.search.trim().length > 0 ||
+    f.categories.length > 0 ||
+    f.paidBy.length > 0 ||
+    f.status !== null
+  );
+}
 
 // ── Main page ─────────────────────────────────────────────────────────────
 
@@ -76,15 +85,24 @@ export default function ExpensesPage() {
   } = useDashboard();
 
   const [currentMonth, setCurrentMonth] = useState(currentMonthString);
-  const [categoryFilter, setCategoryFilter] = useState<ExpenseType | 'all'>('all');
+  const [filters, setFilters] = useState<ExpenseFilters>(EMPTY_EXPENSE_FILTERS);
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [outstandingOpen, setOutstandingOpen] = useState(true);
   const [settledOpen, setSettledOpen] = useState(true);
 
-  const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, currentMonth);
-  const expenses = expensesData?.expenses ?? [];
+  const {
+    data: expensesData,
+    isLoading: expensesLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useExpenses(household._id, currentMonth, filters);
+  const expenses = useMemo(
+    () => expensesData?.pages.flatMap((p) => p.items) ?? [],
+    [expensesData]
+  );
 
   const { data: recurringExpensesData, isLoading: recurringLoading } = useRecurringExpenses(
     household._id,
@@ -92,23 +110,15 @@ export default function ExpensesPage() {
   );
   const recurringExpenses = recurringExpensesData ?? [];
 
-  const displayedExpenses = useMemo(
-    () =>
-      categoryFilter === 'all'
-        ? expenses
-        : expenses.filter((e) => e.category === categoryFilter),
-    [expenses, categoryFilter]
-  );
-
   const { unsettledExpenses, settledExpenses } = useMemo(() => {
     const unsettled: ExpenseResponse[] = [];
     const settled: ExpenseResponse[] = [];
-    for (const e of displayedExpenses) {
+    for (const e of expenses) {
       if (e.isResolved) settled.push(e);
       else unsettled.push(e);
     }
     return { unsettledExpenses: unsettled, settledExpenses: settled };
-  }, [displayedExpenses]);
+  }, [expenses]);
 
   const { splitBalance, catTotals, totalAmount } = useMemo(() => {
     // Net balance
@@ -151,7 +161,7 @@ export default function ExpensesPage() {
     setConfirmingDelete(null);
   }
 
-  const headerSubtitle = `${formatMonthLabel(currentMonth)} · ${displayedExpenses.length} ${displayedExpenses.length === 1 ? 'entry' : 'entries'}`;
+  const headerSubtitle = `${formatMonthLabel(currentMonth)} · ${expenses.length} ${expenses.length === 1 ? 'entry' : 'entries'}${hasNextPage ? '+' : ''}`;
 
   return (
     <div className="min-h-screen bg-bg">
@@ -225,23 +235,12 @@ export default function ExpensesPage() {
           </Card>
         )}
 
-        {/* ── Category filter chips ──────────────────────────────────── */}
-        <div className="flex items-center flex-wrap gap-2">
-          {(['all', ...EXPENSE_TYPES] as const).map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat as ExpenseType | 'all')}
-              className={cn(
-                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                categoryFilter === cat
-                  ? 'border-accent bg-accent text-accent-ink'
-                  : 'border-line bg-transparent text-ink-2 hover:bg-surface-2 hover:text-ink'
-              )}
-            >
-              {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
-            </button>
-          ))}
-        </div>
+        {/* ── Filter bar ─────────────────────────────────────────────── */}
+        <ExpenseFilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          members={household.members}
+        />
 
         {/* ── Split method callout ───────────────────────────────────── */}
         {financeMode === 'split' && (
@@ -265,12 +264,20 @@ export default function ExpensesPage() {
               <div className="flex justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
               </div>
-            ) : displayedExpenses.length === 0 ? (
+            ) : expenses.length === 0 ? (
               <EmptyState
                 icon={Receipt}
                 title="No expenses yet"
-                description={`No ${categoryFilter !== 'all' ? categoryFilter + ' ' : ''}expenses for ${formatMonthLabel(currentMonth)}.`}
-                action={categoryFilter === 'all' ? { label: 'Add expense', onClick: () => setAddExpenseOpen(true) } : undefined}
+                description={
+                  hasActiveFilters(filters)
+                    ? `No expenses match your filters for ${formatMonthLabel(currentMonth)}.`
+                    : `No expenses for ${formatMonthLabel(currentMonth)}.`
+                }
+                action={
+                  hasActiveFilters(filters)
+                    ? undefined
+                    : { label: 'Add expense', onClick: () => setAddExpenseOpen(true) }
+                }
               />
             ) : (
               <>
@@ -390,6 +397,23 @@ export default function ExpensesPage() {
                     </span>
                     <span className="text-ink-3"> · based on {getBalanceSplitLabel(splitMethod, customMyPct, incomeSplit)}</span>
                   </div>
+                )}
+
+                {/* Load-more footer */}
+                {hasNextPage && (
+                  <div className="flex justify-center py-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { void fetchNextPage(); }}
+                      disabled={isFetchingNextPage}
+                    >
+                      {isFetchingNextPage ? 'Loading…' : 'Load more'}
+                    </Button>
+                  </div>
+                )}
+                {!hasNextPage && expenses.length > 0 && (
+                  <p className="text-center text-xs text-ink-3 py-2">No more expenses for {formatMonthLabel(currentMonth)}.</p>
                 )}
               </>
             )}
