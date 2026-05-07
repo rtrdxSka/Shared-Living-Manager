@@ -1,10 +1,26 @@
 import api from '@/utils/axios';
 import type { ApiSuccessResponse } from '@/types/auth.types';
-import type { ExpenseResponse, AddExpenseInput, UpdateExpenseInput } from '@/types/expense.types';
-import type { PaginationMeta } from '@/types/pagination.types';
+import type {
+  ExpenseResponse,
+  AddExpenseInput,
+  UpdateExpenseInput,
+  ExpenseStatusFilter,
+} from '@/types/expense.types';
+import type { ExpenseType } from '@/types/onboarding.types';
 
-export interface ExpenseListResult extends PaginationMeta {
-  expenses: ExpenseResponse[];
+export interface ExpenseListResult {
+  items: ExpenseResponse[];
+  nextCursor: string | null;
+}
+
+export interface ListExpensesParams {
+  month?: string;
+  search?: string;
+  categories?: ExpenseType[];
+  paidBy?: string[];
+  status?: ExpenseStatusFilter;
+  cursor?: string;
+  limit?: number;
 }
 
 export const expenseApi = {
@@ -62,15 +78,14 @@ export const expenseApi = {
 
   async listExpenses(
     householdId: string,
-    month?: string,
-    category?: string
+    params: ListExpensesParams = {}
   ): Promise<ExpenseListResult> {
-    const params: Record<string, string> = {};
-    if (month) params.month = month;
-    if (category && category !== 'all') params.category = category;
     const { data } = await api.get<ApiSuccessResponse<ExpenseListResult>>(
       `/households/${householdId}/expenses`,
-      { params }
+      {
+        params,
+        paramsSerializer: { indexes: null },
+      }
     );
     return data.data;
   },

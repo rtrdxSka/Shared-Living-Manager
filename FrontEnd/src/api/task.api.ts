@@ -1,19 +1,26 @@
 import api from '@/utils/axios';
 import type { ApiSuccessResponse } from '@/types/auth.types';
 import type { TaskResponse, AddTaskInput, AssignTaskInput, RotationStatus } from '@/types/task.types';
-import type { PaginationMeta } from '@/types/pagination.types';
 
-export interface TaskListResult extends PaginationMeta {
+export interface TaskListResult {
   tasks: TaskResponse[];
+  nextCursor: string | null;
   rotation?: RotationStatus;
+}
+
+export interface ListTasksParams {
+  cursor?: string;
+  limit?: number;
 }
 
 export const taskApi = {
   async listTasks(
-    householdId: string
+    householdId: string,
+    params: ListTasksParams = {}
   ): Promise<TaskListResult> {
     const { data } = await api.get<ApiSuccessResponse<TaskListResult>>(
-      `/households/${householdId}/tasks`
+      `/households/${householdId}/tasks`,
+      { params }
     );
     return data.data;
   },
