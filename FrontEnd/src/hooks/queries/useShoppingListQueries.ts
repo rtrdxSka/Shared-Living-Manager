@@ -16,7 +16,7 @@ import type {
 import type { ExpenseType } from '@/types/onboarding.types';
 import { queryKeys } from '@/lib/queryKeys';
 
-const ACTIVE_PAGE_SIZE = 50;
+const ACTIVE_PAGE_SIZE = 20;
 
 export function useShoppingList(householdId: string, filter?: ShoppingListFilter) {
   const params = filter

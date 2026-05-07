@@ -1,16 +1,27 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { taskApi } from '@/api/task.api';
 import type { TaskListResult } from '@/api/task.api';
 import type { AddTaskInput, AssignTaskInput } from '@/types/task.types';
 
+const PAGE_SIZE = 20;
+
 export function useTasks(householdId: string, enabled = true) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.tasks.list(householdId),
-    queryFn: () => taskApi.listTasks(householdId),
-    enabled,
-    // Mutations invalidate this cache, so a longer stale window is safe
-    // and avoids unnecessary background refetches on every dashboard mount.
+    queryFn: ({ pageParam }) =>
+      taskApi.listTasks(householdId, {
+        cursor: pageParam as string | undefined,
+        limit: PAGE_SIZE,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: TaskListResult) => lastPage.nextCursor ?? undefined,
+    enabled: enabled && Boolean(householdId),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -37,7 +48,7 @@ export function useToggleTaskComplete(householdId: string) {
     unknown,
     Error,
     string,
-    { previous: TaskListResult | undefined }
+    { previous: InfiniteData<TaskListResult> | undefined }
   >({
     mutationFn: (taskId: string) =>
       taskApi.toggleComplete(householdId, taskId),
@@ -48,15 +59,18 @@ export function useToggleTaskComplete(householdId: string) {
       const listKey = queryKeys.tasks.list(householdId);
       await queryClient.cancelQueries({ queryKey: listKey });
 
-      const previous = queryClient.getQueryData<TaskListResult>(listKey);
+      const previous = queryClient.getQueryData<InfiniteData<TaskListResult>>(listKey);
 
-      queryClient.setQueryData<TaskListResult>(listKey, (old) => {
+      queryClient.setQueryData<InfiniteData<TaskListResult>>(listKey, (old) => {
         if (!old) return old;
         return {
           ...old,
-          tasks: old.tasks.map((t) =>
-            t._id === taskId ? { ...t, isCompleted: !t.isCompleted } : t
-          ),
+          pages: old.pages.map((page) => ({
+            ...page,
+            tasks: page.tasks.map((t) =>
+              t._id === taskId ? { ...t, isCompleted: !t.isCompleted } : t
+            ),
+          })),
         };
       });
 

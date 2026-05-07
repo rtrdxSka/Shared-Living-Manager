@@ -1,15 +1,42 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { expenseApi } from '@/api/expense.api';
-import type { AddExpenseInput, UpdateExpenseInput } from '@/types/expense.types';
+import { expenseApi, type ExpenseListResult } from '@/api/expense.api';
+import type {
+  AddExpenseInput,
+  ExpenseFilters,
+  UpdateExpenseInput,
+} from '@/types/expense.types';
 
-export function useExpenses(householdId: string, month: string) {
-  return useQuery({
-    queryKey: queryKeys.expenses.list(householdId, month),
-    queryFn: () => expenseApi.listExpenses(householdId, month),
+const PAGE_SIZE = 20;
+
+export function useExpenses(householdId: string, month: string, filters?: ExpenseFilters) {
+  const apiFilters = filters
+    ? {
+        search: filters.search.trim() || undefined,
+        categories: filters.categories.length > 0 ? filters.categories : undefined,
+        paidBy: filters.paidBy.length > 0 ? filters.paidBy : undefined,
+        status: filters.status ?? undefined,
+      }
+    : undefined;
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.expenses.list(householdId, month, {
+      search: apiFilters?.search,
+      categories: apiFilters?.categories,
+      paidBy: apiFilters?.paidBy,
+      status: apiFilters?.status ?? null,
+    }),
+    queryFn: ({ pageParam }) =>
+      expenseApi.listExpenses(householdId, {
+        month,
+        ...apiFilters,
+        cursor: pageParam as string | undefined,
+        limit: PAGE_SIZE,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: ExpenseListResult) => lastPage.nextCursor ?? undefined,
+    enabled: Boolean(householdId),
     staleTime: 5 * 60 * 1000,
-    // Align with the rest of the app: holding 6 months of expense lists in
-    // memory for 30 min was wasteful; 10 min is plenty of back-nav buffer.
     gcTime: 10 * 60 * 1000,
   });
 }
@@ -25,7 +52,6 @@ export function useAddExpense(householdId: string) {
         queryKey: queryKeys.expenses.all(householdId),
         refetchType: 'active',
       });
-      // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
         refetchType: 'active',
@@ -50,7 +76,6 @@ export function useUpdateExpense(householdId: string) {
         queryKey: queryKeys.expenses.all(householdId),
         refetchType: 'active',
       });
-      // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
         refetchType: 'active',
@@ -70,7 +95,6 @@ export function useDeleteExpense(householdId: string) {
         queryKey: queryKeys.expenses.all(householdId),
         refetchType: 'active',
       });
-      // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
         refetchType: 'active',
@@ -80,9 +104,7 @@ export function useDeleteExpense(householdId: string) {
 }
 
 // Cancel in-flight expense list queries so a rapid second click doesn't race
-// the first mutation's refetch. Full optimistic state-flip on these hooks
-// would need `currentUserId` / resolution-state context that's not available
-// in the hook API; cancelQueries handles the double-submit race on its own.
+// the first mutation's refetch.
 async function cancelExpenseListQueries(
   queryClient: ReturnType<typeof useQueryClient>,
   householdId: string
