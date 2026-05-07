@@ -1,9 +1,15 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { expenseService } from '../services/expense.service';
-import { IAddExpenseInput, IListExpensesInput, IUpdateExpenseInput } from '../types/expense.types';
+import { IAddExpenseInput, IListExpensesInput, IUpdateExpenseInput, ExpenseStatus } from '../types/expense.types';
 
 import { ExpenseType } from '../types/household.types';
+
+function toStringArray(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) return value.map(String);
+  return [String(value)];
+}
 
 class ExpenseController {
   // POST /api/households/:id/expenses
@@ -36,8 +42,11 @@ class ExpenseController {
       const householdId = req.params.id as string;
       const input: IListExpensesInput = {
         month: req.query.month as string | undefined,
-        category: req.query.category as ExpenseType | undefined,
-        page: req.query.page as unknown as number | undefined,
+        search: req.query.search as string | undefined,
+        categories: toStringArray(req.query.categories) as ExpenseType[] | undefined,
+        paidBy: toStringArray(req.query.paidBy),
+        status: req.query.status as ExpenseStatus | undefined,
+        cursor: req.query.cursor as string | undefined,
         limit: req.query.limit as unknown as number | undefined,
       };
 
@@ -46,10 +55,8 @@ class ExpenseController {
       res.status(200).json({
         status: 'success',
         data: {
-          expenses: result.items,
-          total: result.total,
-          page: result.page,
-          totalPages: result.totalPages,
+          items: result.items,
+          nextCursor: result.nextCursor,
         },
       });
     } catch (error) {
