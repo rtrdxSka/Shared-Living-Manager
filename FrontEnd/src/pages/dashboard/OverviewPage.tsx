@@ -30,11 +30,6 @@ import type { TaskManagementLevel } from '@/types/onboarding.types';
 
 type ViewMode = 'current' | 'month' | 'all';
 
-const KNOWN_CATEGORIES = new Set(['rent', 'utilities', 'groceries', 'internet', 'other']);
-function categoryKey(c: string): 'rent' | 'utilities' | 'groceries' | 'internet' | 'other' {
-  return KNOWN_CATEGORIES.has(c) ? (c as 'rent' | 'utilities' | 'groceries' | 'internet' | 'other') : 'other';
-}
-
 export default function OverviewPage() {
   const navigate = useNavigate();
   const {
@@ -710,7 +705,7 @@ const RecentActivityCard = React.memo(function RecentActivityCard({
           ) : (
             topExpenses.map((expense) => (
               <div key={expense._id} className="flex items-center gap-3 py-2">
-                <CategoryChip category={categoryKey(expense.category)} />
+                <CategoryChip category={expense.category} />
                 <span className="flex-1 truncate text-sm text-ink">{expense.description}</span>
                 <MoneyAmount amount={expense.amount} currency={currency} size="sm" />
               </div>

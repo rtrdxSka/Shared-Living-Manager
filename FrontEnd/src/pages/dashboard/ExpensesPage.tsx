@@ -23,13 +23,7 @@ import {
 import type { ExpenseResponse, ExpenseFilters } from '@/types/expense.types';
 import { EMPTY_EXPENSE_FILTERS } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
-
-// ── Category key helper ───────────────────────────────────────────────────
-
-const KNOWN_CATEGORIES = new Set(['rent', 'utilities', 'groceries', 'internet', 'other']);
-function categoryKey(c: string): 'rent' | 'utilities' | 'groceries' | 'internet' | 'other' {
-  return KNOWN_CATEGORIES.has(c) ? (c as 'rent' | 'utilities' | 'groceries' | 'internet' | 'other') : 'other';
-}
+import { EXPENSE_TYPES, type ExpenseType } from '@/types/onboarding.types';
 
 // ── Date formatter ────────────────────────────────────────────────────────
 
@@ -39,12 +33,14 @@ function formatDate(dateStr: string): string {
 
 // ── Category bar colour map (static, no interpolation) ────────────────────
 
-const CAT_BAR_CLASS: Record<'rent' | 'utilities' | 'groceries' | 'internet' | 'other', string> = {
-  rent:      'bg-cat-rent',
-  utilities: 'bg-cat-utilities',
-  groceries: 'bg-cat-groceries',
-  internet:  'bg-cat-internet',
-  other:     'bg-cat-other',
+const CAT_BAR_CLASS: Record<ExpenseType, string> = {
+  rent:          'bg-cat-rent',
+  utilities:     'bg-cat-utilities',
+  groceries:     'bg-cat-groceries',
+  internet:      'bg-cat-internet',
+  cleaning:      'bg-cat-cleaning',
+  subscriptions: 'bg-cat-subscriptions',
+  other:         'bg-cat-other',
 };
 
 function hasActiveFilters(f: ExpenseFilters): boolean {
@@ -139,17 +135,16 @@ export default function ExpensesPage() {
     };
 
     // Category totals for right-rail breakdown
-    const catTotals: Record<string, number> = { rent: 0, utilities: 0, groceries: 0, internet: 0, other: 0 };
+    const catTotals = Object.fromEntries(EXPENSE_TYPES.map((t) => [t, 0])) as Record<ExpenseType, number>;
     let totalAmount = 0;
     for (const e of expenses) {
-      const key = categoryKey(e.category);
-      catTotals[key] = (catTotals[key] ?? 0) + e.amount;
+      catTotals[e.category] = (catTotals[e.category] ?? 0) + e.amount;
       totalAmount += e.amount;
     }
 
     return {
       splitBalance,
-      catTotals: catTotals as Record<'rent' | 'utilities' | 'groceries' | 'internet' | 'other', number>,
+      catTotals,
       totalAmount,
     };
   }, [expenses, myNickname, splitMethod, incomeSplit, customMyPct]);
@@ -448,7 +443,7 @@ export default function ExpensesPage() {
             <Card className="p-5">
               <EyebrowLabel className="mb-4 block">BY CATEGORY</EyebrowLabel>
               <div className="space-y-2.5">
-                {((['rent', 'utilities', 'groceries', 'internet', 'other'] as const)).map((cat) => {
+                {EXPENSE_TYPES.map((cat) => {
                   const catTotal = catTotals[cat];
                   const pct = maxCatTotal > 0 ? (catTotal / maxCatTotal) * 100 : 0;
                   return (
@@ -610,7 +605,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
           isExpanded && 'bg-surface-2'
         )}
       >
-        <CategoryChip category={categoryKey(expense.category)} />
+        <CategoryChip category={expense.category} />
         {expense.recurringExpenseId && (
           <RefreshCw className="h-3.5 w-3.5 text-ink-3 shrink-0" aria-label="Recurring" />
         )}
@@ -900,7 +895,7 @@ function RecurringExpensesSection({
     <div className="space-y-2">
       {recurringExpenses.map((t) => (
         <div key={t._id} className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2.5">
-          <CategoryChip category={categoryKey(t.category)} />
+          <CategoryChip category={t.category} />
           <span className="flex-1 truncate text-sm text-ink">{t.description}</span>
           <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-xs text-ink-3 capitalize">
             {t.interval}
