@@ -173,8 +173,14 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
 
   // ── Hoisted queries ───────────────────────────────────────────────────
   const { data: tasksData, isLoading: tasksLoading } = useTasks(household._id);
-  const tasks = tasksData?.tasks ?? EMPTY_TASKS;
-  const rotationStatus = tasksData?.rotation ?? null;
+  // tasksData is InfiniteData<TaskListResult>; flatten pages for downstream
+  // consumers that don't paginate (counts, summaries). The TasksPage drives
+  // fetchNextPage on its own copy of the same query (shared cache by key).
+  const tasks = useMemo(
+    () => tasksData?.pages.flatMap((p) => p.tasks) ?? EMPTY_TASKS,
+    [tasksData]
+  );
+  const rotationStatus = tasksData?.pages[0]?.rotation ?? null;
 
   const { data: goalsData, isLoading: goalsLoading } = useGoals(household._id);
   const goals = goalsData?.goals ?? EMPTY_GOALS;
