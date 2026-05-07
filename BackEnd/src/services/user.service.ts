@@ -1,4 +1,5 @@
 import { User } from '../models/user.model';
+import { RefreshToken } from '../models/refresh-token.model';
 import {
   IUpdateProfileInput,
   IChangePasswordInput,
@@ -76,7 +77,7 @@ class UserService {
     userId: string,
     input: IChangePasswordInput
   ): Promise<void> {
-    const user = await User.findById(userId).select('+password +refreshToken');
+    const user = await User.findById(userId).select('+password');
     if (!user) {
       throw NotFoundError('User not found');
     }
@@ -87,8 +88,14 @@ class UserService {
     }
 
     user.password = input.newPassword; // pre-save hook hashes
-    user.refreshToken = undefined; // invalidate all existing sessions
     await user.save();
+
+    // Invalidate every active refresh-token session for this user so existing
+    // sessions cannot continue to mint new access tokens.
+    await RefreshToken.updateMany(
+      { userId: user._id, revokedAt: null },
+      { $set: { revokedAt: new Date() } },
+    );
   }
 
   // ── Private helpers ───────────────────────────────────────────────

@@ -99,17 +99,12 @@ const userSchema = new Schema<IUser>(
       type: Date,
       select: false,
     },
-    refreshToken: {
-      type: String,
-      select: false,
-    },
   },
   {
     timestamps: true,
     toJSON: {
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.password;
-        delete ret.refreshToken;
         delete ret.emailVerificationToken;
         delete ret.emailVerificationExpires;
         delete ret.passwordResetToken;
@@ -122,7 +117,6 @@ const userSchema = new Schema<IUser>(
 );
 
 // Index for faster queries
-userSchema.index({ email: 1 });
 userSchema.index({ emailVerificationToken: 1 }, { sparse: true });
 userSchema.index({ passwordResetToken: 1 }, { sparse: true });
 
