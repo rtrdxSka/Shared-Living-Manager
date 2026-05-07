@@ -1,0 +1,140 @@
+[
+  {
+    "key": "couple",
+    "name": "Alice & Bob",
+    "livingArrangement": "couple",
+    "totalMembers": 2,
+    "uiMode": "couple",
+    "createdByUserKey": "alice",
+    "inviteCode": "couple-invite-0001",
+    "members": [
+      {
+        "memberKey": "alice-member",
+        "userKey": "alice",
+        "nickname": "Alice",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-03-01T10:00:00.000Z",
+        "monthlyIncome": 3500
+      },
+      {
+        "memberKey": "bob-member",
+        "userKey": "bob",
+        "nickname": "Bob",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": false,
+        "joinedAt": "2026-03-01T10:05:00.000Z",
+        "monthlyIncome": 2800
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "joint",
+      "expenseSplitMethod": "income_based",
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "BGN",
+      "taskManagementEnabled": "full",
+      "taskDistributionMethod": "rotation",
+      "jointAccountConfig": {
+        "monthlyTarget": 900,
+        "targetMode": "proportional"
+      }
+    }
+  },
+  {
+    "key": "flatshare",
+    "name": "The Flat",
+    "livingArrangement": "roommates",
+    "totalMembers": 3,
+    "uiMode": "roommates",
+    "createdByUserKey": "carol",
+    "inviteCode": "flat-invite-0002",
+    "members": [
+      {
+        "memberKey": "carol-member",
+        "userKey": "carol",
+        "nickname": "Carol",
+        "relationship": "roommate",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-02-15T09:00:00.000Z",
+        "monthlyIncome": 3000
+      },
+      {
+        "memberKey": "eve-member",
+        "userKey": "eve",
+        "nickname": "Eve",
+        "relationship": "roommate",
+        "ageGroup": "adult",
+        "role": "admin",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": false,
+        "joinedAt": "2026-02-15T09:10:00.000Z",
+        "monthlyIncome": 2500
+      },
+      {
+        "memberKey": "frank-member",
+        "userKey": "frank",
+        "nickname": "Frank",
+        "relationship": "roommate",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": false,
+        "isCreator": false,
+        "joinedAt": "2026-02-20T11:00:00.000Z",
+        "monthlyIncome": 2200
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "split",
+      "expenseSplitMethod": "equal",
+      "trackedExpenseTypes": ["rent", "utilities", "internet", "groceries", "cleaning"],
+      "currency": "BGN",
+      "taskManagementEnabled": "basic",
+      "taskDistributionMethod": "fixed"
+    }
+  },
+  {
+    "key": "solo",
+    "name": "Dave's Studio",
+    "livingArrangement": "alone",
+    "totalMembers": 1,
+    "uiMode": "solo",
+    "createdByUserKey": "dave",
+    "inviteCode": "solo-invite-0003",
+    "members": [
+      {
+        "memberKey": "dave-member",
+        "userKey": "dave",
+        "nickname": "Dave",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-03-10T12:00:00.000Z",
+        "monthlyIncome": 1800
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "trackedExpenseTypes": ["rent", "groceries"],
+      "currency": "BGN",
+      "taskManagementEnabled": "disabled"
+    }
+  }
+]

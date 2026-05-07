@@ -1,0 +1,60 @@
+[
+  {
+    "key": "dishes",
+    "householdKey": "couple",
+    "title": "Wash the dishes",
+    "createdByUserKey": "alice",
+    "assignedToMemberKey": "bob-member",
+    "isCompleted": false,
+    "createdAt": "2026-05-01T08:00:00.000Z"
+  },
+  {
+    "key": "trash",
+    "householdKey": "couple",
+    "title": "Take out the trash",
+    "createdByUserKey": "alice",
+    "assignedToMemberKey": "alice-member",
+    "isCompleted": true,
+    "completedAt": "2026-05-02T19:00:00.000Z",
+    "completedByMemberKey": "alice-member",
+    "createdAt": "2026-05-02T08:00:00.000Z"
+  },
+  {
+    "key": "vacuum",
+    "householdKey": "couple",
+    "title": "Vacuum living room",
+    "createdByUserKey": "alice",
+    "isCompleted": false,
+    "createdAt": "2026-05-03T08:00:00.000Z"
+  },
+  {
+    "key": "flat-bathroom",
+    "householdKey": "flatshare",
+    "title": "Clean the bathroom",
+    "notes": "Don't forget the mirror",
+    "createdByUserKey": "carol",
+    "assignedToMemberKey": "carol-member",
+    "isCompleted": false,
+    "dueDate": "2026-05-10T00:00:00.000Z",
+    "createdAt": "2026-05-01T09:00:00.000Z"
+  },
+  {
+    "key": "flat-kitchen",
+    "householdKey": "flatshare",
+    "title": "Clean the kitchen",
+    "createdByUserKey": "eve",
+    "assignedToMemberKey": "eve-member",
+    "isCompleted": true,
+    "completedAt": "2026-05-04T20:00:00.000Z",
+    "completedByMemberKey": "eve-member",
+    "createdAt": "2026-05-02T09:00:00.000Z"
+  },
+  {
+    "key": "flat-shopping",
+    "householdKey": "flatshare",
+    "title": "Weekly shopping run",
+    "createdByUserKey": "carol",
+    "isCompleted": false,
+    "createdAt": "2026-05-03T09:00:00.000Z"
+  }
+]

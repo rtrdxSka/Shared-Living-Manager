@@ -1,0 +1,79 @@
+[
+  {
+    "key": "milk",
+    "householdKey": "couple",
+    "name": "Milk",
+    "quantity": "2 L",
+    "category": "groceries",
+    "addedByUserKey": "alice",
+    "isBought": false
+  },
+  {
+    "key": "bread",
+    "householdKey": "couple",
+    "name": "Bread",
+    "quantity": "1 loaf",
+    "category": "groceries",
+    "addedByUserKey": "bob",
+    "isBought": true,
+    "boughtAt": "2026-05-05T18:00:00.000Z",
+    "boughtByMemberKey": "bob-member"
+  },
+  {
+    "key": "apples",
+    "householdKey": "couple",
+    "name": "Apples",
+    "quantity": "6",
+    "category": "groceries",
+    "addedByUserKey": "alice",
+    "isBought": false
+  },
+  {
+    "key": "shampoo",
+    "householdKey": "couple",
+    "name": "Shampoo",
+    "quantity": "1",
+    "notes": "Any brand is fine",
+    "category": "other",
+    "addedByUserKey": "bob",
+    "isBought": false
+  },
+  {
+    "key": "flat-eggs",
+    "householdKey": "flatshare",
+    "name": "Eggs",
+    "quantity": "12",
+    "category": "groceries",
+    "addedByUserKey": "carol",
+    "isBought": false
+  },
+  {
+    "key": "flat-pasta",
+    "householdKey": "flatshare",
+    "name": "Pasta",
+    "quantity": "3 packs",
+    "category": "groceries",
+    "addedByUserKey": "eve",
+    "isBought": false
+  },
+  {
+    "key": "flat-soap",
+    "householdKey": "flatshare",
+    "name": "Dish Soap",
+    "quantity": "1",
+    "category": "cleaning",
+    "addedByUserKey": "frank",
+    "isBought": true,
+    "boughtAt": "2026-05-04T20:00:00.000Z",
+    "boughtByMemberKey": "frank-member"
+  },
+  {
+    "key": "solo-cereal",
+    "householdKey": "solo",
+    "name": "Cereal",
+    "quantity": "2 boxes",
+    "category": "groceries",
+    "addedByUserKey": "dave",
+    "isBought": false
+  }
+]

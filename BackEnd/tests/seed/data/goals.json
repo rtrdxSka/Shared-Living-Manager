@@ -1,0 +1,65 @@
+[
+  {
+    "key": "vacation",
+    "householdKey": "couple",
+    "name": "Summer Vacation",
+    "description": "Trip to Greece in August",
+    "targetAmount": 2500,
+    "deadline": "2026-08-01T00:00:00.000Z",
+    "status": "active",
+    "category": "travel",
+    "createdByUserKey": "alice",
+    "contributions": [
+      {
+        "memberKey": "alice-member",
+        "amount": 500,
+        "note": "April share",
+        "createdAt": "2026-04-05T10:00:00.000Z"
+      },
+      {
+        "memberKey": "bob-member",
+        "amount": 400,
+        "note": "April share",
+        "createdAt": "2026-04-12T10:00:00.000Z"
+      }
+    ]
+  },
+  {
+    "key": "new-couch",
+    "householdKey": "couple",
+    "name": "New Couch",
+    "description": "Replace the old sofa",
+    "targetAmount": 800,
+    "status": "active",
+    "category": "home",
+    "createdByUserKey": "bob",
+    "contributions": [
+      {
+        "memberKey": "alice-member",
+        "amount": 200,
+        "createdAt": "2026-04-20T10:00:00.000Z"
+      }
+    ]
+  },
+  {
+    "key": "flat-tv",
+    "householdKey": "flatshare",
+    "name": "Living Room TV",
+    "targetAmount": 1200,
+    "status": "active",
+    "category": "home",
+    "createdByUserKey": "carol",
+    "contributions": [
+      {
+        "memberKey": "carol-member",
+        "amount": 100,
+        "createdAt": "2026-04-15T10:00:00.000Z"
+      },
+      {
+        "memberKey": "eve-member",
+        "amount": 100,
+        "createdAt": "2026-04-15T11:00:00.000Z"
+      }
+    ]
+  }
+]

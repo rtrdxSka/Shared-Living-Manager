@@ -1,0 +1,62 @@
+[
+  {
+    "key": "tx-1",
+    "householdKey": "couple",
+    "memberKey": "alice-member",
+    "userKey": "alice",
+    "type": "deposit",
+    "amount": 500,
+    "note": "April contribution",
+    "createdAt": "2026-04-01T09:00:00.000Z"
+  },
+  {
+    "key": "tx-2",
+    "householdKey": "couple",
+    "memberKey": "bob-member",
+    "userKey": "bob",
+    "type": "deposit",
+    "amount": 400,
+    "note": "April contribution",
+    "createdAt": "2026-04-01T09:30:00.000Z"
+  },
+  {
+    "key": "tx-3",
+    "householdKey": "couple",
+    "memberKey": "alice-member",
+    "userKey": "alice",
+    "type": "withdrawal",
+    "amount": 120,
+    "note": "Groceries",
+    "createdAt": "2026-04-12T18:00:00.000Z"
+  },
+  {
+    "key": "tx-4",
+    "householdKey": "couple",
+    "memberKey": "bob-member",
+    "userKey": "bob",
+    "type": "withdrawal",
+    "amount": 60,
+    "note": "Dinner",
+    "createdAt": "2026-04-22T20:30:00.000Z"
+  },
+  {
+    "key": "tx-5",
+    "householdKey": "flatshare",
+    "memberKey": "carol-member",
+    "userKey": "carol",
+    "type": "deposit",
+    "amount": 300,
+    "note": "April contribution",
+    "createdAt": "2026-04-01T09:00:00.000Z"
+  },
+  {
+    "key": "tx-6",
+    "householdKey": "flatshare",
+    "memberKey": "eve-member",
+    "userKey": "eve",
+    "type": "deposit",
+    "amount": 250,
+    "note": "April contribution",
+    "createdAt": "2026-04-01T09:30:00.000Z"
+  }
+]
