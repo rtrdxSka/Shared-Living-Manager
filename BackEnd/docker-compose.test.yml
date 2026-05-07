@@ -1,0 +1,14 @@
+services:
+  mongo-test:
+    image: mongo:7
+    container_name: slm-mongo-test
+    ports:
+      - "127.0.0.1:27018:27017"
+    command: ["--quiet", "--logpath", "/dev/null"]
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
