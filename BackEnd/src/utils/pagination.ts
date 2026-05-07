@@ -1,4 +1,14 @@
 import { IPaginationInput, IPaginatedResult } from '../types/pagination.types';
+import { BadRequestError } from './error';
+
+export const DEFAULT_PAGE_SIZE = 20;
+export const MAX_PAGE_SIZE = 100;
+
+export function clampLimit(raw: unknown): number {
+  const parsed = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(parsed)) return DEFAULT_PAGE_SIZE;
+  return Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(parsed)));
+}
 
 export function parsePaginationParams(input: IPaginationInput): {
   page: number;
@@ -6,7 +16,7 @@ export function parsePaginationParams(input: IPaginationInput): {
   skip: number;
 } {
   const page = Math.max(1, input.page ?? 1);
-  const limit = Math.min(100, Math.max(1, input.limit ?? 50));
+  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, input.limit ?? DEFAULT_PAGE_SIZE));
   const skip = (page - 1) * limit;
   return { page, limit, skip };
 }
@@ -23,4 +33,23 @@ export function buildPaginatedResult<T>(
     page,
     totalPages: Math.ceil(total / limit) || 1,
   };
+}
+
+// Cursor helpers ── pipe-delimited "<isoDate>|<objectIdHex>" tokens.
+// Pipe-delimited matches the existing shopping-list cursor convention; keeps
+// tokens short and readable. Resources with extra cursor fields encode their
+// own format alongside these (see shopping-list.service for an example).
+
+export function encodeDateIdCursor(date: Date, id: { toString(): string }): string {
+  return `${date.toISOString()}|${id.toString()}`;
+}
+
+export function parseDateIdCursor(raw: string): { date: Date; id: string } {
+  const parts = raw.split('|');
+  if (parts.length !== 2) throw BadRequestError('Invalid cursor');
+  const [dateStr, idStr] = parts;
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) throw BadRequestError('Invalid cursor');
+  if (!/^[a-fA-F0-9]{24}$/.test(idStr)) throw BadRequestError('Invalid cursor');
+  return { date, id: idStr };
 }
