@@ -1,5 +1,11 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Navigate,
+  Outlet,
+  type RouteObject,
+} from 'react-router-dom';
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -56,61 +62,73 @@ function PublicLayout() {
   );
 }
 
+// Module-scope router — must NOT be re-created per render, or blocker/history state resets.
+const routes: RouteObject[] = [
+  {
+    element: <PublicLayout />,
+    children: [
+      { path: '/', element: <HomePage /> },
+      { path: '/verify-email', element: <VerifyEmailPage /> },
+
+      {
+        element: <GuestRoute />,
+        children: [
+          { path: '/login', element: <LoginPage /> },
+          { path: '/register', element: <RegisterPage /> },
+          { path: '/forgot-password', element: <ForgotPasswordPage /> },
+          { path: '/reset-password', element: <ResetPasswordPage /> },
+        ],
+      },
+
+      {
+        element: <ProtectedRoute />,
+        children: [
+          { path: '/get-started', element: <GetStartedPage /> },
+          { path: '/profile', element: <ProfilePage /> },
+        ],
+      },
+    ],
+  },
+  {
+    element: <ProtectedRoute />,
+    children: [
+      {
+        path: '/dashboard',
+        element: <DashboardPage />,
+        children: [
+          { index: true, element: <Navigate to="overview" replace /> },
+          { path: 'overview',      element: <OverviewPage /> },
+          { path: 'expenses',      element: <ExpensesPage /> },
+          { path: 'tasks',         element: <TasksPage /> },
+          { path: 'shopping-list', element: <ShoppingListPage /> },
+          { path: 'goals',         element: <GoalsPage /> },
+          { path: 'account',       element: <AccountPage /> },
+          { path: 'invite',        element: <InvitePage /> },
+        ],
+      },
+    ],
+  },
+  { path: '*', element: <Navigate to="/" replace /> },
+];
+
+const router = createBrowserRouter(routes);
+
 export default function App() {
   return (
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <ThemeProvider defaultTheme="system">
-            <PWAUpdatePrompt />
-            <Suspense fallback={<PageFallback />}>
-              <Routes>
-                {/* ── Public pages (with Navbar) ── */}
-                <Route element={<PublicLayout />}>
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/verify-email" element={<VerifyEmailPage />} />
-
-                  {/* Guest only */}
-                  <Route element={<GuestRoute />}>
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/register" element={<RegisterPage />} />
-                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                    <Route path="/reset-password" element={<ResetPasswordPage />} />
-                  </Route>
-
-                  {/* Protected pages that still use the Navbar */}
-                  <Route element={<ProtectedRoute />}>
-                    <Route path="/get-started" element={<GetStartedPage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
-                  </Route>
-                </Route>
-
-                {/* ── Dashboard (sidebar layout, no Navbar) ── */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/dashboard" element={<DashboardPage />}>
-                    <Route index element={<Navigate to="overview" replace />} />
-                    <Route path="overview" element={<OverviewPage />} />
-                    <Route path="expenses" element={<ExpensesPage />} />
-                    <Route path="tasks" element={<TasksPage />} />
-                    <Route path="shopping-list" element={<ShoppingListPage />} />
-                    <Route path="goals" element={<GoalsPage />} />
-                    <Route path="account" element={<AccountPage />} />
-                    <Route path="invite" element={<InvitePage />} />
-                  </Route>
-                </Route>
-
-                {/* Catch-all */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </ThemeProvider>
-        </AuthProvider>
-        {import.meta.env.DEV && (
-          <Suspense fallback={null}>
-            <ReactQueryDevtools initialIsOpen={false} />
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ThemeProvider defaultTheme="system">
+          <PWAUpdatePrompt />
+          <Suspense fallback={<PageFallback />}>
+            <RouterProvider router={router} />
           </Suspense>
-        )}
-      </QueryClientProvider>
-    </BrowserRouter>
+        </ThemeProvider>
+      </AuthProvider>
+      {import.meta.env.DEV && (
+        <Suspense fallback={null}>
+          <ReactQueryDevtools initialIsOpen={false} />
+        </Suspense>
+      )}
+    </QueryClientProvider>
   );
 }

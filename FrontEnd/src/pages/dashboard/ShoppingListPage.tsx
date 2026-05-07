@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useBlocker } from 'react-router-dom';
 import { Pencil, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -16,6 +17,7 @@ import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import ShoppingFilterBar from '@/components/dashboard/shared/ShoppingFilterBar';
 import AddRecurringItemForm from '@/components/dashboard/shared/AddRecurringItemForm';
 import ConfirmDeleteDialog from '@/components/dashboard/shared/ConfirmDeleteDialog';
+import LeaveShoppingPromptDialog from '@/components/dashboard/shared/LeaveShoppingPromptDialog';
 import {
   useRecurringRules,
   useUpdateRecurringRule,
@@ -35,8 +37,6 @@ export default function ShoppingListPage() {
     household,
     currentUserId,
     isAdmin,
-    setShoppingListBoughtCount,
-    setShoppingListConvertHandler,
   } = useDashboard();
   const householdId = household._id;
 
@@ -122,26 +122,27 @@ export default function ShoppingListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boughtItems, currentUserId, dominantCategory]);
 
-  // Push bought-count into context (sidebar leave-guard)
-  useEffect(() => {
-    setShoppingListBoughtCount(boughtItems.length);
-    return () => setShoppingListBoughtCount(0);
-  }, [boughtItems.length, setShoppingListBoughtCount]);
-
-  // Register the convert handler for the in-app sidebar leave-guard
-  useEffect(() => {
-    setShoppingListConvertHandler(() => handleConvertConfirm);
-    return () => setShoppingListConvertHandler(null);
-  }, [setShoppingListConvertHandler, handleConvertConfirm]);
-
   // Hard nav guard via beforeunload (covers tab close, hard refresh, direct URL change)
   useBeforeUnload(boughtItems.length > 0);
+
+  // In-app + browser back/forward guard via the data router.
+  // Bypass channel: navigations that pass `state: { bypassBlocker: true }` (e.g. logout) skip the prompt.
+  const isDirty = boughtItems.length > 0;
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    if (!isDirty) return false;
+    if (currentLocation.pathname === nextLocation.pathname) return false;
+    const state = nextLocation.state as { bypassBlocker?: boolean } | null;
+    if (state?.bypassBlocker) return false;
+    return true;
+  });
 
   async function handleExpenseCreated(created: { _id: string }) {
     await archiveBought.mutateAsync({
       expenseId: created._id,
       dominantCategory,
     });
+    // Honor the originally-attempted destination after a successful convert.
+    if (blocker.state === 'blocked') blocker.proceed();
   }
 
   return (
@@ -316,6 +317,13 @@ export default function ShoppingListPage() {
           onCreated={handleExpenseCreated}
         />
       )}
+
+      <LeaveShoppingPromptDialog
+        open={blocker.state === 'blocked' && !expenseSheetOpen}
+        boughtCount={boughtItems.length}
+        onConvertNow={handleConvertConfirm}
+        onLeaveAnyway={() => blocker.proceed?.()}
+      />
     </div>
   );
 }

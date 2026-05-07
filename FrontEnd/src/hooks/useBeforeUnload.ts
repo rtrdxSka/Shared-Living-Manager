@@ -5,8 +5,8 @@ import { useEffect } from 'react';
  * Catches tab close, hard refresh, and direct URL changes.
  * Modern browsers ignore custom message strings — the browser shows its own confirm dialog.
  *
- * Does NOT catch browser back/forward arrow buttons (would require React Router data router + useBlocker).
- * Does NOT catch in-app `<Link>` clicks (already handled by `useGuardedNavClick` in AppLayout).
+ * Does NOT catch in-app `<Link>` clicks or browser back/forward — those are handled by
+ * `useBlocker` in `ShoppingListPage`.
  */
 export function useBeforeUnload(active: boolean): void {
   useEffect(() => {

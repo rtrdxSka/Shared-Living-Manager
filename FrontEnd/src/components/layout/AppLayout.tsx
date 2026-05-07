@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import {
@@ -24,7 +24,6 @@ import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
-import LeaveShoppingPromptDialog from '@/components/dashboard/shared/LeaveShoppingPromptDialog';
 
 // ── Nav items ─────────────────────────────────────────────────────────────
 
@@ -75,49 +74,19 @@ function useNavItems(): NavItem[] {
 
 const PRIMARY_NAV_IDS = ['overview', 'expenses', 'tasks', 'goals'] as const;
 
-// ── Leave-guard nav click handler ─────────────────────────────────────────
-
-/**
- * Intercepts nav clicks while the user is on the shopping-list page with
- * bought items not yet converted to an expense. Pops the leave-guard dialog
- * (state in DashboardContext, rendered at AppLayout root) and stashes the
- * intended destination so the dialog's actions can complete or cancel the
- * navigation.
- */
-function useGuardedNavClick(setLeavePromptOpen: (o: boolean) => void) {
-  const location = useLocation();
-  const { shoppingListBoughtCount, setPendingNavigationPath } = useDashboard();
-
-  return useCallback(
-    (e: React.MouseEvent, href: string) => {
-      const onShoppingPage = location.pathname.startsWith('/dashboard/shopping-list');
-      const navigatingAway = !href.startsWith('/dashboard/shopping-list');
-      if (onShoppingPage && navigatingAway && shoppingListBoughtCount > 0) {
-        e.preventDefault();
-        setPendingNavigationPath(href);
-        setLeavePromptOpen(true);
-      }
-    },
-    [location.pathname, shoppingListBoughtCount, setPendingNavigationPath, setLeavePromptOpen]
-  );
-}
-
 // ── Sidebar nav item ──────────────────────────────────────────────────────
 
 function SidebarItem({
   item,
   isActive,
-  onNavClick,
 }: {
   item: NavItem;
   isActive: boolean;
-  onNavClick: (e: React.MouseEvent, href: string) => void;
 }) {
   return (
     <Link
       to={item.href}
       aria-current={isActive ? 'page' : undefined}
-      onClick={(e) => onNavClick(e, item.href)}
       className={cn(
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
         isActive
@@ -144,7 +113,7 @@ function SidebarItem({
 
 // ── Sidebar ───────────────────────────────────────────────────────────────
 
-function Sidebar({ onNavClick }: { onNavClick: (e: React.MouseEvent, href: string) => void }) {
+function Sidebar() {
   const { household, myNickname, partnerNickname } = useDashboard();
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -154,7 +123,8 @@ function Sidebar({ onNavClick }: { onNavClick: (e: React.MouseEvent, href: strin
 
   const handleLogout = async () => {
     await logout();
-    navigate('/', { replace: true });
+    // bypassBlocker: skip the shopping-list useBlocker prompt on logout.
+    navigate('/', { replace: true, state: { bypassBlocker: true } });
   };
 
   return (
@@ -194,7 +164,6 @@ function Sidebar({ onNavClick }: { onNavClick: (e: React.MouseEvent, href: strin
             key={item.id}
             item={item}
             isActive={location.pathname === item.href}
-            onNavClick={onNavClick}
           />
         ))}
       </nav>
@@ -234,10 +203,9 @@ interface MoreSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   overflowItems: NavItem[];
-  onNavClick: (e: React.MouseEvent, href: string) => void;
 }
 
-function MoreSheet({ open, onOpenChange, overflowItems, onNavClick }: MoreSheetProps) {
+function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
   const { household, myNickname, partnerNickname } = useDashboard();
   const { logout } = useAuth();
   const { toggleTheme } = useTheme();
@@ -251,7 +219,8 @@ function MoreSheet({ open, onOpenChange, overflowItems, onNavClick }: MoreSheetP
   const handleLogout = async () => {
     onOpenChange(false);
     await logout();
-    navigate('/', { replace: true });
+    // bypassBlocker: skip the shopping-list useBlocker prompt on logout.
+    navigate('/', { replace: true, state: { bypassBlocker: true } });
   };
 
   return (
@@ -292,7 +261,6 @@ function MoreSheet({ open, onOpenChange, overflowItems, onNavClick }: MoreSheetP
                     key={item.id}
                     to={item.href}
                     aria-current={isActive ? 'page' : undefined}
-                    onClick={(e) => onNavClick(e, item.href)}
                     className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
                   >
                     <item.icon className="h-5 w-5 shrink-0" />
@@ -344,7 +312,7 @@ function MoreSheet({ open, onOpenChange, overflowItems, onNavClick }: MoreSheetP
 
 // ── Mobile bottom nav ─────────────────────────────────────────────────────
 
-function MobileBottomNav({ onNavClick }: { onNavClick: (e: React.MouseEvent, href: string) => void }) {
+function MobileBottomNav() {
   const location = useLocation();
   const navItems = useNavItems();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -367,7 +335,6 @@ function MobileBottomNav({ onNavClick }: { onNavClick: (e: React.MouseEvent, hre
               key={item.id}
               to={item.href}
               aria-current={isActive ? 'page' : undefined}
-              onClick={(e) => onNavClick(e, item.href)}
               className={cn(
                 'relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors',
                 isActive ? 'text-accent' : 'text-ink-3'
@@ -411,7 +378,7 @@ function MobileBottomNav({ onNavClick }: { onNavClick: (e: React.MouseEvent, hre
         </button>
       </nav>
 
-      <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} overflowItems={overflowItems} onNavClick={onNavClick} />
+      <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} overflowItems={overflowItems} />
     </>
   );
 }
@@ -423,49 +390,16 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const navigate = useNavigate();
-  const {
-    shoppingListBoughtCount,
-    pendingNavigationPath,
-    setPendingNavigationPath,
-    shoppingListConvertHandler,
-  } = useDashboard();
-  const [leavePromptOpen, setLeavePromptOpen] = useState(false);
-
-  const handleNavClick = useGuardedNavClick(setLeavePromptOpen);
-
-  function handleConvertNow() {
-    setLeavePromptOpen(false);
-    if (shoppingListConvertHandler) shoppingListConvertHandler();
-    // Note: pendingNavigationPath stays set; v1 does not auto-navigate after expense submit.
-  }
-
-  function handleLeaveAnyway() {
-    setLeavePromptOpen(false);
-    if (pendingNavigationPath) {
-      const target = pendingNavigationPath;
-      setPendingNavigationPath(null);
-      navigate(target);
-    }
-  }
-
   return (
     <div className="flex min-h-screen bg-bg">
-      <Sidebar onNavClick={handleNavClick} />
+      <Sidebar />
 
       {/* Main content — pb-20 on mobile to clear bottom nav */}
       <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
         {children}
       </main>
 
-      <MobileBottomNav onNavClick={handleNavClick} />
-
-      <LeaveShoppingPromptDialog
-        open={leavePromptOpen}
-        boughtCount={shoppingListBoughtCount}
-        onConvertNow={handleConvertNow}
-        onLeaveAnyway={handleLeaveAnyway}
-      />
+      <MobileBottomNav />
     </div>
   );
 }
