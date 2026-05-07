@@ -5,8 +5,16 @@ export const queryKeys = {
   },
   expenses: {
     all: (householdId: string) => ['expenses', householdId] as const,
-    list: (householdId: string, month: string) =>
-      ['expenses', householdId, 'list', month] as const,
+    list: (
+      householdId: string,
+      month: string,
+      filters?: {
+        search?: string;
+        categories?: string[];
+        paidBy?: string[];
+        status?: string | null;
+      }
+    ) => ['expenses', householdId, 'list', month, filters ?? {}] as const,
   },
   recurringExpenses: {
     all: (householdId: string) => ['recurringExpenses', householdId] as const,
