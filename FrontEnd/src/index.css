@@ -53,6 +53,8 @@
     --cat-utilities:        210 100% 82%; /* #a4d4ff */
     --cat-groceries:        103 55% 76%;  /* #b9e4a3 */
     --cat-internet:         272 83% 84%;  /* #d8b4f8 */
+    --cat-cleaning:         175 60% 78%;  /* teal */
+    --cat-subscriptions:    330 75% 84%;  /* pink */
     --cat-other:            41 79% 74%;   /* #f0d28a */
   }
 
@@ -104,6 +106,8 @@
     --cat-utilities:        210 100% 82%;
     --cat-groceries:        103 55% 76%;
     --cat-internet:         272 83% 84%;
+    --cat-cleaning:         175 60% 78%;
+    --cat-subscriptions:    330 75% 84%;
     --cat-other:            41 79% 74%;
   }
 
@@ -156,6 +160,8 @@
     --cat-utilities:        210 100% 82%; /* #a4d4ff */
     --cat-groceries:        103 55% 76%;  /* #b9e4a3 */
     --cat-internet:         272 83% 84%;  /* #d8b4f8 */
+    --cat-cleaning:         175 60% 78%;  /* teal */
+    --cat-subscriptions:    330 75% 84%;  /* pink */
     --cat-other:            41 79% 74%;   /* #f0d28a */
   }
 

@@ -84,6 +84,8 @@ export default {
   				utilities: 'hsl(var(--cat-utilities))',
   				groceries: 'hsl(var(--cat-groceries))',
   				internet: 'hsl(var(--cat-internet))',
+  				cleaning: 'hsl(var(--cat-cleaning))',
+  				subscriptions: 'hsl(var(--cat-subscriptions))',
   				other: 'hsl(var(--cat-other))'
   			}
   		},
