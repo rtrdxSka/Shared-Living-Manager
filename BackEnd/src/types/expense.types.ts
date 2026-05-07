@@ -1,6 +1,5 @@
 import { Document, Types } from 'mongoose';
 import { ExpenseType } from './household.types';
-import { IPaginationInput } from './pagination.types';
 
 export interface IExpense extends Document {
   _id: Types.ObjectId;
@@ -35,9 +34,21 @@ export interface IAddExpenseInput {
   isFullRepayment?: boolean;
 }
 
-export interface IListExpensesInput extends IPaginationInput {
-  month?: string;       // "YYYY-MM" — defaults to current month
-  category?: ExpenseType;
+export type ExpenseStatus = 'unresolved' | 'pending' | 'resolved';
+
+export interface IListExpensesInput {
+  month?: string;       // "YYYY-MM" or "all" — defaults to current month
+  search?: string;
+  categories?: ExpenseType[];
+  paidBy?: string[];
+  status?: ExpenseStatus;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface IListExpensesResult {
+  items: IExpenseResponse[];
+  nextCursor: string | null;
 }
 
 export interface IExpenseResponse {
