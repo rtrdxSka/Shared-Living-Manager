@@ -1,10 +1,17 @@
+import { Types } from 'mongoose';
 import { Household } from '../models/household.model';
 import { Expense } from '../models/expense.model';
-import { IAddExpenseInput, IListExpensesInput, IExpenseResponse, IExpense, IUpdateExpenseInput } from '../types/expense.types';
-import { ExpenseType } from '../types/household.types';
+import {
+  IAddExpenseInput,
+  IListExpensesInput,
+  IListExpensesResult,
+  IExpenseResponse,
+  IExpense,
+  IUpdateExpenseInput,
+} from '../types/expense.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
-import { IPaginatedResult } from '../types/pagination.types';
-import { parsePaginationParams, buildPaginatedResult } from '../utils/pagination';
+import { clampLimit, encodeDateIdCursor, parseDateIdCursor } from '../utils/pagination';
+import { escapeRegex } from '../utils/regex';
 import { getHouseholdForMember } from '../utils/household.helpers';
 
 class ExpenseService {
@@ -60,16 +67,12 @@ class ExpenseService {
     householdId: string,
     requestingUserId: string,
     input: IListExpensesInput
-  ): Promise<IPaginatedResult<IExpenseResponse>> {
-    // 1. Find household + verify requester is a member
+  ): Promise<IListExpensesResult> {
     const { household } = await getHouseholdForMember(householdId, requestingUserId);
 
-    // 3. Build query filter
-    const query: {
-      householdId: typeof household._id;
-      date?: { $gte: Date; $lt: Date };
-      category?: ExpenseType;
-    } = {
+    const limit = clampLimit(input.limit);
+
+    const query: Record<string, unknown> = {
       householdId: household._id,
     };
 
@@ -78,18 +81,46 @@ class ExpenseService {
       query.date = { $gte: start, $lt: end };
     }
 
-    if (input.category) {
-      query.category = input.category;
+    if (input.search && input.search.trim().length > 0) {
+      query.description = { $regex: escapeRegex(input.search.trim()), $options: 'i' };
     }
 
-    // 5. Paginate
-    const { page, limit, skip } = parsePaginationParams(input);
-    const [expenses, total] = await Promise.all([
-      Expense.find(query).sort({ date: -1 }).skip(skip).limit(limit).lean(),
-      Expense.countDocuments(query),
-    ]);
+    if (input.categories && input.categories.length > 0) {
+      query.category = { $in: input.categories };
+    }
 
-    // 6. Build nickname map
+    if (input.paidBy && input.paidBy.length > 0) {
+      query.paidByUserId = { $in: input.paidBy.map((id) => new Types.ObjectId(id)) };
+    }
+
+    if (input.status === 'unresolved') {
+      query.isResolved = false;
+      query.pendingConfirmation = false;
+    } else if (input.status === 'pending') {
+      query.isResolved = false;
+      query.pendingConfirmation = true;
+    } else if (input.status === 'resolved') {
+      query.isResolved = true;
+    }
+
+    if (input.cursor) {
+      const c = parseDateIdCursor(input.cursor);
+      // Tiebreak by _id when dates collide so two items with the same `date`
+      // don't get returned twice across pages.
+      query.$or = [
+        { date: { $lt: c.date } },
+        { date: c.date, _id: { $lt: new Types.ObjectId(c.id) } },
+      ];
+    }
+
+    const expenses = await Expense.find(query)
+      .sort({ date: -1, _id: -1 })
+      .limit(limit + 1)
+      .lean();
+
+    const hasMore = expenses.length > limit;
+    const pageItems = expenses.slice(0, limit);
+
     const nicknameMap = new Map<string, string>();
     for (const member of household.members) {
       if (member.userId) {
@@ -97,10 +128,15 @@ class ExpenseService {
       }
     }
 
-    // 7. Map to response
-    const items = expenses.map((expense) => this.formatExpenseResponse(expense, nicknameMap));
+    const items = pageItems.map((expense) => this.formatExpenseResponse(expense, nicknameMap));
 
-    return buildPaginatedResult(items, total, page, limit);
+    let nextCursor: string | null = null;
+    if (hasMore && pageItems.length > 0) {
+      const last = pageItems[pageItems.length - 1];
+      nextCursor = encodeDateIdCursor(last.date, last._id);
+    }
+
+    return { items, nextCursor };
   }
 
   private buildMonthRange(month?: string): { start: Date; end: Date } {

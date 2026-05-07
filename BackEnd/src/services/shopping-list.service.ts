@@ -15,6 +15,7 @@ import { escapeRegex } from '../utils/regex';
 import { ExpenseType } from '../types/household.types';
 import { NotFoundError, BadRequestError } from '../utils/error';
 import { getHouseholdForMember } from '../utils/household.helpers';
+import { clampLimit } from '../utils/pagination';
 import { expenseService } from './expense.service';
 
 function encodeActiveCursor(c: { isBought: boolean; createdAt: Date; itemId: Types.ObjectId }): string {
@@ -73,7 +74,7 @@ class ShoppingListService {
   ): Promise<IListItemsResult> {
     const { household } = await getHouseholdForMember(householdId, userId);
 
-    const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+    const limit = clampLimit(options.limit);
 
     const archivedFilter = options.archived
       ? { archivedAt: { $ne: null } }

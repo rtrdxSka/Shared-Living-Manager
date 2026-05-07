@@ -1,8 +1,16 @@
 import { Types } from 'mongoose';
 import { Household } from '../models/household.model';
 import { Task } from '../models/task.model';
-import { ITask, IAddTaskInput, ITaskResponse, IRotationStatus, IAssignTaskInput, IListTasksInput } from '../types/task.types';
-import { parsePaginationParams } from '../utils/pagination';
+import {
+  ITask,
+  IAddTaskInput,
+  ITaskResponse,
+  IRotationStatus,
+  IAssignTaskInput,
+  IListTasksInput,
+  IListTasksResult,
+} from '../types/task.types';
+import { clampLimit, encodeDateIdCursor, parseDateIdCursor } from '../utils/pagination';
 import { IHouseholdMember, ITaskRotationConfig, ISetRotationInput } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { getHouseholdForMember } from '../utils/household.helpers';
@@ -73,24 +81,35 @@ class TaskService {
     householdId: string,
     userId: string,
     input: IListTasksInput = {}
-  ): Promise<{ tasks: ITaskResponse[]; total: number; page: number; totalPages: number; rotation?: IRotationStatus }> {
+  ): Promise<IListTasksResult> {
     const { household } = await getHouseholdForMember(householdId, userId);
 
-    const { page, limit, skip } = parsePaginationParams(input);
-    const filter = { householdId: household._id };
-    const [tasks, total] = await Promise.all([
-      Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      Task.countDocuments(filter),
-    ]);
+    const limit = clampLimit(input.limit);
 
-    // Build member ID → nickname map for completedByMemberId lookups
+    const query: Record<string, unknown> = { householdId: household._id };
+
+    if (input.cursor) {
+      const c = parseDateIdCursor(input.cursor);
+      query.$or = [
+        { createdAt: { $lt: c.date } },
+        { createdAt: c.date, _id: { $lt: new Types.ObjectId(c.id) } },
+      ];
+    }
+
+    const tasks = await Task.find(query)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .lean();
+
+    const hasMore = tasks.length > limit;
+    const pageItems = tasks.slice(0, limit);
+
     const memberMap = new Map<string, string>();
     for (const m of household.members) {
       memberMap.set(m._id.toString(), m.nickname);
     }
 
     let rotation: IRotationStatus | undefined;
-
     const method = household.settings.taskDistributionMethod;
     const isRotation =
       method === 'rotation' && household.settings.taskRotationConfig != null;
@@ -105,7 +124,7 @@ class TaskService {
       }
     }
 
-    const taskResponses = tasks.map((task) => {
+    const taskResponses = pageItems.map((task) => {
       let assignedToMemberId: string | undefined;
       let assignedToNickname: string | undefined;
 
@@ -124,7 +143,13 @@ class TaskService {
       );
     });
 
-    return { tasks: taskResponses, total, page, totalPages: Math.ceil(total / limit) || 1, ...(rotation && { rotation }) };
+    let nextCursor: string | null = null;
+    if (hasMore && pageItems.length > 0) {
+      const last = pageItems[pageItems.length - 1];
+      nextCursor = encodeDateIdCursor(last.createdAt, last._id);
+    }
+
+    return { tasks: taskResponses, nextCursor, ...(rotation && { rotation }) };
   }
 
   async toggleComplete(
