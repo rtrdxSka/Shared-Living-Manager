@@ -15,7 +15,11 @@ export default function InvitePage() {
 
   const regenerateMutation = useRegenerateInviteCode(household._id);
 
-  const isHouseholdFull = household.members.length >= household.totalMembers;
+  // Count only linked users — placeholder slots seeded at household creation
+  // have no userId yet and must not be treated as joined. Mirrors the
+  // backend check in household.service.ts joinHousehold().
+  const isHouseholdFull =
+    household.members.filter((m) => m.userId).length >= household.totalMembers;
 
   function handleCopy() {
     void navigator.clipboard.writeText(household.inviteCode).then(() => {
