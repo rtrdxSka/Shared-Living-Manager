@@ -94,12 +94,13 @@ class RecurringTaskService {
     recurringTaskId: string,
     input: IUpdateRecurringTaskInput
   ): Promise<IRecurringTaskResponse> {
-    const { household } = await getHouseholdForMember(householdId, userId);
+    const { household, member } = await getHouseholdForMember(householdId, userId);
 
     const template = await RecurringTask.findOne({ _id: recurringTaskId, householdId: household._id });
     if (!template) throw NotFoundError('Recurring task not found');
 
-    if (template.createdByUserId.toString() !== userId) {
+    const isAdmin = member.role === 'owner' || member.role === 'admin';
+    if (template.createdByUserId.toString() !== userId && !isAdmin) {
       throw ForbiddenError('You can only edit recurring tasks you created');
     }
 

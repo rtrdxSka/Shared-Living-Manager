@@ -7,7 +7,7 @@ import {
   IFireRulesResult,
   RecurrenceCadence,
 } from '../types/recurring-shopping-item.types';
-import { NotFoundError } from '../utils/error';
+import { NotFoundError, ForbiddenError } from '../utils/error';
 import { getHouseholdForMember } from '../utils/household.helpers';
 import { ShoppingListItem } from '../models/shopping-list-item.model';
 import { shoppingListService } from './shopping-list.service';
@@ -53,13 +53,18 @@ class RecurringShoppingItemService {
     userId: string,
     payload: Partial<IRecurringShoppingItemPayload>
   ): Promise<IRecurringShoppingItemResponse> {
-    const { household } = await getHouseholdForMember(householdId, userId);
+    const { household, member } = await getHouseholdForMember(householdId, userId);
 
     const rule = await RecurringShoppingItem.findOne({
       _id: ruleId,
       householdId: household._id,
     });
     if (!rule) throw NotFoundError('Recurring shopping rule not found');
+
+    const isAdmin = member.role === 'owner' || member.role === 'admin';
+    if (rule.createdBy.toString() !== userId && !isAdmin) {
+      throw ForbiddenError('You can only edit recurring shopping rules you created');
+    }
 
     if (payload.name !== undefined) rule.name = payload.name.trim();
     if (payload.category !== undefined) rule.category = payload.category;
@@ -75,13 +80,18 @@ class RecurringShoppingItemService {
     householdId: string,
     userId: string
   ): Promise<void> {
-    const { household } = await getHouseholdForMember(householdId, userId);
+    const { household, member } = await getHouseholdForMember(householdId, userId);
 
     const rule = await RecurringShoppingItem.findOne({
       _id: ruleId,
       householdId: household._id,
     });
     if (!rule) throw NotFoundError('Recurring shopping rule not found');
+
+    const isAdmin = member.role === 'owner' || member.role === 'admin';
+    if (rule.createdBy.toString() !== userId && !isAdmin) {
+      throw ForbiddenError('You can only delete recurring shopping rules you created');
+    }
 
     await rule.deleteOne();
   }

@@ -275,7 +275,6 @@ const householdSchema = new Schema<IHousehold>(
 // ── Indexes ───────────────────────────────────────────────────────────
 
 householdSchema.index({ createdBy: 1 });
-householdSchema.index({ inviteCode: 1 }, { unique: true });
 householdSchema.index({ 'members.userId': 1 });
 
 // ── Pre-save: generate invite code ────────────────────────────────────

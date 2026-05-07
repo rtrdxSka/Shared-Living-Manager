@@ -173,7 +173,7 @@ class ExpenseService {
     }
 
     if (expense.isResolved) {
-      throw ForbiddenError('Cannot delete a resolved expense');
+      throw BadRequestError('Cannot delete a resolved expense');
     }
 
     if (expense.createdByUserId.toString() !== requestingUserId) {
@@ -200,7 +200,7 @@ class ExpenseService {
     }
 
     if (expense.isResolved) {
-      throw ForbiddenError('Cannot modify a resolved expense');
+      throw BadRequestError('Cannot modify a resolved expense');
     }
 
     if (expense.createdByUserId.toString() !== requestingUserId) {
