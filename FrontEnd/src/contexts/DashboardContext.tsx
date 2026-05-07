@@ -105,14 +105,6 @@ export interface DashboardContextValue {
   addTransactionOpen: boolean;
   setAddTransactionOpen: (o: boolean) => void;
 
-  // Shopping list — leave-guard wiring
-  shoppingListBoughtCount: number;
-  setShoppingListBoughtCount: (n: number) => void;
-  shoppingListConvertHandler: (() => void) | null;
-  setShoppingListConvertHandler: (fn: (() => void) | null) => void;
-  pendingNavigationPath: string | null;
-  setPendingNavigationPath: (path: string | null) => void;
-
   // Mutation functions
   deleteExpense: (id: string) => Promise<void>;
   claimExpense: (id: string) => Promise<void>;
@@ -162,10 +154,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [contributionTarget, setContributionTarget] = useState<GoalResponse | null>(null);
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
-  // Shopping list — leave-guard state
-  const [shoppingListBoughtCount, setShoppingListBoughtCount] = useState(0);
-  const [shoppingListConvertHandler, setShoppingListConvertHandler] = useState<(() => void) | null>(null);
-  const [pendingNavigationPath, setPendingNavigationPath] = useState<string | null>(null);
 
   const [customMyPct, setCustomMyPct] = useState(
     household.settings.customSplitPercentage ?? 50
@@ -392,12 +380,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     setContributionTarget,
     addTransactionOpen,
     setAddTransactionOpen,
-    shoppingListBoughtCount,
-    setShoppingListBoughtCount,
-    shoppingListConvertHandler,
-    setShoppingListConvertHandler,
-    pendingNavigationPath,
-    setPendingNavigationPath,
     deleteExpense,
     claimExpense,
     requestResolution,
@@ -449,9 +431,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     addGoalOpen,
     contributionTarget,
     addTransactionOpen,
-    shoppingListBoughtCount,
-    shoppingListConvertHandler,
-    pendingNavigationPath,
     deleteExpense,
     claimExpense,
     requestResolution,
