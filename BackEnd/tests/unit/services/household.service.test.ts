@@ -4,6 +4,7 @@ import { householdService } from '../../../src/services/household.service';
 import { Household } from '../../../src/models/household.model';
 import { User } from '../../../src/models/user.model';
 import { AppError } from '../../../src/utils/error';
+import { INVITE_CODE_TTL_MS } from '../../../src/utils/invite';
 import { FIXTURES } from '../../seed/fixtures';
 import { makeUser } from '../../helpers/factories';
 import type { ICreateHouseholdInput } from '../../../src/types/household.types';
@@ -331,6 +332,48 @@ describe('householdService.getById', () => {
       )
     ).rejects.toSatisfy(expectAppError(404));
   });
+
+  it('migrates legacy BGN currency to EUR on read and persists the change', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    await Household.updateOne(
+      { _id: couple._id },
+      { $set: { 'settings.currency': 'BGN' } }
+    );
+
+    const result = await householdService.getById(
+      couple._id.toString(),
+      alice._id.toString()
+    );
+
+    expect(result.settings.currency).toBe('EUR');
+
+    const reloaded = await Household.findById(couple._id).lean();
+    expect(reloaded?.settings.currency).toBe('EUR');
+  });
+
+  it('backfills missing inviteCodeExpiresAt to now + 7 days on read', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    await Household.updateOne(
+      { _id: couple._id },
+      { $unset: { inviteCodeExpiresAt: 1 } }
+    );
+
+    const before = Date.now();
+    const result = await householdService.getById(
+      couple._id.toString(),
+      alice._id.toString()
+    );
+    const after = Date.now();
+
+    expect(result.inviteCodeExpiresAt).toBeDefined();
+    const expiresMs = new Date(result.inviteCodeExpiresAt!).getTime();
+    const expectedLower = before + INVITE_CODE_TTL_MS - 5000;
+    const expectedUpper = after + INVITE_CODE_TTL_MS + 5000;
+    expect(expiresMs).toBeGreaterThanOrEqual(expectedLower);
+    expect(expiresMs).toBeLessThanOrEqual(expectedUpper);
+  });
 });
 
 // ── regenerateInviteCode ─────────────────────────────────────────────
@@ -361,5 +404,22 @@ describe('householdService.regenerateInviteCode', () => {
         frank._id.toString()
       )
     ).rejects.toSatisfy(expectAppError(403));
+  });
+
+  it('regenerateInviteCode resets the expiry to now + 7 days', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+
+    const before = Date.now();
+    const result = await householdService.regenerateInviteCode(
+      couple._id.toString(),
+      alice._id.toString()
+    );
+    const after = Date.now();
+
+    expect(result.inviteCodeExpiresAt).toBeDefined();
+    const expiresMs = new Date(result.inviteCodeExpiresAt!).getTime();
+    expect(expiresMs).toBeGreaterThanOrEqual(before + INVITE_CODE_TTL_MS - 5000);
+    expect(expiresMs).toBeLessThanOrEqual(after + INVITE_CODE_TTL_MS + 5000);
   });
 });
