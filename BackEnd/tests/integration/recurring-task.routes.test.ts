@@ -64,4 +64,59 @@ describe('Recurring task routes', () => {
       .set('Authorization', auth(alice._id.toString()));
     expect(res.status).toBe(204);
   });
+
+  // F4.8: recurring-task.service.ts create (lines 42-44) rejects members whose
+  // participatesInTasks is false. Frank is such a member in flatshare.
+  it('returns 403 when a non-task-participating member creates a recurring task', async () => {
+    const frank = FIXTURES.user('frank');
+    const flatshare = FIXTURES.household('flatshare');
+    const res = await request(app)
+      .post(`/api/households/${flatshare._id}/recurring-tasks`)
+      .set('Authorization', auth(frank._id.toString()))
+      .send({ title: 'Frank attempt', interval: 'weekly' });
+    expect(res.status).toBe(403);
+  });
+
+  // F4.9: recurring-task.service.ts update (lines 102-105) allows admins to
+  // bypass the creator check. Eve (admin in flatshare) patches a template
+  // created by carol (owner).
+  it('admin can patch a recurring task they did not create', async () => {
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+    const flatshare = FIXTURES.household('flatshare');
+
+    const created = await request(app)
+      .post(`/api/households/${flatshare._id}/recurring-tasks`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ title: 'Carol-created', interval: 'weekly' });
+    expect(created.status).toBe(201);
+    const recurringTaskId = created.body.data.recurringTask._id;
+
+    const res = await request(app)
+      .patch(`/api/households/${flatshare._id}/recurring-tasks/${recurringTaskId}`)
+      .set('Authorization', auth(eve._id.toString()))
+      .send({ title: 'Eve-renamed' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.recurringTask.title).toBe('Eve-renamed');
+  });
+
+  // F4.10: recurring-task.service.ts deactivate (lines 148-151) allows admins
+  // to bypass the creator check. Eve (admin) deactivates carol's template.
+  it('admin can deactivate a recurring task they did not create', async () => {
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+    const flatshare = FIXTURES.household('flatshare');
+
+    const created = await request(app)
+      .post(`/api/households/${flatshare._id}/recurring-tasks`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ title: 'Carol-created for deactivate', interval: 'weekly' });
+    expect(created.status).toBe(201);
+    const recurringTaskId = created.body.data.recurringTask._id;
+
+    const res = await request(app)
+      .delete(`/api/households/${flatshare._id}/recurring-tasks/${recurringTaskId}`)
+      .set('Authorization', auth(eve._id.toString()));
+    expect(res.status).toBe(204);
+  });
 });

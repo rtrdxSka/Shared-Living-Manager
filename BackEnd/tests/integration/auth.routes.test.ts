@@ -147,7 +147,7 @@ describe('POST /api/auth/forgot-password', () => {
 
   it('returns 200 silently for unknown emails (anti-enumeration)', async () => {
     const res = await request(app).post('/api/auth/forgot-password').send({ email: 'nobody@nowhere.com' });
-    expect([200, 404]).toContain(res.status); // accept either, depending on how anti-enum is implemented
+    expect(res.status).toBe(200);
   });
 });
 
@@ -174,6 +174,8 @@ describe('POST /api/auth/reset-password', () => {
 });
 
 describe('POST /api/auth/resend-verification', () => {
+  beforeEach(() => vi.mocked(emailMod.sendVerificationEmail).mockClear());
+
   // Note: Plan used alice (verified in seed) which causes the service to throw
   // BadRequestError('Email is already verified') -> 400. The only unverified
   // seeded user (dave) gets verified by the earlier verify-email test, so we
@@ -189,5 +191,19 @@ describe('POST /api/auth/resend-verification', () => {
     const token = signTestJwt(fresh._id);
     const res = await request(app).post('/api/auth/resend-verification').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
+    // F1.3 — the whole purpose of resend-verification is to send the email.
+    expect(emailMod.sendVerificationEmail).toHaveBeenCalledOnce();
+  });
+
+  // F1.1 — production rejects already-verified users with BadRequestError (400).
+  // See BackEnd/src/services/auth.service.ts:188-190.
+  it('returns 400 for an already-verified user', async () => {
+    const alice = FIXTURES.user('alice');
+    const token = signTestJwt(alice._id, alice.email);
+    const res = await request(app)
+      .post('/api/auth/resend-verification')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(400);
+    expect(emailMod.sendVerificationEmail).not.toHaveBeenCalled();
   });
 });

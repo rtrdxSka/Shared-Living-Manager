@@ -71,6 +71,19 @@ describe('Expense routes', () => {
     expect(res.status).toBe(200);
   });
 
+  it('PATCH → 403 when non-creator patches an expense', async () => {
+    // `groceries-week1` is created by bob — alice (non-creator) should be rejected
+    // by expense.service.ts updateExpense's createdByUserId check.
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    const id = FIXTURES.expense('groceries-week1');
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/expenses/${id}`)
+      .set('Authorization', auth(alice._id.toString()))
+      .send({ description: 'Should not apply' });
+    expect(res.status).toBe(403);
+  });
+
   it('PATCH → 400 updating settled expense', async () => {
     const alice = FIXTURES.user('alice');
     const couple = FIXTURES.household('couple');

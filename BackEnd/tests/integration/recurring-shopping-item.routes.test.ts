@@ -15,6 +15,8 @@ const auth = (uid: string) => `Bearer ${signTestJwt(uid)}`;
  *   - Plan used `created.body.data.rule.id`, but the service formatter
  *     (recurring-shopping-item.service.ts formatResponse) emits `_id`, not `id`.
  *     → read `rule._id`.
+ *   - The list controller wraps the service's `rules` under `data: { items }`,
+ *     so list responses use `res.body.data.items`, not `data.rules`.
  */
 
 describe('Recurring shopping item routes', () => {
@@ -26,6 +28,13 @@ describe('Recurring shopping item routes', () => {
       .set('Authorization', auth(alice._id.toString()))
       .send({ name: 'Milk', category: 'groceries', cadence: 'weekly' });
     expect(res.status).toBe(201);
+    // F5.13: assert created rule body shape.
+    expect(res.body.data.rule).toBeDefined();
+    expect(res.body.data.rule._id).toBeDefined();
+    expect(res.body.data.rule.name).toBe('Milk');
+    expect(res.body.data.rule.category).toBe('groceries');
+    expect(res.body.data.rule.cadence).toBe('weekly');
+    expect(res.body.data.rule.active).toBe(true);
   });
 
   it('GET → 200', async () => {
@@ -35,6 +44,13 @@ describe('Recurring shopping item routes', () => {
       .get(`/api/households/${couple._id}/shopping-list/recurring`)
       .set('Authorization', auth(alice._id.toString()));
     expect(res.status).toBe(200);
+    // F5.14: assert items array shape. Controller emits `data: { items }`.
+    expect(Array.isArray(res.body.data.items)).toBe(true);
+    for (const rule of res.body.data.items) {
+      expect(typeof rule.name).toBe('string');
+      expect(typeof rule.cadence).toBe('string');
+      expect(typeof rule.active).toBe('boolean');
+    }
   });
 
   it('PATCH /:ruleId → 200', async () => {
@@ -51,6 +67,8 @@ describe('Recurring shopping item routes', () => {
       .set('Authorization', auth(alice._id.toString()))
       .send({ name: 'New' });
     expect(res.status).toBe(200);
+    // F5.15: assert renamed value reflected in response.
+    expect(res.body.data.rule.name).toBe('New');
   });
 
   it('DELETE /:ruleId → 204', async () => {
@@ -66,5 +84,25 @@ describe('Recurring shopping item routes', () => {
       .delete(`/api/households/${couple._id}/shopping-list/recurring/${ruleId}`)
       .set('Authorization', auth(alice._id.toString()));
     expect(res.status).toBe(204);
+    // F5.16: verify deletion by GETting the list and asserting absence.
+    const list = await request(app)
+      .get(`/api/households/${couple._id}/shopping-list/recurring`)
+      .set('Authorization', auth(alice._id.toString()));
+    expect(list.status).toBe(200);
+    const found = (list.body.data.items as Array<{ _id: string }>).find(
+      (r) => r._id === ruleId
+    );
+    expect(found).toBeUndefined();
+  });
+
+  // F5.17: authz gap — non-member of the target household must be rejected.
+  it('rejects non-member with 403', async () => {
+    const carol = FIXTURES.user('carol');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .post(`/api/households/${couple._id}/shopping-list/recurring`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ name: 'Intruder rule', category: 'groceries', cadence: 'weekly' });
+    expect(res.status).toBe(403);
   });
 });

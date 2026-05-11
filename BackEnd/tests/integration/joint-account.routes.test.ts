@@ -36,6 +36,20 @@ describe('Joint account routes', () => {
     expect(res.status).toBe(400);
   });
 
+  it('DELETE /transactions/:txId → 403 for non-creator non-admin', async () => {
+    // `tx-1` is created by alice; bob is a couple member (role=member, not admin).
+    // joint-account.service.ts deleteTransaction allows only the creator or
+    // admin/owner — so bob must be rejected. Run before the 204 case below
+    // so tx-1 still exists.
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+    const id = FIXTURES.jointTx('tx-1');
+    const res = await request(app)
+      .delete(`/api/households/${couple._id}/joint-account/transactions/${id}`)
+      .set('Authorization', auth(bob._id.toString()));
+    expect(res.status).toBe(403);
+  });
+
   it('DELETE /transactions/:txId → 204', async () => {
     const alice = FIXTURES.user('alice');
     const couple = FIXTURES.household('couple');

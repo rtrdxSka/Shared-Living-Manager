@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import request from 'supertest';
+import { Types } from 'mongoose';
 import app from '../../src/index';
 import { signTestJwt } from '../helpers/auth';
 import { FIXTURES } from '../seed/fixtures';
@@ -8,6 +9,9 @@ import { makeUser } from '../helpers/factories';
 
 const auth = (userId: string, email?: string) =>
   `Bearer ${signTestJwt(userId, email)}`;
+
+const UUID_V4_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * Reality-vs-plan corrections:
@@ -53,6 +57,7 @@ describe('POST /api/households', () => {
       .send(validCreateBody());
     expect(res.status).toBe(201);
     expect(res.body.data.household.name).toBe('Route-Test Household');
+    expect(res.body.data.household.inviteCode).toMatch(UUID_V4_REGEX);
   });
 
   it('returns 400 on missing required fields', async () => {
@@ -96,6 +101,68 @@ describe('POST /api/households/join', () => {
       .set('Authorization', auth(joiner._id.toString(), joiner.email))
       .send({ inviteCode: created.body.data.household.inviteCode });
     expect(res.status).toBe(200);
+    expect(
+      res.body.data.household.members.some(
+        (m: { userId?: string }) => m.userId === joiner._id.toString()
+      )
+    ).toBe(true);
+  });
+
+  it('returns 400 when joining email does not match any placeholder slot', async () => {
+    // Owner creates a household with a placeholder slot tied to a specific email.
+    const placeholderEmail = `placeholder-${Date.now()}@example.com`;
+    const owner = await makeUser();
+    const created = await request(app)
+      .post('/api/households')
+      .set('Authorization', auth(owner._id.toString(), owner.email))
+      .send(
+        validCreateBody({
+          memberStructure: [
+            {
+              nickname: 'TheSlot',
+              relationship: 'partner',
+              ageGroup: 'adult',
+              participatesInFinances: true,
+              participatesInTasks: true,
+              email: placeholderEmail,
+            },
+          ],
+        })
+      );
+    expect(created.status).toBe(201);
+
+    // A different authenticated user attempts to join.
+    const stranger = await makeUser({
+      email: `stranger-${Date.now()}@example.com`,
+    });
+    const res = await request(app)
+      .post('/api/households/join')
+      .set('Authorization', auth(stranger._id.toString(), stranger.email))
+      .send({ inviteCode: created.body.data.household.inviteCode });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 409 when user is already a member', async () => {
+    // The seeded `couple.inviteCode` is a fixture string, not a UUID, so the
+    // join validator (isUUID) would reject it with 400 before the service
+    // runs. Regenerate via the admin endpoint to get a real UUID, then have
+    // bob (already a member of `couple`) attempt to join — that path goes
+    // through the service and yields ConflictError → 409.
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+
+    const regen = await request(app)
+      .patch(`/api/households/${couple._id}/invite-code`)
+      .set('Authorization', auth(alice._id.toString(), alice.email));
+    expect(regen.status).toBe(200);
+    const uuidInviteCode = regen.body.data.household.inviteCode;
+
+    const res = await request(app)
+      .post('/api/households/join')
+      .set('Authorization', auth(bob._id.toString(), bob.email))
+      .send({ inviteCode: uuidInviteCode });
+    expect(res.status).toBe(409);
   });
 
   it('returns 400 on invalid invite-code format (validator rejects non-UUID)', async () => {
@@ -129,6 +196,15 @@ describe('GET /api/households/:id', () => {
       .set('Authorization', auth(carol._id.toString(), carol.email));
     expect(res.status).toBe(403);
   });
+
+  it('returns 404 for non-existent household', async () => {
+    const alice = FIXTURES.user('alice');
+    const missingId = new Types.ObjectId().toHexString();
+    const res = await request(app)
+      .get(`/api/households/${missingId}`)
+      .set('Authorization', auth(alice._id.toString(), alice.email));
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('PATCH /api/households/:id/settings', () => {
@@ -140,6 +216,7 @@ describe('PATCH /api/households/:id/settings', () => {
       .set('Authorization', auth(alice._id.toString(), alice.email))
       .send({ financeMode: 'split' });
     expect(res.status).toBe(200);
+    expect(res.body.data.household.settings.financeMode).toBe('split');
   });
 
   it('non-admin returns 403', async () => {
@@ -162,6 +239,21 @@ describe('PATCH /api/households/:id/members/me/income', () => {
       .set('Authorization', auth(alice._id.toString(), alice.email))
       .send({ monthlyIncome: 4500 });
     expect(res.status).toBe(200);
+    const aliceMember = res.body.data.household.members.find(
+      (m: { userId?: string }) => m.userId === alice._id.toString()
+    );
+    expect(aliceMember).toBeDefined();
+    expect(aliceMember.monthlyIncome).toBe(4500);
+  });
+
+  it('returns 403 when caller is not a household member', async () => {
+    const carol = FIXTURES.user('carol');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/members/me/income`)
+      .set('Authorization', auth(carol._id.toString(), carol.email))
+      .send({ monthlyIncome: 3000 });
+    expect(res.status).toBe(403);
   });
 });
 
@@ -175,6 +267,33 @@ describe('POST /api/households/:id/settlements', () => {
       .send({ month: '2026-04', amount: 200 });
     expect(res.status).toBe(201);
   });
+
+  it('returns 403 when caller is not admin/owner', async () => {
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .post(`/api/households/${couple._id}/settlements`)
+      .set('Authorization', auth(bob._id.toString(), bob.email))
+      .send({ month: '2026-05', amount: 150 });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 on duplicate-month settlement', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    const month = '2026-06';
+    const first = await request(app)
+      .post(`/api/households/${couple._id}/settlements`)
+      .set('Authorization', auth(alice._id.toString(), alice.email))
+      .send({ month, amount: 100 });
+    expect(first.status).toBe(201);
+
+    const dup = await request(app)
+      .post(`/api/households/${couple._id}/settlements`)
+      .set('Authorization', auth(alice._id.toString(), alice.email))
+      .send({ month, amount: 100 });
+    expect(dup.status).toBe(400);
+  });
 });
 
 describe('PATCH /api/households/:id/invite-code', () => {
@@ -186,5 +305,15 @@ describe('PATCH /api/households/:id/invite-code', () => {
       .set('Authorization', auth(alice._id.toString(), alice.email));
     expect(res.status).toBe(200);
     expect(res.body.data.household.inviteCode).not.toBe(couple.inviteCode);
+    expect(res.body.data.household.inviteCode).toMatch(UUID_V4_REGEX);
+  });
+
+  it('returns 403 when non-admin regenerates invite code', async () => {
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/invite-code`)
+      .set('Authorization', auth(bob._id.toString(), bob.email));
+    expect(res.status).toBe(403);
   });
 });

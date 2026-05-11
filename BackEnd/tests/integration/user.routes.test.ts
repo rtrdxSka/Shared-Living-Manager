@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import request from 'supertest';
 import app from '../../src/index';
+import { User } from '../../src/models/user.model';
 import { signTestJwt } from '../helpers/auth';
 import { FIXTURES } from '../seed/fixtures';
 
@@ -48,14 +49,38 @@ describe('PATCH /api/users/password', () => {
   });
 
   it('returns 400 on weak new password', async () => {
-    const alice = FIXTURES.user('alice');
+    // F1.6 — Create a fresh, isolated user via the public register endpoint to
+    // remove any dependency on stale fixture state (alice's password may have
+    // been rotated by a prior test). After verifying the 400 rejection, login
+    // with the original strong password to prove no mutation occurred.
+    const email = `weakpw-${Date.now()}@example.com`;
+    const strongPassword = 'StrongPass1!';
+
+    const reg = await request(app).post('/api/auth/register').send({
+      email,
+      password: strongPassword,
+      firstName: 'Weak',
+      lastName: 'Pw',
+    });
+    expect(reg.status).toBe(201);
+    const userId = reg.body.data.user._id as string;
+    // Mark verified directly — the password route runs emailVerifiedMiddleware
+    // before the validator, so an unverified user would 403 before we reach
+    // the weak-password rejection we're exercising.
+    await User.updateOne({ email }, { isEmailVerified: true });
+
     const res = await request(app)
       .patch('/api/users/password')
-      .set('Authorization', auth(alice._id.toString(), alice.email))
-      // currentPassword may be stale by this point (the prior test rotated
-      // alice's password), but the validator runs BEFORE the controller so
-      // a weak newPassword still trips the 400 regardless of currentPassword.
-      .send({ currentPassword: 'whatever-the-current-is', newPassword: 'weak' });
+      .set('Authorization', auth(userId, email))
+      .send({ currentPassword: strongPassword, newPassword: 'weak' });
     expect(res.status).toBe(400);
+
+    // Original strong password must still work — the failed weak-password
+    // request must not have mutated the user.
+    const login = await request(app).post('/api/auth/login').send({
+      email,
+      password: strongPassword,
+    });
+    expect(login.status).toBe(200);
   });
 });
