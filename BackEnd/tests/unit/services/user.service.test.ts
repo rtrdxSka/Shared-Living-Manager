@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import jwt from 'jsonwebtoken';
 import { Types } from 'mongoose';
 import { userService } from '../../../src/services/user.service';
 import { authService } from '../../../src/services/auth.service';
@@ -129,5 +130,42 @@ describe('userService.changePassword', () => {
         newPassword: 'Y1!',
       }),
     ).rejects.toSatisfy(expectAppError(404));
+  });
+
+  // F1.7 — Documented trade-off: changePassword revokes refresh tokens but does
+  // NOT invalidate already-issued access tokens (they remain valid until their
+  // 15-min TTL). See BackEnd/src/services/auth.service.ts:234-235.
+  // This test fences the trade-off so an accidental future change (e.g. adding
+  // a JWT blacklist) is caught.
+  it('does not invalidate existing access tokens (documented trade-off)', async () => {
+    // Use a one-off user so we don't disturb seeded fixtures.
+    const target = await User.create({
+      email: 'access-token-survives@example.com',
+      password: 'Password123!',
+      firstName: 'Access',
+      lastName: 'Survive',
+    });
+
+    // Acquire a real access token via the production login flow.
+    const session = await authService.login({
+      email: 'access-token-survives@example.com',
+      password: 'Password123!',
+    });
+    const accessToken = session.tokens.accessToken;
+
+    // Change the password.
+    await userService.changePassword(target._id.toString(), {
+      currentPassword: 'Password123!',
+      newPassword: 'BrandNewPass1!',
+    });
+
+    // The original access token must still verify — accepted trade-off.
+    const secret = process.env.JWT_ACCESS_SECRET!;
+    const decoded = jwt.verify(accessToken, secret, { algorithms: ['HS256'] }) as {
+      userId: string;
+      email: string;
+    };
+    expect(decoded.userId).toBe(target._id.toString());
+    expect(decoded.email).toBe('access-token-survives@example.com');
   });
 });

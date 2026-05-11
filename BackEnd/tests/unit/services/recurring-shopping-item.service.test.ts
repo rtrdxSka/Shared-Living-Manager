@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { Types } from 'mongoose';
 import { recurringShoppingItemService } from '../../../src/services/recurring-shopping-item.service';
 import { RecurringShoppingItem } from '../../../src/models/recurring-shopping-item.model';
+import { ShoppingListItem } from '../../../src/models/shopping-list-item.model';
+import { Household } from '../../../src/models/household.model';
 import { AppError } from '../../../src/utils/error';
 import { FIXTURES } from '../../seed/fixtures';
 import type { IRecurringShoppingItemPayload } from '../../../src/types/recurring-shopping-item.types';
@@ -236,5 +238,119 @@ describe('recurringShoppingItemService.deleteRule', () => {
 
     const stillThere = await RecurringShoppingItem.findById(created._id).lean();
     expect(stillThere).toBeNull();
+  });
+});
+
+// ── fireRulesForCadence ─────────────────────────────────────────────
+// F5.18: scheduler hook — materializes active recurring rules into shopping
+// list items, deduped by name+category. Errors per-rule are swallowed.
+// Tests in this block share the seeded DB; the deleted-household case is
+// scheduled LAST so it doesn't perturb the others.
+
+describe('recurringShoppingItemService.fireRulesForCadence', () => {
+  it('materializes items for active rules at the matching cadence', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const uniqueName = 'Fire-materialize weekly';
+
+    await recurringShoppingItemService.createRule(
+      couple._id.toString(),
+      alice._id.toString(),
+      basePayload({ name: uniqueName, category: 'groceries', cadence: 'weekly' })
+    );
+
+    const result = await recurringShoppingItemService.fireRulesForCadence('weekly');
+    expect(result.created).toBeGreaterThanOrEqual(1);
+
+    // The new active item carrying this rule's name+category should now exist.
+    const found = await ShoppingListItem.findOne({
+      householdId: couple._id,
+      name: uniqueName,
+      category: 'groceries',
+      archivedAt: null,
+    }).lean();
+    expect(found).not.toBeNull();
+  });
+
+  it('skips rules whose item already exists (dedup by name + category)', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const uniqueName = 'Fire-dedup weekly';
+
+    await recurringShoppingItemService.createRule(
+      couple._id.toString(),
+      alice._id.toString(),
+      basePayload({ name: uniqueName, category: 'groceries', cadence: 'weekly' })
+    );
+    // Pre-create the matching item — fire must NOT add another.
+    await ShoppingListItem.create({
+      householdId: couple._id,
+      name: uniqueName,
+      category: 'groceries',
+      addedByUserId: alice._id,
+    });
+
+    const before = await ShoppingListItem.countDocuments({
+      householdId: couple._id,
+      name: uniqueName,
+      category: 'groceries',
+    });
+    await recurringShoppingItemService.fireRulesForCadence('weekly');
+    const after = await ShoppingListItem.countDocuments({
+      householdId: couple._id,
+      name: uniqueName,
+      category: 'groceries',
+    });
+
+    expect(after).toBe(before);
+  });
+
+  it('does not materialize when the rule cadence differs from the fired cadence', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const uniqueName = 'Fire-wrong-cadence monthly';
+
+    await recurringShoppingItemService.createRule(
+      couple._id.toString(),
+      alice._id.toString(),
+      basePayload({ name: uniqueName, category: 'groceries', cadence: 'monthly' })
+    );
+
+    await recurringShoppingItemService.fireRulesForCadence('daily');
+
+    // No active item with this monthly rule's name should exist after a daily fire.
+    const found = await ShoppingListItem.findOne({
+      householdId: couple._id,
+      name: uniqueName,
+      category: 'groceries',
+      archivedAt: null,
+    }).lean();
+    expect(found).toBeNull();
+  });
+
+  it('survives a deleted-household rule gracefully (per-rule error swallowed)', async () => {
+    // Use the flatshare household here; deleting it after this block is fine
+    // because subsequent tests in this file have already run.
+    const flatshare = FIXTURES.household('flatshare');
+    const carol = FIXTURES.user('carol');
+    const uniqueName = 'Fire-deleted-household weekly';
+
+    await recurringShoppingItemService.createRule(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      basePayload({ name: uniqueName, category: 'groceries', cadence: 'weekly' })
+    );
+
+    // Remove the household so `addItem` inside fireRulesForCadence throws —
+    // the service's try/catch (lines 129-143) must swallow the error and the
+    // call must resolve normally.
+    await Household.deleteOne({ _id: flatshare._id });
+
+    await expect(
+      recurringShoppingItemService.fireRulesForCadence('weekly')
+    ).resolves.toEqual(expect.objectContaining({
+      created: expect.any(Number),
+      skipped: expect.any(Number),
+    }));
   });
 });

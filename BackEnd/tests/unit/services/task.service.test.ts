@@ -101,6 +101,38 @@ describe('taskService.toggleComplete', () => {
     expect(reopened.completedAt).toBeUndefined();
     expect(reopened.completedByMemberId).toBeUndefined();
   });
+
+  // F4.6: task.service.ts toggleComplete (lines 174-180) blocks non-completer
+  // non-admin users from undoing a completion within 24 hours.
+  it('blocks non-completer non-admin from undoing within 24h', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob'); // member role, not admin
+
+    // Use a fresh task so we don't perturb other tests.
+    const created = await taskService.addTask(
+      couple._id.toString(),
+      alice._id.toString(),
+      { title: 'Undo-authz target' }
+    );
+
+    // Alice completes the task. completedByMemberId becomes alice-member.
+    const completed = await taskService.toggleComplete(
+      couple._id.toString(),
+      alice._id.toString(),
+      created._id
+    );
+    expect(completed.isCompleted).toBe(true);
+
+    // Bob (member, neither admin nor completer) cannot undo within 24h.
+    await expect(
+      taskService.toggleComplete(
+        couple._id.toString(),
+        bob._id.toString(),
+        created._id
+      )
+    ).rejects.toSatisfy(expectAppError(403));
+  });
 });
 
 // ── deleteTask ───────────────────────────────────────────────────────
@@ -155,6 +187,32 @@ describe('taskService.deleteTask', () => {
         new Types.ObjectId().toString()
       )
     ).rejects.toSatisfy(expectAppError(404));
+  });
+
+  // F4.5: task.service.ts deleteTask (lines 223-228) allows admin/owner to
+  // delete tasks created by others. Cover the admin-deletes-other path.
+  it('lets an admin delete a task they did not create', async () => {
+    // Eve is an admin in flatshare. Carol (owner) creates a task; eve deletes it.
+    const flatshare = FIXTURES.household('flatshare');
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+
+    const created = await taskService.addTask(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      { title: 'Carol-created, eve-deleted' }
+    );
+
+    await expect(
+      taskService.deleteTask(
+        flatshare._id.toString(),
+        eve._id.toString(),
+        created._id
+      )
+    ).resolves.toBeUndefined();
+
+    const stillThere = await Task.findById(created._id).lean();
+    expect(stillThere).toBeNull();
   });
 });
 
@@ -307,5 +365,23 @@ describe('taskService.setRotation', () => {
         { startMemberId: ownerMemberId.toString() }
       )
     ).rejects.toSatisfy(expectAppError(403));
+  });
+
+  // F4.7: task.service.ts setRotation (lines 325-327) throws 400 when the
+  // provided startMemberId does not match a task-participating member.
+  // Frank is a flatshare member with participatesInTasks: false, so passing
+  // his memberId should be rejected.
+  it('throws 400 when startMemberId is not a task-participating member', async () => {
+    const flatshare = FIXTURES.household('flatshare');
+    const eve = FIXTURES.user('eve'); // admin of flatshare
+    const frankMemberId = FIXTURES.member('frank-member'); // participatesInTasks: false
+
+    await expect(
+      taskService.setRotation(
+        flatshare._id.toString(),
+        eve._id.toString(),
+        { startMemberId: frankMemberId.toString() }
+      )
+    ).rejects.toSatisfy(expectAppError(400));
   });
 });

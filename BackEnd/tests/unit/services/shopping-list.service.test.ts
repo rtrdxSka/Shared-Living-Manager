@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { Types } from 'mongoose';
 import { shoppingListService } from '../../../src/services/shopping-list.service';
 import { ShoppingListItem } from '../../../src/models/shopping-list-item.model';
 import { AppError } from '../../../src/utils/error';
@@ -93,6 +94,31 @@ describe('shoppingListService.toggleBought', () => {
     expect(result.boughtByMemberId).toBe(FIXTURES.member('alice-member').toString());
     expect(result.boughtByNickname).toBe('Alice');
   });
+
+  // F5.10: archived items cannot be toggled bought (production line 154 → 400).
+  it('throws 400 when toggling bought on an archived item', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+
+    const created = await shoppingListService.addItem(
+      couple._id.toString(),
+      alice._id.toString(),
+      { name: 'Toggle-on-archived target', category: 'groceries' }
+    );
+    await shoppingListService.archiveItem(
+      couple._id.toString(),
+      alice._id.toString(),
+      created._id
+    );
+
+    await expect(
+      shoppingListService.toggleBought(
+        couple._id.toString(),
+        alice._id.toString(),
+        created._id
+      )
+    ).rejects.toSatisfy(expectAppError(400));
+  });
 });
 
 // ── updateItem ───────────────────────────────────────────────────────
@@ -114,6 +140,32 @@ describe('shoppingListService.updateItem', () => {
     expect(result._id).toBe(itemId.toString());
     expect(result.name).toBe('Granny Smith Apples');
     expect(result.category).toBe('other');
+  });
+
+  // F5.11: archived items cannot be updated (production line 180 → 400).
+  it('throws 400 when updating an archived item', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+
+    const created = await shoppingListService.addItem(
+      couple._id.toString(),
+      alice._id.toString(),
+      { name: 'Update-on-archived target', category: 'groceries' }
+    );
+    await shoppingListService.archiveItem(
+      couple._id.toString(),
+      alice._id.toString(),
+      created._id
+    );
+
+    await expect(
+      shoppingListService.updateItem(
+        couple._id.toString(),
+        alice._id.toString(),
+        created._id,
+        { name: 'should not apply' }
+      )
+    ).rejects.toSatisfy(expectAppError(400));
   });
 });
 
@@ -177,6 +229,38 @@ describe('shoppingListService.restoreItem', () => {
     expect(restored.isBought).toBe(false);
     expect(restored.boughtAt).toBeUndefined();
     expect(restored.boughtByMemberId).toBeUndefined();
+  });
+
+  // F5.12: restoring an expense-archived item is rejected (production lines 237-238 → 400).
+  it('throws 400 when restoring an item that was archived as part of an expense', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+
+    // Add then archive an item via the service so archivedAt is set normally.
+    const created = await shoppingListService.addItem(
+      couple._id.toString(),
+      alice._id.toString(),
+      { name: 'Expense-archived restore target', category: 'groceries' }
+    );
+    await shoppingListService.archiveItem(
+      couple._id.toString(),
+      alice._id.toString(),
+      created._id
+    );
+    // Stamp archivedExpenseId directly on the doc — the service treats this
+    // as "archived as part of an expense" and must refuse to restore.
+    await ShoppingListItem.updateOne(
+      { _id: created._id },
+      { $set: { archivedExpenseId: new Types.ObjectId() } }
+    );
+
+    await expect(
+      shoppingListService.restoreItem(
+        couple._id.toString(),
+        alice._id.toString(),
+        created._id
+      )
+    ).rejects.toSatisfy(expectAppError(400));
   });
 });
 

@@ -46,6 +46,9 @@ describe('authService.register', () => {
     expect(rtDoc!.userId.toString()).toBe(result.user._id);
     expect(rtDoc!.revokedAt).toBeFalsy();
     expect(rtDoc!.replacedBy).toBeFalsy();
+
+    // F1.5 — fire-and-forget verification email is dispatched on register.
+    expect(emailMod.sendVerificationEmail).toHaveBeenCalledOnce();
   });
 
   it('sends verification email on register', async () => {
@@ -347,6 +350,30 @@ describe('authService.resetPassword', () => {
   it('throws BadRequestError (400) on invalid token', async () => {
     await expect(
       authService.resetPassword('garbage-token', 'Whatever1!'),
+    ).rejects.toSatisfy(expectAppError(400));
+  });
+
+  // F1.4 — production filters by passwordResetExpires: { $gt: new Date() }, so
+  // an expired token must be rejected exactly like an invalid one.
+  // See BackEnd/src/services/auth.service.ts:216-222.
+  it('throws BadRequestError (400) on expired reset token', async () => {
+    const expiredUser = await User.create({
+      email: 'expired-reset@example.com',
+      password: 'Password123!',
+      firstName: 'Exp',
+      lastName: 'Reset',
+    });
+    const rawToken = 'd'.repeat(64);
+    await User.updateOne(
+      { _id: expiredUser._id },
+      {
+        passwordResetToken: hashToken(rawToken),
+        passwordResetExpires: new Date(Date.now() - 60_000), // already expired
+      },
+    );
+
+    await expect(
+      authService.resetPassword(rawToken, 'New_Password_123!'),
     ).rejects.toSatisfy(expectAppError(400));
   });
 });

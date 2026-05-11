@@ -161,6 +161,29 @@ describe('goalService.deleteGoal', () => {
     const stillThere = await Goal.findById(created._id).lean();
     expect(stillThere).toBeNull();
   });
+
+  // F6.11 — non-creator non-admin cannot delete a goal.
+  // Bob is `member` (non-admin non-owner) in the couple household. Alice
+  // created the goal. The service rule: !isCreator && !isAdminOrOwner → 403.
+  it('throws Forbidden (403) when a non-creator non-admin deletes a goal', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+
+    const created = await goalService.addGoal(
+      couple._id.toString(),
+      alice._id.toString(),
+      { name: 'Bob cannot delete this', targetAmount: 100 }
+    );
+
+    await expect(
+      goalService.deleteGoal(
+        couple._id.toString(),
+        bob._id.toString(),
+        created._id
+      )
+    ).rejects.toSatisfy(expectAppError(403));
+  });
 });
 
 // ── addContribution ──────────────────────────────────────────────────
@@ -215,6 +238,45 @@ describe('goalService.addContribution', () => {
     expect(result.status).toBe('completed');
     expect(result.completedAt).toBeTypeOf('string');
   });
+
+  // F6.14a — addContribution throws NotFound (404) for a missing goal
+  it('throws NotFound (404) when the goal does not exist', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+
+    await expect(
+      goalService.addContribution(
+        couple._id.toString(),
+        alice._id.toString(),
+        new Types.ObjectId().toString(),
+        { amount: 25 }
+      )
+    ).rejects.toSatisfy(expectAppError(404));
+  });
+
+  // F6.14b — addContribution throws BadRequest (400) when the goal is not active
+  it('throws BadRequest (400) when contributing to a non-active (completed) goal', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+
+    const created = await goalService.addGoal(
+      couple._id.toString(),
+      alice._id.toString(),
+      { name: 'Frozen goal', targetAmount: 200 }
+    );
+
+    // Flip directly to completed via the model (bypasses service-level checks).
+    await Goal.updateOne({ _id: created._id }, { $set: { status: 'completed' } });
+
+    await expect(
+      goalService.addContribution(
+        couple._id.toString(),
+        alice._id.toString(),
+        created._id,
+        { amount: 25 }
+      )
+    ).rejects.toSatisfy(expectAppError(400));
+  });
 });
 
 // ── removeContribution ───────────────────────────────────────────────
@@ -251,5 +313,86 @@ describe('goalService.removeContribution', () => {
 
     expect(removed.contributions.length).toBe(0);
     expect(removed.currentAmount).toBe(0);
+  });
+
+  // F6.12 — non-author non-admin cannot remove someone else's contribution.
+  // Use flatshare: carol (owner) adds contribution; frank (member, non-admin
+  // non-owner) tries to remove it → 403.
+  it("throws Forbidden (403) when a non-author non-admin removes another member's contribution", async () => {
+    const flatshare = FIXTURES.household('flatshare');
+    const carol = FIXTURES.user('carol');
+    const frank = FIXTURES.user('frank');
+
+    const created = await goalService.addGoal(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      { name: 'Authz test goal', targetAmount: 500 }
+    );
+
+    const withContribution = await goalService.addContribution(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      created._id,
+      { amount: 30 }
+    );
+
+    const contributionId = withContribution.contributions[0]._id;
+
+    await expect(
+      goalService.removeContribution(
+        flatshare._id.toString(),
+        frank._id.toString(),
+        created._id,
+        contributionId
+      )
+    ).rejects.toSatisfy(expectAppError(403));
+  });
+
+  // F6.13 — removing a contribution reverts a completed goal back to active
+  // when currentAmount drops below targetAmount.
+  it('reverts goal from completed to active when removing a contribution drops currentAmount below targetAmount', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+
+    // Target 100; two contributions of 60 each → sum 120 ≥ 100 → auto-completes.
+    const created = await goalService.addGoal(
+      couple._id.toString(),
+      alice._id.toString(),
+      { name: 'Revert-on-remove target', targetAmount: 100 }
+    );
+
+    await goalService.addContribution(
+      couple._id.toString(),
+      alice._id.toString(),
+      created._id,
+      { amount: 60 }
+    );
+    const completed = await goalService.addContribution(
+      couple._id.toString(),
+      bob._id.toString(),
+      created._id,
+      { amount: 60 }
+    );
+
+    expect(completed.status).toBe('completed');
+    expect(completed.currentAmount).toBeGreaterThanOrEqual(completed.targetAmount);
+
+    // Remove bob's contribution → 60 remaining, below target 100 → revert to active.
+    const bobContribution = completed.contributions.find(
+      (c) => c.memberId === FIXTURES.member('bob-member').toString()
+    );
+    expect(bobContribution).toBeDefined();
+
+    const reverted = await goalService.removeContribution(
+      couple._id.toString(),
+      bob._id.toString(),
+      created._id,
+      bobContribution!._id
+    );
+
+    expect(reverted.status).toBe('active');
+    expect(reverted.currentAmount).toBeLessThan(reverted.targetAmount);
+    expect(reverted.completedAt).toBeUndefined();
   });
 });
