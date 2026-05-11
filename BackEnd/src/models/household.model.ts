@@ -1,5 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import crypto from 'crypto';
+import { INVITE_CODE_TTL_MS } from '../utils/invite';
 import {
   IHousehold,
   LIVING_ARRANGEMENTS,
@@ -260,6 +261,13 @@ const householdSchema = new Schema<IHousehold>(
       type: String,
       unique: true,
     },
+    // Defaults to now + 7 days. Brand-new households get an expiry from this
+    // default; the pre-save hook below acts as a belt-and-braces fallback for
+    // documents constructed without going through the default factory.
+    inviteCodeExpiresAt: {
+      type: Date,
+      default: () => new Date(Date.now() + INVITE_CODE_TTL_MS),
+    },
   },
   {
     timestamps: true,
@@ -277,11 +285,14 @@ const householdSchema = new Schema<IHousehold>(
 householdSchema.index({ createdBy: 1 });
 householdSchema.index({ 'members.userId': 1 });
 
-// ── Pre-save: generate invite code ────────────────────────────────────
+// ── Pre-save: generate invite code & expiry ───────────────────────────
 
 householdSchema.pre('save', function () {
   if (!this.inviteCode) {
     this.inviteCode = crypto.randomUUID();
+  }
+  if (!this.inviteCodeExpiresAt) {
+    this.inviteCodeExpiresAt = new Date(Date.now() + INVITE_CODE_TTL_MS);
   }
 });
 
