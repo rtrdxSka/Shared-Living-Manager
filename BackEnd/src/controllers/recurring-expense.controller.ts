@@ -35,7 +35,7 @@ class RecurringExpenseController {
 
       const templates = await recurringExpenseService.list(householdId, req.user.userId);
 
-      res.status(200).json({ status: 'success', data: { recurringExpenses: templates } });
+      res.status(200).json({ status: 'success', data: { items: templates } });
     } catch (error) {
       next(error);
     }
@@ -74,7 +74,7 @@ class RecurringExpenseController {
 
       await recurringExpenseService.deactivate(householdId, req.user.userId, recurringId);
 
-      res.status(200).json({ status: 'success', data: null });
+      res.status(204).send();
     } catch (error) {
       next(error);
     }

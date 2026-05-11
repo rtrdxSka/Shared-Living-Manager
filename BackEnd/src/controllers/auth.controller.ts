@@ -86,11 +86,8 @@ class AuthController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const refreshToken = req.cookies?.refreshToken as string | undefined;
-      if (!refreshToken) {
-        res.status(401).json({ status: 'error', message: 'No refresh token' });
-        return;
-      }
+      // refreshTokenValidation has already enforced cookie presence; trust it.
+      const refreshToken = req.cookies.refreshToken as string;
 
       const tokens = await authService.refreshToken(refreshToken);
 
@@ -121,10 +118,7 @@ class AuthController {
       await authService.logout(req.user.userId, { rawToken });
 
       res.clearCookie('refreshToken', { path: '/api/auth' });
-      res.status(200).json({
-        status: 'success',
-        message: 'Logged out successfully',
-      });
+      res.status(204).send();
     } catch (error) {
       next(error);
     }

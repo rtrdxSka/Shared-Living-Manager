@@ -29,7 +29,7 @@ class RecurringShoppingItemController {
       }
       const householdId = req.params.id as string;
       const result = await recurringShoppingItemService.listRules(householdId, req.user.userId);
-      res.status(200).json({ status: 'success', data: result });
+      res.status(200).json({ status: 'success', data: { items: result.rules } });
     } catch (error) {
       next(error);
     }

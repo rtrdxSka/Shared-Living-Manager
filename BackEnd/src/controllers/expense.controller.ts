@@ -76,7 +76,7 @@ class ExpenseController {
 
       await expenseService.deleteExpense(householdId, req.user.userId, expenseId);
 
-      res.status(200).json({ status: 'success', data: null });
+      res.status(204).send();
     } catch (error) {
       next(error);
     }
