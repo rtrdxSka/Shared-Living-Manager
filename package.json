@@ -1,0 +1,20 @@
+{
+  "name": "shared-living-manager",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.0.0+sha512.b8fef5494bd3fe4cbd4edabd0745df2ee5be3e4b0b8b08fa643aa3e4c6702ccc0f00d68fa8a8c9858a735a0032485a44990ed2810526c875e416f001b17df12b",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev:back": "pnpm --filter backend dev",
+    "dev:front": "pnpm --filter frontend dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter backend test",
+    "type-check": "pnpm -r type-check",
+    "audit": "pnpm audit"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": []
+  }
+}
