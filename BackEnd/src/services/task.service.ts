@@ -149,7 +149,7 @@ class TaskService {
       nextCursor = encodeDateIdCursor(last.createdAt, last._id);
     }
 
-    return { tasks: taskResponses, nextCursor, ...(rotation && { rotation }) };
+    return { items: taskResponses, nextCursor, ...(rotation && { rotation }) };
   }
 
   async toggleComplete(
