@@ -20,7 +20,18 @@ export function ProtectedRoute() {
   const location = useLocation();
 
   if (isLoading) return <AuthLoading />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    // Preserve the originally-requested location so the login flow can
+    // round-trip the user back here (e.g. `/get-started?invite=…` magic
+    // links).
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: { pathname: location.pathname, search: location.search } }}
+      />
+    );
+  }
 
   // Unverified users can only access /profile (verification banner + resend)
   if (user && !user.isEmailVerified && location.pathname !== '/profile') {
