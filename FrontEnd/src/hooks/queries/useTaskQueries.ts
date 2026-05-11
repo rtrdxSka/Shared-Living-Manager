@@ -67,7 +67,7 @@ export function useToggleTaskComplete(householdId: string) {
           ...old,
           pages: old.pages.map((page) => ({
             ...page,
-            tasks: page.tasks.map((t) =>
+            items: page.items.map((t) =>
               t._id === taskId ? { ...t, isCompleted: !t.isCompleted } : t
             ),
           })),
