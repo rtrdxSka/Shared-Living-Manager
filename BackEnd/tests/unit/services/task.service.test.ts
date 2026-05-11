@@ -61,10 +61,10 @@ describe('taskService.listTasks', () => {
       { limit: 50 }
     );
 
-    expect(Array.isArray(result.tasks)).toBe(true);
-    expect(result.tasks.length).toBeGreaterThan(0);
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items.length).toBeGreaterThan(0);
     // All returned tasks must belong to this household.
-    for (const task of result.tasks) {
+    for (const task of result.items) {
       expect(task.householdId).toBe(couple._id.toString());
     }
     // nextCursor is null when there are no more pages.
