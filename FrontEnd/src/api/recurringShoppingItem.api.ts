@@ -5,9 +5,20 @@ import type {
   CreateRecurringShoppingItemInput,
   UpdateRecurringShoppingItemInput,
 } from '@/types/recurringShoppingItem.types';
+import type { ShoppingListItemResponse } from '@/types/shoppingList.types';
+import type { ExpenseType } from '@/types/onboarding.types';
 
 export interface RecurringShoppingItemListResult {
   items: RecurringShoppingItemResponse[];
+}
+
+export interface PreviewMatchesInput {
+  triggerWords: string[];
+  category?: ExpenseType;
+}
+
+export interface PreviewMatchesResult {
+  matchedItems: ShoppingListItemResponse[];
 }
 
 export const recurringShoppingItemApi = {
@@ -43,5 +54,16 @@ export const recurringShoppingItemApi = {
 
   async deleteRule(householdId: string, ruleId: string): Promise<void> {
     await api.delete(`/households/${householdId}/shopping-list/recurring/${ruleId}`);
+  },
+
+  async previewMatches(
+    householdId: string,
+    input: PreviewMatchesInput
+  ): Promise<PreviewMatchesResult> {
+    const { data } = await api.post<ApiSuccessResponse<PreviewMatchesResult>>(
+      `/households/${householdId}/shopping-list/recurring/preview-matches`,
+      input
+    );
+    return data.data;
   },
 };
