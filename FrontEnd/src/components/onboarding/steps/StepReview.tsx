@@ -1,5 +1,5 @@
 import { Pencil } from 'lucide-react';
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/hooks/useAuth';
@@ -17,6 +17,7 @@ import {
   TASK_DISTRIBUTION_OPTIONS,
   shouldShowDistributionMethod,
 } from '@/types/onboarding.types';
+import { extractApiError } from '@/utils/extractApiError';
 import { Button } from '@/components/ui/button';
 import { SurveyNavigation } from '../SurveyNavigation';
 
@@ -54,18 +55,42 @@ export function StepReview() {
     step4.taskManagementEnabled
   );
 
+  // Inline error state — covers both client-side missing-field detection
+  // (so we can deep-link the user back to the offending step) and the
+  // server-side failure case (network/validation/etc.). The toast spec
+  // calls for a sonner toast, but no toast library is installed and the
+  // standing rules forbid introducing one. We surface the same message
+  // inline, matching the existing dashboard form pattern.
+  const [inlineError, setInlineError] = useState<
+    { stepIndex: number; fieldName: string } | null
+  >(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const handleSubmit = async () => {
-    const payload = buildSubmitPayload();
-    if (!payload) return;
+    setInlineError(null);
+    setSubmitError(null);
+
+    const result = buildSubmitPayload();
+    if (result.kind === 'missing') {
+      setInlineError({
+        stepIndex: result.stepIndex,
+        fieldName: result.fieldName,
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const household = await householdApi.create(payload);
+      const household = await householdApi.create(result.payload);
       await refreshUser();
       resetSurvey();
       navigate('/dashboard', { replace: true, state: { createdHousehold: household } });
     } catch (error) {
+      // KEEP console.error — useful when debugging payload validation issues.
       console.error('Failed to create household:', error);
+      setSubmitError(
+        extractApiError(error, 'Could not create household. Try again.'),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -194,6 +219,41 @@ export function StepReview() {
           />
         )}
       </ReviewSection>
+
+      {/* Inline alert — missing-field deep link */}
+      {inlineError && (
+        <div
+          className="rounded-xl border border-neg/40 bg-neg/[0.08] p-4 text-sm"
+          role="alert"
+        >
+          <p className="font-medium text-neg">
+            We need a bit more info before we can create your household.
+          </p>
+          <p className="mt-1 text-ink-3">
+            Step {inlineError.stepIndex} is missing{' '}
+            <span className="font-mono text-ink">{inlineError.fieldName}</span>.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3 h-8 rounded-lg text-xs"
+            onClick={() => goToStep(inlineError.stepIndex)}
+          >
+            Back to Step {inlineError.stepIndex}
+          </Button>
+        </div>
+      )}
+
+      {/* API-error alert — surfaced inline because no toast library is installed */}
+      {submitError && (
+        <div
+          className="rounded-xl border border-neg/40 bg-neg/[0.08] px-4 py-3 text-sm text-neg"
+          role="alert"
+        >
+          {submitError}
+        </div>
+      )}
 
       {/* Navigation */}
       <form

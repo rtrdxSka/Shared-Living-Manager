@@ -70,14 +70,11 @@ const STEP_INNER_MAX: Record<number, string> = {
   5: 'max-w-3xl',
 };
 
-const EFFECTIVE_STEPS = [1, 2, 3, 4, 5];
-
 // ── Wizard container — centered single column, wide shell ─────────────
 
 export function OnboardingSurvey() {
-  const { currentStep } = useOnboarding();
+  const { currentStep, effectiveTotalSteps } = useOnboarding();
   const meta = STEP_META[currentStep];
-  const totalSteps = EFFECTIVE_STEPS.length;
   const innerMax = STEP_INNER_MAX[currentStep] ?? 'max-w-2xl';
 
   return (
@@ -92,13 +89,10 @@ export function OnboardingSurvey() {
             <span className="text-sm font-semibold text-ink">HouseMate</span>
           </div>
 
-          <SurveyProgress
-            currentStep={currentStep}
-            effectiveSteps={EFFECTIVE_STEPS}
-          />
+          <SurveyProgress currentStep={currentStep} />
 
           <div className="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-3 whitespace-nowrap shrink-0">
-            STEP {currentStep} / {totalSteps}
+            STEP {currentStep} / {effectiveTotalSteps}
           </div>
         </div>
 

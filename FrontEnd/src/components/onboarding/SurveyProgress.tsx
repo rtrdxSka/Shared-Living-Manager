@@ -1,14 +1,22 @@
+import { useOnboarding } from '@/hooks/useOnboarding';
+
 interface SurveyProgressProps {
   /** Current active step number */
   currentStep: number;
-  /** Ordered list of effective step numbers (e.g. [1,3,4,5] when step 2 is skipped) */
-  effectiveSteps: number[];
 }
 
-export function SurveyProgress({
-  currentStep,
-  effectiveSteps,
-}: SurveyProgressProps) {
+export function SurveyProgress({ currentStep }: SurveyProgressProps) {
+  // Segment count is sourced from the centralized `effectiveTotalSteps` so
+  // arrangements that skip a step adjust here automatically.
+  const { effectiveTotalSteps } = useOnboarding();
+
+  // Build sequential step numbers [1..effectiveTotalSteps]. Renders contiguous
+  // 1-based indices today; if a future arrangement skips a step entirely the
+  // context can publish a distinct list and this component can adapt.
+  const effectiveSteps = Array.from(
+    { length: effectiveTotalSteps },
+    (_, i) => i + 1,
+  );
   const currentIndex = effectiveSteps.indexOf(currentStep);
 
   return (
