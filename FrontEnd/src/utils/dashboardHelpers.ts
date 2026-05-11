@@ -81,6 +81,28 @@ export const GOAL_CATEGORY_CHIP: Record<string, string> = {
   other: 'bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-300',
 };
 
+// ── Goal progress helpers ─────────────────────────────────────────────────
+
+export interface GoalProgressInfo {
+  /** Uncapped percentage rounded to integer. May exceed 100. */
+  pct: number;
+  /** Bar fill percent, capped at 100. */
+  capped: number;
+  /** Amount by which currentAmount exceeds targetAmount. Zero if not exceeded. */
+  overflowAmount: number;
+}
+
+export function computeGoalProgress(currentAmount: number, targetAmount: number): GoalProgressInfo {
+  if (targetAmount <= 0) {
+    return { pct: 0, capped: 0, overflowAmount: 0 };
+  }
+  const raw = (currentAmount / targetAmount) * 100;
+  const pct = Math.round(raw);
+  const capped = Math.min(pct, 100);
+  const overflowAmount = currentAmount > targetAmount ? currentAmount - targetAmount : 0;
+  return { pct, capped, overflowAmount };
+}
+
 // ── Split helpers ─────────────────────────────────────────────────────────
 
 export function deriveIncomeSplit(
