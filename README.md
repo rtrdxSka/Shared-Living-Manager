@@ -27,7 +27,28 @@ Master's Thesis Project - 16-week development timeline
 
 ## 🚀 Getting Started
 
-Documentation for setup will be added as components are developed.
+Node 20+ required. From the repo root:
+
+```bash
+corepack enable
+pnpm install
+```
+
+Common commands:
+
+```bash
+pnpm dev:back     # backend dev server (http://localhost:5000)
+pnpm dev:front    # frontend dev server (http://localhost:5173)
+pnpm test         # backend test suite (Vitest)
+pnpm build        # build both packages
+pnpm audit        # check for vulnerable dependencies
+```
+
+Or run the full stack via Docker:
+
+```bash
+docker compose up -d
+```
 
 ## 🔒 Security
 
