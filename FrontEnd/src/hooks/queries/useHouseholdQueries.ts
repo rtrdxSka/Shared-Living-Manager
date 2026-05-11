@@ -59,3 +59,9 @@ export function useRegenerateInviteCode(householdId: string) {
     },
   });
 }
+
+export function useSendInviteEmail(householdId: string) {
+  return useMutation<{ ok: true }, Error, { recipientEmail: string; personalNote?: string }>({
+    mutationFn: (payload) => householdApi.sendInviteEmail(householdId, payload),
+  });
+}

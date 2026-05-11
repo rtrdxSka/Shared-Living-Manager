@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   recurringShoppingItemApi,
   type RecurringShoppingItemListResult,
+  type PreviewMatchesInput,
+  type PreviewMatchesResult,
 } from '@/api/recurringShoppingItem.api';
 import type {
   RecurringShoppingItemResponse,
@@ -51,5 +53,16 @@ export function useDeleteRecurringRule(householdId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.recurring(householdId) });
     },
+  });
+}
+
+/**
+ * Dry-run preview: which currently active shopping items would match the
+ * given trigger words? Used by AddRecurringItemForm's "Preview matches"
+ * button. Not a query — result is one-shot and not cached.
+ */
+export function usePreviewRecurringMatches(householdId: string) {
+  return useMutation<PreviewMatchesResult, Error, PreviewMatchesInput>({
+    mutationFn: (input) => recurringShoppingItemApi.previewMatches(householdId, input),
   });
 }

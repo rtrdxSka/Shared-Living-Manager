@@ -4,6 +4,7 @@ export {
   useUpdateIncome,
   useRecordSettlement,
   useRegenerateInviteCode,
+  useSendInviteEmail,
 } from './useHouseholdQueries';
 
 export {
@@ -72,4 +73,5 @@ export {
   useCreateRecurringRule,
   useUpdateRecurringRule,
   useDeleteRecurringRule,
+  usePreviewRecurringMatches,
 } from './useRecurringShoppingItemQueries';
