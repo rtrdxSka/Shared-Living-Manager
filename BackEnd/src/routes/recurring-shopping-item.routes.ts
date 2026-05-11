@@ -5,6 +5,7 @@ import {
   ruleIdParamValidation,
   createRuleValidation,
   updateRuleValidation,
+  previewMatchesValidation,
 } from '../validators/recurring-shopping-item.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
@@ -29,6 +30,18 @@ router.get(
   householdIdParamValidation,
   handleValidationErrors,
   recurringShoppingItemController.listRules.bind(recurringShoppingItemController)
+);
+
+// POST /api/households/:id/shopping-list/recurring/preview-matches
+// Must be registered BEFORE /:ruleId routes so the literal path segment
+// `preview-matches` isn't captured as a Mongo ID.
+router.post(
+  '/preview-matches',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  previewMatchesValidation,
+  handleValidationErrors,
+  recurringShoppingItemController.previewMatches.bind(recurringShoppingItemController)
 );
 
 // PATCH /api/households/:id/shopping-list/recurring/:ruleId

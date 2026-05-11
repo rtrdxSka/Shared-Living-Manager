@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { householdController } from '../controllers/household.controller';
-import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation, regenerateInviteCodeValidation } from '../validators/household.validator';
+import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation, regenerateInviteCodeValidation, sendInviteEmailValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
@@ -96,6 +96,16 @@ router.patch(
   regenerateInviteCodeValidation,
   handleValidationErrors,
   householdController.regenerateInviteCode.bind(householdController)
+);
+
+// POST /api/households/:id/invite/email — Send invitation email (admin/owner only)
+router.post(
+  '/:id/invite/email',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  sendInviteEmailValidation,
+  handleValidationErrors,
+  householdController.sendInviteEmail.bind(householdController)
 );
 
 router.use('/:id/expenses', expenseRouter);
