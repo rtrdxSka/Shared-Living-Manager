@@ -3,7 +3,7 @@ import type { ApiSuccessResponse } from '@/types/auth.types';
 import type { TaskResponse, AddTaskInput, AssignTaskInput, RotationStatus } from '@/types/task.types';
 
 export interface TaskListResult {
-  tasks: TaskResponse[];
+  items: TaskResponse[];
   nextCursor: string | null;
   rotation?: RotationStatus;
 }

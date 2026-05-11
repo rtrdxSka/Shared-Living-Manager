@@ -7,7 +7,7 @@ import type {
 } from '@/types/recurringShoppingItem.types';
 
 export interface RecurringShoppingItemListResult {
-  rules: RecurringShoppingItemResponse[];
+  items: RecurringShoppingItemResponse[];
 }
 
 export const recurringShoppingItemApi = {
