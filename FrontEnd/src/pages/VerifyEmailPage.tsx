@@ -4,6 +4,7 @@ import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import axios from 'axios';
 
 import { authApi } from '@/api/auth.api';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { BlobBack } from '@/components/ui/blob-back';
 import type { ApiErrorResponse } from '@/types/auth.types';
@@ -13,6 +14,7 @@ type VerifyState = 'loading' | 'success' | 'error';
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const { refreshUser, isAuthenticated } = useAuth();
   const [state, setState] = useState<VerifyState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const hasVerified = useRef(false);
@@ -33,6 +35,9 @@ export default function VerifyEmailPage() {
     const verify = async () => {
       try {
         await authApi.verifyEmail(token);
+        if (isAuthenticated) {
+          await refreshUser();
+        }
         setState('success');
       } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -46,6 +51,8 @@ export default function VerifyEmailPage() {
     };
 
     verify();
+  // hasVerified guard prevents re-entry; isAuthenticated and refreshUser are read at call time
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   return (

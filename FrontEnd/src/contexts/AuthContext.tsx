@@ -67,13 +67,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    const currentUser = await authApi.getMe();
-    setUser(currentUser);
+    try {
+      const currentUser = await authApi.getMe();
+      setUser(currentUser);
+    } catch {
+      // /me failed (typically 401 from expired/revoked token). Clearing the
+      // local user causes ProtectedRoute to redirect to /login with the
+      // requested location preserved. This is the right user-visible
+      // outcome for any auth failure.
+      setUser(null);
+    }
   }, []);
+
+  const isAuthenticated = !!user;
+
+  // Auto-refresh /me when the window regains focus, so stale tabs catch up
+  // on verification state, password changes, or logouts that happened
+  // elsewhere (other tab / device). Only active while authenticated.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const handler = () => { void refreshUser(); };
+    window.addEventListener('focus', handler);
+    return () => window.removeEventListener('focus', handler);
+  }, [isAuthenticated, refreshUser]);
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, isAuthenticated: !!user, register, login, logout, refreshUser }}
+      value={{ user, isLoading, isAuthenticated, register, login, logout, refreshUser }}
     >
       {children}
     </AuthContext.Provider>
