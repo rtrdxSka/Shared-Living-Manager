@@ -48,7 +48,7 @@ export interface IListTasksInput {
 }
 
 export interface IListTasksResult {
-  tasks: ITaskResponse[];
+  items: ITaskResponse[];
   nextCursor: string | null;
   rotation?: IRotationStatus;
 }
