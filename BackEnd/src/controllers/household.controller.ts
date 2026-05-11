@@ -137,6 +137,29 @@ class HouseholdController {
     } catch (error) { next(error); }
   }
 
+  // POST /api/households/:id/invite/email
+  async sendInviteEmail(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
+      const { recipientEmail, personalNote } = req.body as {
+        recipientEmail: string;
+        personalNote?: string;
+      };
+      await householdService.sendInviteEmail(
+        req.params.id as string,
+        req.user.userId,
+        recipientEmail,
+        personalNote
+      );
+      res.status(202).json({ status: 'success', data: { ok: true } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // PATCH /api/households/:id/members/me/income
   async updateMemberIncome(
     req: AuthRequest,
