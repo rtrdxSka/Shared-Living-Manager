@@ -108,7 +108,7 @@ export type UIMode = (typeof UI_MODES)[number];
 
 // ── Currency ──────────────────────────────────────────────────────────
 
-export const CURRENCIES = ['BGN', 'EUR', 'USD', 'GBP'] as const;
+export const CURRENCIES = ['EUR', 'USD', 'GBP'] as const;
 
 export type Currency = (typeof CURRENCIES)[number];
 
@@ -267,7 +267,6 @@ export const EXPENSE_TYPE_OPTIONS: SelectOption<ExpenseType>[] = [
 ];
 
 export const CURRENCY_OPTIONS: SelectOption<Currency>[] = [
-  { value: 'BGN', label: 'BGN (лв.)' },
   { value: 'EUR', label: 'EUR (€)' },
   { value: 'USD', label: 'USD ($)' },
   { value: 'GBP', label: 'GBP (£)' },
