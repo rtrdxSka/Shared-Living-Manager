@@ -1,32 +1,29 @@
-# ── Stage 1: install all deps (needed for TypeScript compile) ────────────
-FROM node:20-alpine AS deps
+# ── Stage 1: install + build + deploy (single pnpm-driven stage) ─────────
+# Build context: repo root (set in docker-compose.prod.yml)
+FROM node:20-alpine AS builder
+RUN corepack enable
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
 
-# ── Stage 2: compile TypeScript ───────────────────────────────────────────
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY package*.json tsconfig.json ./
-COPY src/ ./src/
-RUN npm run build
+# Workspace manifests first for layer cache
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY BackEnd/package.json ./BackEnd/
 
-# ── Stage 3: production-only node_modules ────────────────────────────────
-FROM node:20-alpine AS prod-deps
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
+# Install full workspace closure (dev + prod) — needed to compile TS
+RUN pnpm install --frozen-lockfile --filter backend...
 
-# ── Stage 4: final minimal runtime image ─────────────────────────────────
+# Bring in source and compile
+COPY BackEnd ./BackEnd
+RUN pnpm --filter backend build
+
+# Produce a self-contained prod tree at /out (only prod deps, no workspace metadata)
+RUN pnpm --filter backend deploy --prod /out
+
+# ── Stage 2: minimal runtime ─────────────────────────────────────────────
 FROM node:20-alpine AS final
 RUN apk add --no-cache tini
 WORKDIR /app
 
-# Copy production assets as the node user (already exists in node images)
-COPY --chown=node:node --from=prod-deps /app/node_modules ./node_modules
-COPY --chown=node:node --from=build     /app/dist         ./dist
-COPY --chown=node:node package.json ./
+COPY --chown=node:node --from=builder /out /app
 
 ENV NODE_ENV=production
 ENV PORT=5000
