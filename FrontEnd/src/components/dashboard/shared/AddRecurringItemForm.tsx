@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import {
   useCreateRecurringRule,
   useUpdateRecurringRule,
+  usePreviewRecurringMatches,
 } from '@/hooks/queries/useRecurringShoppingItemQueries';
 import { EXPENSE_TYPES, EXPENSE_TYPE_LABELS, type ExpenseType } from '@/types/onboarding.types';
 import type {
@@ -52,9 +53,11 @@ export default function AddRecurringItemForm({
   const [category, setCategory] = useState<ExpenseType>(rule?.category ?? 'groceries');
   const [cadence, setCadence] = useState<RecurrenceCadence>(rule?.cadence ?? 'weekly');
   const [error, setError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const createMutation = useCreateRecurringRule(householdId);
   const updateMutation = useUpdateRecurringRule(householdId);
+  const previewMutation = usePreviewRecurringMatches(householdId);
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   // Seed fields when opening with a different rule, or reset on close in add mode.
@@ -64,6 +67,8 @@ export default function AddRecurringItemForm({
       setCategory(rule.category);
       setCadence(rule.cadence);
       setError(null);
+      setPreviewError(null);
+      previewMutation.reset();
       return;
     }
     if (!open) {
@@ -71,8 +76,29 @@ export default function AddRecurringItemForm({
       setCategory('groceries');
       setCadence('weekly');
       setError(null);
+      setPreviewError(null);
+      previewMutation.reset();
     }
+    // previewMutation.reset is a stable callback from React Query; safe to omit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rule, open]);
+
+  async function handlePreview() {
+    setPreviewError(null);
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setPreviewError('Add at least one trigger word first');
+      return;
+    }
+    try {
+      await previewMutation.mutateAsync({
+        triggerWords: [trimmed],
+        category,
+      });
+    } catch (err) {
+      setPreviewError(extractApiError(err, 'Failed to preview matches'));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -153,6 +179,53 @@ export default function AddRecurringItemForm({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* C6 / D18: dry-run preview of matching active items. */}
+          <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                See which current shopping items match this rule's trigger.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePreview}
+                disabled={previewMutation.isPending}
+              >
+                {previewMutation.isPending && (
+                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                )}
+                Preview matches
+              </Button>
+            </div>
+            {previewError && (
+              <p className="text-xs text-neg" role="alert">
+                {previewError}
+              </p>
+            )}
+            {previewMutation.data && !previewError && (
+              <div className="text-xs">
+                {previewMutation.data.matchedItems.length === 0 ? (
+                  <p className="text-muted-foreground">
+                    No current items match these words.
+                  </p>
+                ) : (
+                  <>
+                    <p className="font-medium">
+                      Currently {previewMutation.data.matchedItems.length} item
+                      {previewMutation.data.matchedItems.length === 1 ? '' : 's'} would match:
+                    </p>
+                    <ul className="mt-1 list-disc list-inside text-muted-foreground">
+                      {previewMutation.data.matchedItems.map((item) => (
+                        <li key={item._id}>{item.name}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {error && <p className="text-sm text-neg">{error}</p>}
