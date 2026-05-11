@@ -188,6 +188,10 @@ export interface IHousehold extends Document {
   settings: IHouseholdSettings;
   createdBy: Types.ObjectId;
   inviteCode: string;
+  // Optional now; Task 5 adds a default + pre-save hook to populate it on
+  // create. C1 (this task) only relies on the field shape so the read-path
+  // backfill compiles cleanly.
+  inviteCodeExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -263,6 +267,7 @@ export interface IHouseholdResponse {
   settings: IHouseholdSettings;
   createdBy: string;
   inviteCode: string;
+  inviteCodeExpiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }

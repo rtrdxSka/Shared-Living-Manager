@@ -74,6 +74,50 @@ export const sendVerificationEmail = async (
   }));
 };
 
+export const sendHouseholdInvitationEmail = async (
+  to: string,
+  inviterFirstName: string,
+  householdName: string,
+  inviteCode: string,
+  expiresAt: Date,
+  personalNote?: string
+): Promise<void> => {
+  const resend = getResendClient();
+  const joinUrl = `${getFrontendUrl()}/get-started?invite=${encodeURIComponent(inviteCode)}`;
+  const expiresLabel = expiresAt.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const personalNoteHtml = personalNote
+    ? `<p style="font-size: 14px; color: #52525b; margin: 0 0 24px; padding: 12px 16px; background: #f4f4f5; border-left: 3px solid #18181b;">${escapeHtml(personalNote)}</p>`
+    : '';
+
+  await sendWithTimeout(resend.emails.send({
+    from: `HouseMate <${getFromEmail()}>`,
+    to,
+    subject: `${escapeHtml(inviterFirstName)} invited you to join ${escapeHtml(householdName)}`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #27272a;">
+        <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 8px;">Join ${escapeHtml(householdName)}</h2>
+        <p style="font-size: 14px; color: #52525b; margin: 0 0 24px;">
+          ${escapeHtml(inviterFirstName)} invited you to join their household on HouseMate.
+        </p>
+        ${personalNoteHtml}
+        <a href="${joinUrl}" style="display: inline-block; background: #18181b; color: #fafafa; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 500;">
+          Join Household
+        </a>
+        <p style="font-size: 12px; color: #a1a1aa; margin: 24px 0 0;">
+          Or paste this code on the Join screen: <strong>${escapeHtml(inviteCode)}</strong>
+        </p>
+        <p style="font-size: 12px; color: #a1a1aa; margin: 8px 0 0;">
+          This invite expires on ${expiresLabel}.
+        </p>
+      </div>
+    `,
+  }));
+};
+
 export const sendPasswordResetEmail = async (
   to: string,
   firstName: string,

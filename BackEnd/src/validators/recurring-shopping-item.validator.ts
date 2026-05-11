@@ -74,3 +74,24 @@ export const updateRuleValidation: ValidationChain[] = [
     .isBoolean()
     .withMessage('active must be a boolean'),
 ];
+
+export const previewMatchesValidation: ValidationChain[] = [
+  ...householdIdParamValidation,
+
+  body('triggerWords')
+    .isArray({ min: 1 })
+    .withMessage('triggerWords is required and must be a non-empty array'),
+
+  body('triggerWords.*')
+    .isString()
+    .withMessage('Each trigger word must be a string')
+    .bail()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Trigger words must be 1-100 characters'),
+
+  body('category')
+    .optional()
+    .isIn(EXPENSE_TYPE_VALUES)
+    .withMessage('Invalid category'),
+];
