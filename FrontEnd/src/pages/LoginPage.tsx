@@ -21,7 +21,19 @@ export default function LoginPage() {
   const [serverError, setServerError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const locationMessage = (location.state as { message?: string } | null)?.message;
+  const locationState = location.state as
+    | {
+        message?: string;
+        from?: { pathname?: string; search?: string };
+      }
+    | null;
+  const locationMessage = locationState?.message;
+  // If the user was bounced here by ProtectedRoute (e.g. via an `?invite=…`
+  // magic link), round-trip them back to where they were after login.
+  const redirectTo =
+    locationState?.from?.pathname
+      ? `${locationState.from.pathname}${locationState.from.search ?? ''}`
+      : '/';
 
   const {
     register,
@@ -37,7 +49,7 @@ export default function LoginPage() {
 
     try {
       await login(data);
-      navigate('/', { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const apiError = error.response?.data as ApiErrorResponse | undefined;

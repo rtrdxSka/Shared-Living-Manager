@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,19 @@ type GetStartedView = 'choice' | 'create' | 'join';
 
 export default function GetStartedPage() {
   const { user } = useAuth();
-  const [view, setView] = useState<GetStartedView>('choice');
+  const [searchParams] = useSearchParams();
+  const inviteFromUrl = searchParams.get('invite') ?? '';
+  const [view, setView] = useState<GetStartedView>(
+    inviteFromUrl ? 'join' : 'choice'
+  );
+
+  // If the user arrives later via a magic link (e.g. after login round-trip
+  // adds the `?invite=…` query param), flip into the Join view automatically.
+  useEffect(() => {
+    if (inviteFromUrl) {
+      setView('join');
+    }
+  }, [inviteFromUrl]);
 
   return (
     <>
@@ -36,7 +48,10 @@ export default function GetStartedPage() {
       )}
 
       {view === 'join' && (
-        <JoinView onBack={() => setView('choice')} />
+        <JoinView
+          onBack={() => setView('choice')}
+          initialCode={inviteFromUrl}
+        />
       )}
     </>
   );
@@ -124,7 +139,13 @@ function CreateView({ onBack }: { onBack: () => void }) {
 
 // ── Join household view ───────────────────────────────────────────────
 
-function JoinView({ onBack }: { onBack: () => void }) {
+function JoinView({
+  onBack,
+  initialCode = '',
+}: {
+  onBack: () => void;
+  initialCode?: string;
+}) {
   const { refreshUser } = useAuth();
   const navigate = useNavigate();
   const [serverError, setServerError] = useState('');
@@ -135,7 +156,7 @@ function JoinView({ onBack }: { onBack: () => void }) {
     formState: { errors, isSubmitting },
   } = useForm<JoinHouseholdFormData>({
     resolver: zodResolver(joinHouseholdSchema),
-    defaultValues: { inviteCode: '' },
+    defaultValues: { inviteCode: initialCode },
   });
 
   const onSubmit = async (data: JoinHouseholdFormData) => {
