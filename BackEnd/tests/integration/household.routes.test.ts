@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import request from 'supertest';
 import { Types } from 'mongoose';
 import app from '../../src/index';
+import { Household } from '../../src/models/household.model';
+import * as emailMod from '../../src/utils/email';
 import { signTestJwt } from '../helpers/auth';
 import { FIXTURES } from '../seed/fixtures';
 import { makeUser } from '../helpers/factories';
@@ -165,6 +167,49 @@ describe('POST /api/households/join', () => {
     expect(res.status).toBe(409);
   });
 
+  it('rejects join with an expired invite code', async () => {
+    // Build a household with a placeholder slot for the joiner, then force
+    // the invite to be expired by setting `inviteCodeExpiresAt` to the past.
+    const joinerEmail = `expired-joiner-${Date.now()}@example.com`;
+    const joiner = await makeUser({ email: joinerEmail });
+    const owner = await makeUser();
+    const created = await request(app)
+      .post('/api/households')
+      .set('Authorization', auth(owner._id.toString(), owner.email))
+      .send(
+        validCreateBody({
+          memberStructure: [
+            {
+              nickname: 'TheJoiner',
+              relationship: 'partner',
+              ageGroup: 'adult',
+              participatesInFinances: true,
+              participatesInTasks: true,
+              email: joinerEmail,
+            },
+          ],
+        })
+      );
+    expect(created.status).toBe(201);
+
+    await Household.updateOne(
+      { _id: new Types.ObjectId(created.body.data.household._id as string) },
+      { $set: { inviteCodeExpiresAt: new Date(Date.now() - 1000) } }
+    );
+
+    const res = await request(app)
+      .post('/api/households/join')
+      .set('Authorization', auth(joiner._id.toString(), joiner.email))
+      .send({ inviteCode: created.body.data.household.inviteCode });
+
+    expect([400, 410]).toContain(res.status);
+    const messageText =
+      (res.body as { error?: { message?: string }; message?: string }).error?.message ??
+      (res.body as { message?: string }).message ??
+      '';
+    expect(messageText).toMatch(/expired/i);
+  });
+
   it('returns 400 on invalid invite-code format (validator rejects non-UUID)', async () => {
     // Plan called for 404, but joinHouseholdValidation requires isUUID()
     // and runs BEFORE the service, so a non-UUID string is rejected at the
@@ -315,5 +360,46 @@ describe('PATCH /api/households/:id/invite-code', () => {
       .patch(`/api/households/${couple._id}/invite-code`)
       .set('Authorization', auth(bob._id.toString(), bob.email));
     expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /api/households/:id/invite/email', () => {
+  beforeEach(() => vi.mocked(emailMod.sendHouseholdInvitationEmail).mockClear());
+
+  it('admin sends an email invitation', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+
+    const res = await request(app)
+      .post(`/api/households/${couple._id}/invite/email`)
+      .set('Authorization', auth(alice._id.toString(), alice.email))
+      .send({
+        recipientEmail: 'guest@example.com',
+        personalNote: 'Come join us!',
+      });
+
+    expect(res.status).toBe(202);
+    expect(emailMod.sendHouseholdInvitationEmail).toHaveBeenCalledOnce();
+    expect(emailMod.sendHouseholdInvitationEmail).toHaveBeenCalledWith(
+      'guest@example.com',
+      alice.firstName,
+      'Alice & Bob',
+      expect.any(String),
+      expect.any(Date),
+      'Come join us!'
+    );
+  });
+
+  it('non-admin cannot send an email invitation', async () => {
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+
+    const res = await request(app)
+      .post(`/api/households/${couple._id}/invite/email`)
+      .set('Authorization', auth(bob._id.toString(), bob.email))
+      .send({ recipientEmail: 'guest@example.com' });
+
+    expect(res.status).toBe(403);
+    expect(emailMod.sendHouseholdInvitationEmail).not.toHaveBeenCalled();
   });
 });

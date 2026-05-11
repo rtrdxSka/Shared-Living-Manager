@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../../src/index';
 import { signTestJwt } from '../helpers/auth';
 import { FIXTURES } from '../seed/fixtures';
+import { ShoppingListItem } from '../../src/models/shopping-list-item.model';
 
 const auth = (uid: string) => `Bearer ${signTestJwt(uid)}`;
 
@@ -103,6 +104,56 @@ describe('Recurring shopping item routes', () => {
       .post(`/api/households/${couple._id}/shopping-list/recurring`)
       .set('Authorization', auth(carol._id.toString()))
       .send({ name: 'Intruder rule', category: 'groceries', cadence: 'weekly' });
+    expect(res.status).toBe(403);
+  });
+
+  // C6 / D18: dry-run preview endpoint — match trigger words against current active items.
+  it('POST /preview-matches → 200 returns active items matching trigger words', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+
+    // Seed two extra active shopping items: one with a unique substring we'll
+    // target ("kombucha"), one that should NOT match.
+    // NOTE: schema uses `name` (not `description`) and `archivedAt` (not `isBought`)
+    // for "active" — see BackEnd/src/models/shopping-list-item.model.ts.
+    // Using "kombucha" avoids colliding with the seeded "Milk" / "Bread" / etc.
+    await ShoppingListItem.create([
+      {
+        householdId: couple._id,
+        name: '2 bottles of kombucha',
+        category: 'groceries',
+        addedByUserId: alice._id,
+        isBought: false,
+      },
+      {
+        householdId: couple._id,
+        name: 'paper towels',
+        category: 'cleaning',
+        addedByUserId: alice._id,
+        isBought: false,
+      },
+    ]);
+
+    const res = await request(app)
+      .post(`/api/households/${couple._id}/shopping-list/recurring/preview-matches`)
+      .set('Authorization', auth(alice._id.toString()))
+      .send({ triggerWords: ['kombucha'], category: 'groceries' });
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data.matchedItems)).toBe(true);
+    expect(res.body.data.matchedItems).toHaveLength(1);
+    expect(res.body.data.matchedItems[0].name).toBe('2 bottles of kombucha');
+  });
+
+  it('POST /preview-matches → 403 for non-member', async () => {
+    const carol = FIXTURES.user('carol'); // NOT a member of couple
+    const couple = FIXTURES.household('couple');
+
+    const res = await request(app)
+      .post(`/api/households/${couple._id}/shopping-list/recurring/preview-matches`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ triggerWords: ['milk'] });
+
     expect(res.status).toBe(403);
   });
 });
