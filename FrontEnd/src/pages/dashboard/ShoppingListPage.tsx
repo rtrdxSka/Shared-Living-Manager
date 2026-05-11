@@ -72,7 +72,7 @@ export default function ShoppingListPage() {
   const [pendingDeleteRule, setPendingDeleteRule] = useState<RecurringShoppingItemResponse | null>(null);
 
   const { data: rulesData, isLoading: rulesLoading } = useRecurringRules(householdId);
-  const rules = rulesData?.rules ?? EMPTY_RULES;
+  const rules = rulesData?.items ?? EMPTY_RULES;
 
   const updateRule = useUpdateRecurringRule(householdId);
   const deleteRule = useDeleteRecurringRule(householdId);
