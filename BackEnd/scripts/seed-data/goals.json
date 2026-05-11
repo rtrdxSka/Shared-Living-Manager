@@ -1,0 +1,148 @@
+[
+  {
+    "key": "goal-1-vacation",
+    "householdKey": "couple-1",
+    "name": "Summer holiday",
+    "description": "Beach trip in August",
+    "targetAmount": 2000,
+    "deadline": "2026-08-01T00:00:00.000Z",
+    "status": "active",
+    "category": "travel",
+    "createdByUserKey": "alice",
+    "contributions": []
+  },
+  {
+    "key": "goal-2-overflow",
+    "householdKey": "couple-2",
+    "name": "Holiday fund",
+    "description": "Greece trip",
+    "targetAmount": 1000,
+    "deadline": "2026-08-01T00:00:00.000Z",
+    "status": "active",
+    "category": "travel",
+    "createdByUserKey": "carol",
+    "contributions": [
+      {
+        "memberKey": "carol-m",
+        "amount": 600,
+        "note": "May",
+        "createdAt": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "memberKey": "dan-m",
+        "amount": 500,
+        "note": "May",
+        "createdAt": "2026-05-02T00:00:00.000Z"
+      }
+    ]
+  },
+  {
+    "key": "goal-2-gadget",
+    "householdKey": "couple-2",
+    "name": "New laptop",
+    "description": "Shared home laptop",
+    "targetAmount": 800,
+    "deadline": "2026-09-01T00:00:00.000Z",
+    "status": "active",
+    "category": "home",
+    "createdByUserKey": "dan",
+    "contributions": []
+  },
+  {
+    "key": "goal-3-near-target",
+    "householdKey": "couple-3",
+    "name": "New sofa",
+    "description": "Replace the old couch",
+    "targetAmount": 1000,
+    "deadline": "2026-07-01T00:00:00.000Z",
+    "status": "active",
+    "category": "home",
+    "createdByUserKey": "erin",
+    "contributions": [
+      {
+        "memberKey": "erin-m",
+        "amount": 500,
+        "note": "April share",
+        "createdAt": "2026-04-10T00:00:00.000Z"
+      },
+      {
+        "memberKey": "frank-m",
+        "amount": 400,
+        "note": "April share",
+        "createdAt": "2026-04-11T00:00:00.000Z"
+      }
+    ]
+  },
+  {
+    "key": "goal-3-emergency",
+    "householdKey": "couple-3",
+    "name": "Emergency fund",
+    "description": "3-month buffer",
+    "targetAmount": 3000,
+    "deadline": "2026-12-01T00:00:00.000Z",
+    "status": "active",
+    "category": "savings",
+    "createdByUserKey": "frank",
+    "contributions": []
+  },
+  {
+    "key": "goal-4-kitchen",
+    "householdKey": "couple-4",
+    "name": "Kitchen renovation",
+    "description": "New countertops and backsplash",
+    "targetAmount": 2500,
+    "deadline": "2026-10-01T00:00:00.000Z",
+    "status": "active",
+    "category": "home",
+    "createdByUserKey": "grace",
+    "contributions": []
+  },
+  {
+    "key": "goal-4-weekend",
+    "householdKey": "couple-4",
+    "name": "Weekend getaway",
+    "description": "Short city break",
+    "targetAmount": 600,
+    "deadline": "2026-07-01T00:00:00.000Z",
+    "status": "active",
+    "category": "travel",
+    "createdByUserKey": "henry",
+    "contributions": []
+  },
+  {
+    "key": "goal-5-bike",
+    "householdKey": "couple-5",
+    "name": "New bikes",
+    "description": "Two city bikes",
+    "targetAmount": 1200,
+    "deadline": "2026-09-01T00:00:00.000Z",
+    "status": "active",
+    "category": "other",
+    "createdByUserKey": "iris",
+    "contributions": []
+  },
+  {
+    "key": "goal-6-holiday",
+    "householdKey": "couple-6",
+    "name": "Winter holiday",
+    "description": "Ski trip in December",
+    "targetAmount": 1500,
+    "deadline": "2026-12-01T00:00:00.000Z",
+    "status": "active",
+    "category": "travel",
+    "createdByUserKey": "kate",
+    "contributions": []
+  },
+  {
+    "key": "goal-7-furniture",
+    "householdKey": "couple-7",
+    "name": "New bedroom furniture",
+    "description": "Bed frame + wardrobe",
+    "targetAmount": 1800,
+    "deadline": "2026-10-01T00:00:00.000Z",
+    "status": "active",
+    "category": "home",
+    "createdByUserKey": "maya",
+    "contributions": []
+  }
+]

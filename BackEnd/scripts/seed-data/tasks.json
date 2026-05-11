@@ -1,0 +1,151 @@
+[
+  {
+    "key": "task-1-dishes",
+    "householdKey": "couple-1",
+    "title": "Wash the dishes",
+    "createdByUserKey": "alice",
+    "assignedToMemberKey": "bob-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-11T00:00:00.000Z",
+    "createdAt": "2026-05-10T09:00:00.000Z"
+  },
+  {
+    "key": "task-1-vacuum",
+    "householdKey": "couple-1",
+    "title": "Vacuum the living room",
+    "createdByUserKey": "bob",
+    "assignedToMemberKey": "alice-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-18T00:00:00.000Z",
+    "createdAt": "2026-05-10T10:00:00.000Z"
+  },
+  {
+    "key": "task-1-groceries",
+    "householdKey": "couple-1",
+    "title": "Buy groceries",
+    "createdByUserKey": "alice",
+    "assignedToMemberKey": "alice-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-11T00:00:00.000Z",
+    "createdAt": "2026-05-09T08:00:00.000Z"
+  },
+  {
+    "key": "task-2-bathroom",
+    "householdKey": "couple-2",
+    "title": "Clean the bathroom",
+    "createdByUserKey": "carol",
+    "assignedToMemberKey": "carol-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-18T00:00:00.000Z",
+    "createdAt": "2026-05-10T09:00:00.000Z"
+  },
+  {
+    "key": "task-2-laundry",
+    "householdKey": "couple-2",
+    "title": "Do the laundry",
+    "createdByUserKey": "dan",
+    "assignedToMemberKey": "dan-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-20T00:00:00.000Z",
+    "createdAt": "2026-05-10T10:00:00.000Z"
+  },
+  {
+    "key": "task-2-shopping",
+    "householdKey": "couple-2",
+    "title": "Weekly shopping run",
+    "createdByUserKey": "carol",
+    "isCompleted": false,
+    "dueDate": "2026-05-22T00:00:00.000Z",
+    "createdAt": "2026-05-10T11:00:00.000Z"
+  },
+  {
+    "key": "task-3-kitchen",
+    "householdKey": "couple-3",
+    "title": "Clean the kitchen",
+    "createdByUserKey": "erin",
+    "assignedToMemberKey": "frank-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-11T00:00:00.000Z",
+    "createdAt": "2026-05-10T09:00:00.000Z"
+  },
+  {
+    "key": "task-3-bins",
+    "householdKey": "couple-3",
+    "title": "Take out the bins",
+    "createdByUserKey": "frank",
+    "assignedToMemberKey": "erin-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-11T00:00:00.000Z",
+    "createdAt": "2026-05-10T10:00:00.000Z"
+  },
+  {
+    "key": "task-4-bins",
+    "householdKey": "couple-4",
+    "title": "Take out bins",
+    "createdByUserKey": "grace",
+    "assignedToMemberKey": "grace-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-05T00:00:00.000Z",
+    "createdAt": "2026-04-25T09:00:00.000Z"
+  },
+  {
+    "key": "task-4-vacuum",
+    "householdKey": "couple-4",
+    "title": "Vacuum the bedroom",
+    "createdByUserKey": "henry",
+    "assignedToMemberKey": "henry-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-18T00:00:00.000Z",
+    "createdAt": "2026-05-10T09:00:00.000Z"
+  },
+  {
+    "key": "task-4-shopping",
+    "householdKey": "couple-4",
+    "title": "Grocery run",
+    "createdByUserKey": "grace",
+    "assignedToMemberKey": "grace-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-20T00:00:00.000Z",
+    "createdAt": "2026-05-10T10:00:00.000Z"
+  },
+  {
+    "key": "task-5-cleaning",
+    "householdKey": "couple-5",
+    "title": "Deep clean bathroom",
+    "createdByUserKey": "iris",
+    "assignedToMemberKey": "iris-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-18T00:00:00.000Z",
+    "createdAt": "2026-05-10T09:00:00.000Z"
+  },
+  {
+    "key": "task-5-laundry",
+    "householdKey": "couple-5",
+    "title": "Fold and put away laundry",
+    "createdByUserKey": "jack",
+    "assignedToMemberKey": "jack-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-20T00:00:00.000Z",
+    "createdAt": "2026-05-10T10:00:00.000Z"
+  },
+  {
+    "key": "task-6-kitchen",
+    "householdKey": "couple-6",
+    "title": "Clean the kitchen",
+    "createdByUserKey": "kate",
+    "assignedToMemberKey": "kate-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-11T00:00:00.000Z",
+    "createdAt": "2026-05-10T09:00:00.000Z"
+  },
+  {
+    "key": "task-6-shopping",
+    "householdKey": "couple-6",
+    "title": "Buy household supplies",
+    "createdByUserKey": "liam",
+    "assignedToMemberKey": "liam-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-18T00:00:00.000Z",
+    "createdAt": "2026-05-10T10:00:00.000Z"
+  }
+]

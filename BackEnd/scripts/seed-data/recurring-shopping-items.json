@@ -1,0 +1,11 @@
+[
+  {
+    "key": "rec-5-milk",
+    "householdKey": "couple-5",
+    "name": "Buy milk",
+    "category": "groceries",
+    "cadence": "weekly",
+    "active": true,
+    "createdByUserKey": "iris"
+  }
+]

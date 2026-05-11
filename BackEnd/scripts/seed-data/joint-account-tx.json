@@ -1,0 +1,182 @@
+[
+  {
+    "key": "jtx-1-d1",
+    "householdKey": "couple-1",
+    "memberKey": "alice-m",
+    "userKey": "alice",
+    "type": "deposit",
+    "amount": 300,
+    "note": "April contribution",
+    "createdAt": "2026-04-01T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-d2",
+    "householdKey": "couple-1",
+    "memberKey": "bob-m",
+    "userKey": "bob",
+    "type": "deposit",
+    "amount": 300,
+    "note": "April contribution",
+    "createdAt": "2026-04-08T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-d3",
+    "householdKey": "couple-1",
+    "memberKey": "alice-m",
+    "userKey": "alice",
+    "type": "deposit",
+    "amount": 300,
+    "note": "April contribution",
+    "createdAt": "2026-04-15T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-d4",
+    "householdKey": "couple-1",
+    "memberKey": "bob-m",
+    "userKey": "bob",
+    "type": "deposit",
+    "amount": 300,
+    "note": "April contribution",
+    "createdAt": "2026-04-22T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-d5",
+    "householdKey": "couple-1",
+    "memberKey": "alice-m",
+    "userKey": "alice",
+    "type": "deposit",
+    "amount": 300,
+    "note": "April contribution",
+    "createdAt": "2026-04-29T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-d6",
+    "householdKey": "couple-1",
+    "memberKey": "bob-m",
+    "userKey": "bob",
+    "type": "deposit",
+    "amount": 300,
+    "note": "May contribution",
+    "createdAt": "2026-05-06T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-w1",
+    "householdKey": "couple-1",
+    "memberKey": "alice-m",
+    "userKey": "alice",
+    "type": "withdrawal",
+    "amount": 150,
+    "note": "groceries",
+    "createdAt": "2026-04-10T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-w2",
+    "householdKey": "couple-1",
+    "memberKey": "bob-m",
+    "userKey": "bob",
+    "type": "withdrawal",
+    "amount": 150,
+    "note": "utilities",
+    "createdAt": "2026-04-17T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-w3",
+    "householdKey": "couple-1",
+    "memberKey": "alice-m",
+    "userKey": "alice",
+    "type": "withdrawal",
+    "amount": 150,
+    "note": "groceries",
+    "createdAt": "2026-04-24T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-1-w4",
+    "householdKey": "couple-1",
+    "memberKey": "bob-m",
+    "userKey": "bob",
+    "type": "withdrawal",
+    "amount": 150,
+    "note": "rent partial",
+    "createdAt": "2026-05-01T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-6-d1",
+    "householdKey": "couple-6",
+    "memberKey": "kate-m",
+    "userKey": "kate",
+    "type": "deposit",
+    "amount": 200,
+    "note": "April contribution",
+    "createdAt": "2026-04-01T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-6-d2",
+    "householdKey": "couple-6",
+    "memberKey": "liam-m",
+    "userKey": "liam",
+    "type": "deposit",
+    "amount": 100,
+    "note": "April contribution",
+    "createdAt": "2026-04-15T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-6-d3",
+    "householdKey": "couple-6",
+    "memberKey": "kate-m",
+    "userKey": "kate",
+    "type": "deposit",
+    "amount": 100,
+    "note": "May contribution",
+    "createdAt": "2026-05-01T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-6-w1",
+    "householdKey": "couple-6",
+    "memberKey": "kate-m",
+    "userKey": "kate",
+    "type": "withdrawal",
+    "amount": 100,
+    "note": "groceries",
+    "createdAt": "2026-04-05T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-6-w2",
+    "householdKey": "couple-6",
+    "memberKey": "liam-m",
+    "userKey": "liam",
+    "type": "withdrawal",
+    "amount": 100,
+    "note": "utilities",
+    "createdAt": "2026-04-12T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-6-w3",
+    "householdKey": "couple-6",
+    "memberKey": "kate-m",
+    "userKey": "kate",
+    "type": "withdrawal",
+    "amount": 100,
+    "note": "groceries",
+    "createdAt": "2026-04-20T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-6-w4",
+    "householdKey": "couple-6",
+    "memberKey": "liam-m",
+    "userKey": "liam",
+    "type": "withdrawal",
+    "amount": 75,
+    "note": "internet",
+    "createdAt": "2026-04-28T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-6-w5",
+    "householdKey": "couple-6",
+    "memberKey": "kate-m",
+    "userKey": "kate",
+    "type": "withdrawal",
+    "amount": 75,
+    "note": "groceries",
+    "createdAt": "2026-05-08T14:00:00.000Z"
+  }
+]
