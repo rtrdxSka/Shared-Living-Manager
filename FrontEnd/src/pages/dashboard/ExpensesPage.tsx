@@ -554,9 +554,13 @@ const ExpenseRow = React.memo(function ExpenseRow({
     const isCreditorLocal = expense.paidByUserId === currentUserId;
     const isDebtorLocal = !isUnpaidLocal && !isCreditorLocal;
     const isSplitModeLocal = financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner;
+    // Hint persists while the expense is in the disputed state. The backend clears
+    // `lastDisputedAt` when the debtor re-requests resolution or the creditor
+    // confirms receipt, so its presence is a sufficient marker of "currently disputed".
     const wasRecentlyDisputedLocal = !!(
-      expense.lastDisputedAt &&
-      Date.now() - new Date(expense.lastDisputedAt).getTime() < 24 * 60 * 60 * 1000
+      !expense.isResolved &&
+      !expense.pendingConfirmation &&
+      expense.lastDisputedAt
     );
     return {
       isUnpaid: isUnpaidLocal,

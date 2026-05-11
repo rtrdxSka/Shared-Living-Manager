@@ -9,7 +9,7 @@ import EmptyState from '@/components/dashboard/shared/EmptyState';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { MoneyAmount } from '@/components/ui/money-amount';
-import { fmt } from '@/utils/dashboardHelpers';
+import { fmt, computeGoalProgress } from '@/utils/dashboardHelpers';
 import type { GoalResponse } from '@/types/goal.types';
 
 // ── Category emoji map ────────────────────────────────────────────────────
@@ -60,9 +60,10 @@ function GoalCard({ goal, confirmingDelete, setConfirmingDelete }: GoalCardProps
   const [deletePending, setDeletePending] = useState(false);
   const [contributionsOpen, setContributionsOpen] = useState(false);
 
-  const pct = goal.targetAmount > 0
-    ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
-    : 0;
+  const { pct, capped, overflowAmount } = computeGoalProgress(
+    goal.currentAmount,
+    goal.targetAmount
+  );
 
   const remaining = Math.max(0, goal.targetAmount - goal.currentAmount);
   const isActive = goal.status === 'active';
@@ -141,14 +142,23 @@ function GoalCard({ goal, confirmingDelete, setConfirmingDelete }: GoalCardProps
       <div className="h-2 w-full bg-surface-2 rounded-full overflow-hidden mt-3">
         <div
           className="h-full bg-accent rounded-full transition-all"
-          style={{ width: `${pct}%` }}
+          style={{ width: `${capped}%` }}
         />
       </div>
 
-      {/* Footer: pct + remaining */}
-      <div className="flex items-center justify-between text-xs text-ink-3 mt-2">
-        <span>{pct}%</span>
-        <span>{fmt(remaining)} {currency} to go</span>
+      {/* Footer: pct + remaining/overflow */}
+      <div className="flex items-center justify-between gap-2 text-xs text-ink-3 mt-2">
+        <span className="flex items-baseline gap-1.5 min-w-0">
+          <span>Saved {pct}% of target</span>
+          {overflowAmount > 0 && (
+            <span className="text-[10px] text-ink-3/80 truncate">
+              over by {fmt(overflowAmount)} {currency}
+            </span>
+          )}
+        </span>
+        {overflowAmount === 0 ? (
+          <span className="shrink-0">{fmt(remaining)} {currency} to go</span>
+        ) : null}
       </div>
 
       {/* Add contribution ghost button (active goals only) */}

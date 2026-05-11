@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Send, RefreshCw, Loader2, Check } from 'lucide-react';
+import { Mail, RefreshCw, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { BlobBack } from '@/components/ui/blob-back';
@@ -7,13 +7,32 @@ import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useRegenerateInviteCode } from '@/hooks/queries';
+import EmailInviteDialog from '@/components/dashboard/shared/EmailInviteDialog';
+
+// Format the time-to-expiry as a short, friendly label. Returns the matching
+// copy plus the boolean flag the UI uses to disable the email-invite button.
+function formatExpiry(expiresAt: Date | null): { label: string; isExpired: boolean } {
+  if (!expiresAt) return { label: 'Code never expires', isExpired: false };
+  const diffMs = expiresAt.getTime() - Date.now();
+  if (diffMs <= 0) return { label: 'Expired — regenerate to invite', isExpired: true };
+  const ONE_DAY = 86_400_000;
+  const days = Math.ceil(diffMs / ONE_DAY);
+  if (days === 1) return { label: 'Expires in less than a day', isExpired: false };
+  return { label: `Expires in ${days} days`, isExpired: false };
+}
 
 export default function InvitePage() {
   const { household, currentUserId, isAdmin, myNickname } = useDashboard();
   const [copied, setCopied] = useState(false);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   const regenerateMutation = useRegenerateInviteCode(household._id);
+
+  const expiresAt = household.inviteCodeExpiresAt
+    ? new Date(household.inviteCodeExpiresAt)
+    : null;
+  const { label: expiryLabel, isExpired } = formatExpiry(expiresAt);
 
   // Count only linked users — placeholder slots seeded at household creation
   // have no userId yet and must not be treated as joined. Mirrors the
@@ -65,10 +84,19 @@ export default function InvitePage() {
               setConfirmingRegenerate={setConfirmingRegenerate}
               onRegenerate={handleRegenerate}
               regeneratePending={regenerateMutation.isPending}
+              expiryLabel={expiryLabel}
+              isExpired={isExpired}
+              onEmailInviteClick={() => setEmailDialogOpen(true)}
             />
           )}
         </div>
       </div>
+
+      <EmailInviteDialog
+        householdId={household._id}
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+      />
     </>
   );
 }
@@ -155,6 +183,9 @@ interface InvitePromptViewProps {
   setConfirmingRegenerate: (v: boolean) => void;
   onRegenerate: () => Promise<void>;
   regeneratePending: boolean;
+  expiryLabel: string;
+  isExpired: boolean;
+  onEmailInviteClick: () => void;
 }
 
 function InvitePromptView({
@@ -167,6 +198,9 @@ function InvitePromptView({
   setConfirmingRegenerate,
   onRegenerate,
   regeneratePending,
+  expiryLabel,
+  isExpired,
+  onEmailInviteClick,
 }: InvitePromptViewProps) {
   return (
     <>
@@ -206,25 +240,30 @@ function InvitePromptView({
         </Button>
       </div>
 
-      {/* 2-col ghost buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          variant="outline"
-          onClick={(e) => e.preventDefault()}
-          disabled
-        >
-          <Mail className="h-4 w-4 mr-2" />
-          Email invite
-        </Button>
-        <Button
-          variant="outline"
-          onClick={(e) => e.preventDefault()}
-          disabled
-        >
-          <Send className="h-4 w-4 mr-2" />
-          Text invite
-        </Button>
-      </div>
+      {/* expiry label */}
+      <p
+        className={`text-center text-xs ${
+          isExpired ? 'text-neg' : 'text-ink-3'
+        }`}
+      >
+        {expiryLabel}
+      </p>
+
+      {/* email-invite action */}
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={onEmailInviteClick}
+        disabled={isExpired}
+        title={
+          isExpired
+            ? 'Regenerate the code to send a new invite.'
+            : undefined
+        }
+      >
+        <Mail className="h-4 w-4 mr-2" />
+        Email invite
+      </Button>
 
       {/* admin: regenerate */}
       {isAdmin && (
@@ -273,7 +312,7 @@ function InvitePromptView({
 
       {/* footnote */}
       <p className="text-center text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
-        Only one person can join · code never expires
+        Only one person can join
       </p>
     </>
   );

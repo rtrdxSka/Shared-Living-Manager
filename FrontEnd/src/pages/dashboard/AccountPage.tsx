@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -151,6 +152,7 @@ export default function AccountPage() {
     household,
     currency,
     isAdmin,
+    financeMode,
     setAddTransactionOpen,
     deleteJointTransaction,
   } = useDashboard();
@@ -159,11 +161,18 @@ export default function AccountPage() {
   const [configOpen, setConfigOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
+  // Redirect direct-URL access in split mode — Account tab does not exist there.
+  const isSplitMode = financeMode === 'split';
+
   const { data: summary, isLoading } = useJointAccountSummary(
     household._id,
     accountMonth,
-    true
+    !isSplitMode
   );
+
+  if (isSplitMode) {
+    return <Navigate to="/dashboard/expenses" replace />;
+  }
 
   const transactions = summary?.transactions ?? [];
   const memberBreakdown = summary?.memberBreakdown ?? [];
@@ -195,6 +204,16 @@ export default function AccountPage() {
       />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* ── Overdraft warning rail ── */}
+        {summary && summary.balance < 0 && (
+          <div
+            role="alert"
+            className="rounded-md border border-neg/40 bg-neg/[0.08] px-4 py-2 text-sm text-neg"
+          >
+            Joint account is overdrawn by {fmt(Math.abs(summary.balance))} {currency}.
+          </div>
+        )}
+
         {/* ── Hero balance card ── */}
         {isLoading ? (
           <div className="flex justify-center py-10">
@@ -218,14 +237,28 @@ export default function AccountPage() {
                     ? `You've deposited ${fmt(summary.monthlyDeposits)} ${currency} of ${fmt(summary.monthlyTarget!)} ${currency} monthly target`
                     : `${fmt(summary.monthlyDeposits)} ${currency} deposited this month`}
                 </p>
-                {hasTarget && (
+                {hasTarget ? (
                   <div className="w-full max-w-[480px] h-2 bg-surface-2 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-accent rounded-full transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                )}
+                ) : isAdmin ? (
+                  <div className="space-y-2 max-w-[480px]">
+                    <div
+                      className="h-2 w-full rounded-full border border-dashed border-ink-3/40"
+                      aria-hidden
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfigOpen(true)}
+                    >
+                      Set a monthly target
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             }
             actions={

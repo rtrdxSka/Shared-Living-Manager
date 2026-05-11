@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useExpenses, useJointAccountSummary } from '@/hooks/queries';
 import IncomeEntryCard from '@/components/dashboard/shared/IncomeEntryCard';
+import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { HeroNumberCard } from '@/components/ui/hero-number-card';
 import { Donut } from '@/components/ui/donut';
@@ -20,6 +22,7 @@ import {
   currentMonthString,
   stepMonth,
   formatMonthLabel,
+  computeGoalProgress,
 } from '@/utils/dashboardHelpers';
 import type { ExpenseResponse } from '@/types/expense.types';
 import type { HouseholdResponse } from '@/types/household.types';
@@ -48,6 +51,7 @@ export default function OverviewPage() {
     goals,
     goalsLoading,
     taskLevel,
+    isAdmin,
     setAddGoalOpen,
     setAddTransactionOpen,
     splitMethod: _splitMethod,
@@ -55,6 +59,7 @@ export default function OverviewPage() {
 
   const [viewMode, setViewMode] = useState<ViewMode>('current');
   const [selectedMonth, setSelectedMonth] = useState(currentMonthString);
+  const [jointConfigOpen, setJointConfigOpen] = useState(false);
 
   const effectiveMonth =
     viewMode === 'current' ? currentMonthString() :
@@ -139,6 +144,8 @@ export default function OverviewPage() {
           tasks={tasks}
           taskLevel={taskLevel}
           jointAccount={jointAccount}
+          isAdmin={isAdmin}
+          onSetJointTarget={() => setJointConfigOpen(true)}
         />
 
         {financeMode === 'joint' && jointAccount && (
@@ -172,6 +179,17 @@ export default function OverviewPage() {
         {/* Friendly nudge */}
 
       </div>
+
+      {financeMode === 'joint' && (
+        <JointAccountConfigDialog
+          householdId={household._id}
+          open={jointConfigOpen}
+          onOpenChange={setJointConfigOpen}
+          currency={currency}
+          currentTarget={jointAccount?.monthlyTarget ?? undefined}
+          currentMode={jointAccount?.targetMode}
+        />
+      )}
     </div>
   );
 }
@@ -194,6 +212,8 @@ interface StatsRowProps {
   tasks: TaskResponse[];
   taskLevel: TaskManagementLevel;
   jointAccount: JointAccountSummaryResponse | null;
+  isAdmin: boolean;
+  onSetJointTarget: () => void;
 }
 
 const StatsRow = React.memo(function StatsRow({
@@ -211,6 +231,8 @@ const StatsRow = React.memo(function StatsRow({
   tasks,
   taskLevel,
   jointAccount,
+  isAdmin,
+  onSetJointTarget,
 }: StatsRowProps) {
 
 
@@ -318,7 +340,12 @@ const StatsRow = React.memo(function StatsRow({
             below={<SparkBars values={sparkValues} highlightLast className="mt-3" />}
           />
           {jointAccount ? (
-            <JointAccountTile jointAccount={jointAccount} currency={currency} />
+            <JointAccountTile
+              jointAccount={jointAccount}
+              currency={currency}
+              isAdmin={isAdmin}
+              onSetTarget={onSetJointTarget}
+            />
           ) : (
             <StatTile
               eyebrow="PER PERSON"
@@ -456,23 +483,39 @@ function StatTile({
 function JointAccountTile({
   jointAccount,
   currency,
+  isAdmin,
+  onSetTarget,
 }: {
   jointAccount: JointAccountSummaryResponse;
   currency: string;
+  isAdmin: boolean;
+  onSetTarget: () => void;
 }) {
-  const pct = jointAccount.monthlyTarget && jointAccount.monthlyTarget > 0
-    ? Math.min(100, (jointAccount.monthlyDeposits / jointAccount.monthlyTarget) * 100)
+  const hasTarget = !!jointAccount.monthlyTarget && jointAccount.monthlyTarget > 0;
+  const pct = hasTarget
+    ? Math.min(100, (jointAccount.monthlyDeposits / (jointAccount.monthlyTarget as number)) * 100)
     : null;
+  const overdrawn = jointAccount.balance < 0;
 
   return (
-    <Card>
+    <Card className={cn(overdrawn && 'border-l-4 border-l-neg')}>
       <CardContent className="p-5">
-        <EyebrowLabel as="div" className="mb-2">JOINT ACCOUNT</EyebrowLabel>
-        <MoneyAmount amount={jointAccount.balance} currency={currency} size="lg" />
-        {jointAccount.monthlyTarget != null && (
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <EyebrowLabel as="div">JOINT ACCOUNT</EyebrowLabel>
+          {overdrawn && (
+            <span
+              role="status"
+              className="rounded-full bg-neg/[0.12] px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-neg"
+            >
+              Overdrawn
+            </span>
+          )}
+        </div>
+        <MoneyAmount amount={jointAccount.balance} currency={currency} size="lg" tone="auto" />
+        {hasTarget ? (
           <>
             <p className="mt-1 text-xs text-ink-3">
-              {fmt(jointAccount.monthlyDeposits)} of {fmt(jointAccount.monthlyTarget)} deposited this month
+              {fmt(jointAccount.monthlyDeposits)} of {fmt(jointAccount.monthlyTarget as number)} deposited this month
             </p>
             {pct !== null && (
               <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden mt-3">
@@ -480,7 +523,21 @@ function JointAccountTile({
               </div>
             )}
           </>
-        )}
+        ) : isAdmin ? (
+          <div className="mt-3 space-y-2">
+            <div
+              className="h-1.5 w-full rounded-full border border-dashed border-ink-3/40"
+              aria-hidden
+            />
+            <button
+              type="button"
+              onClick={onSetTarget}
+              className="text-xs font-medium text-accent hover:underline"
+            >
+              Set a monthly target
+            </button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -626,9 +683,10 @@ const GoalsPreviewCard = React.memo(function GoalsPreviewCard({
         ) : (
           <div className="space-y-4">
             {activeGoals.map((goal) => {
-              const pct = goal.targetAmount > 0
-                ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
-                : 0;
+              const { pct, capped, overflowAmount } = computeGoalProgress(
+                goal.currentAmount,
+                goal.targetAmount
+              );
               return (
                 <div key={goal._id} className="space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
@@ -640,10 +698,17 @@ const GoalsPreviewCard = React.memo(function GoalsPreviewCard({
                     )}
                   </div>
                   <div className="h-2 w-full bg-surface-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${capped}%` }} />
                   </div>
                   <div className="flex items-center justify-between text-xs text-ink-3">
-                    <span>{pct}%</span>
+                    <span className="flex items-baseline gap-1">
+                      <span>{pct}%</span>
+                      {overflowAmount > 0 && (
+                        <span className="text-[10px] text-ink-3/80">
+                          (+{fmt(overflowAmount)} {currency})
+                        </span>
+                      )}
+                    </span>
                     <span>
                       <MoneyAmount amount={goal.currentAmount} currency={currency} size="sm" /> / <MoneyAmount amount={goal.targetAmount} currency={currency} size="sm" />
                     </span>
