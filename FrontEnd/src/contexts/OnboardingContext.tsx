@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import {
   OnboardingContext,
+  type BuildPayloadResult,
   type OnboardingSurveyState,
 } from './onboarding.context';
 import {
@@ -35,7 +36,7 @@ const initialStep3: OnboardingSurveyState['step3'] = {
   financeMode: '',
   expenseSplitMethod: '',
   trackedExpenseTypes: [],
-  currency: 'BGN',
+  currency: 'EUR',
 };
 
 const initialStep4: OnboardingSurveyState['step4'] = {
@@ -201,14 +202,26 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   // ── Payload assembly ────────────────────────────────────────────────
 
-  const buildSubmitPayload = useCallback((): OnboardingSurveyData | null => {
+  const buildSubmitPayload = useCallback((): BuildPayloadResult => {
     const { step1, step2, step3, step4 } = surveyState;
 
-    // Verify required fields are filled
-    if (!step1.livingArrangement || !step1.householdName) return null;
-    if (!step2.creatorProfile.nickname) return null;
-    if (!step4.taskManagementEnabled) return null;
-    if (step3.trackedExpenseTypes.length === 0) return null;
+    // Verify required fields are filled — return the *first* missing field
+    // we encounter so the caller can deep-link the user back to it.
+    if (!step1.livingArrangement) {
+      return { kind: 'missing', stepIndex: 1, fieldName: 'livingArrangement' };
+    }
+    if (!step1.householdName) {
+      return { kind: 'missing', stepIndex: 1, fieldName: 'householdName' };
+    }
+    if (!step2.creatorProfile.nickname) {
+      return { kind: 'missing', stepIndex: 2, fieldName: 'creatorProfile.nickname' };
+    }
+    if (step3.trackedExpenseTypes.length === 0) {
+      return { kind: 'missing', stepIndex: 3, fieldName: 'trackedExpenseTypes' };
+    }
+    if (!step4.taskManagementEnabled) {
+      return { kind: 'missing', stepIndex: 4, fieldName: 'taskManagementEnabled' };
+    }
 
     const arrangement = step1.livingArrangement;
     const isNonSolo = arrangement !== 'alone';
@@ -219,9 +232,15 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       step4.taskManagementEnabled
     );
 
-    if (needsFinanceMode && !step3.financeMode) return null;
-    if (needsSplit && !step3.expenseSplitMethod) return null;
-    if (needsDistribution && !step4.taskDistributionMethod) return null;
+    if (needsFinanceMode && !step3.financeMode) {
+      return { kind: 'missing', stepIndex: 3, fieldName: 'financeMode' };
+    }
+    if (needsSplit && !step3.expenseSplitMethod) {
+      return { kind: 'missing', stepIndex: 3, fieldName: 'expenseSplitMethod' };
+    }
+    if (needsDistribution && !step4.taskDistributionMethod) {
+      return { kind: 'missing', stepIndex: 4, fieldName: 'taskDistributionMethod' };
+    }
 
     const payload: OnboardingSurveyData = {
       // Step 1
@@ -253,8 +272,19 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         : {}),
     };
 
-    return payload;
+    return { kind: 'ok', payload };
   }, [surveyState, isAlone]);
+
+  // ── Effective step count ────────────────────────────────────────────
+  // Today all five steps are answered in every arrangement we support.
+  // Centralizing the derivation here lets future arrangements (e.g. a flow
+  // that fully skips a step) return < 5 without touching consumers. The
+  // deps look "unused" today but are listed intentionally so the value
+  // recomputes if a future branch reads them.
+  const effectiveTotalSteps = useMemo<number>(() => {
+    return 5;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surveyState.step1.livingArrangement, surveyState.step4.taskManagementEnabled]);
 
   // ── Reset ───────────────────────────────────────────────────────────
 
@@ -271,6 +301,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       value={{
         currentStep,
         totalSteps,
+        effectiveTotalSteps,
         surveyState,
         updateStepData,
         nextStep,

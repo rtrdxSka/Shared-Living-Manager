@@ -30,10 +30,11 @@ import {
   useRemoveContribution,
   useUpdateSettings,
   useDeleteJointTransaction,
+  useJointAccountSummary,
   useTasks,
 } from '@/hooks/queries';
 
-import { deriveIncomeSplit, getDueDateStatus } from '@/utils/dashboardHelpers';
+import { deriveIncomeSplit, getDueDateStatus, currentMonthString } from '@/utils/dashboardHelpers';
 
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
@@ -173,6 +174,17 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const { data: goalsData, isLoading: goalsLoading } = useGoals(household._id);
   const goals = goalsData?.items ?? EMPTY_GOALS;
 
+  // Joint-account summary — fetched only in joint mode so the AddTransactionForm
+  // can warn on overdraws. Cache-keyed by month so the AccountPage/OverviewPage
+  // share the same in-flight request.
+  const isJointMode = (household.settings.financeMode as FinanceMode) === 'joint';
+  const { data: jointSummaryForBalance } = useJointAccountSummary(
+    household._id,
+    currentMonthString(),
+    isJointMode
+  );
+  const currentJointBalance = jointSummaryForBalance?.balance;
+
   // ── Mutations ─────────────────────────────────────────────────────────
   const deleteExpenseMutation = useDeleteExpense(household._id);
   const claimExpenseMutation = useClaimExpense(household._id);
@@ -198,7 +210,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   );
   const myNickname = myMember?.nickname ?? 'You';
   const partnerNickname = partnerMember?.nickname ?? 'Partner';
-  const currency = household.settings.currency ?? 'BGN';
+  const currency = household.settings.currency ?? 'EUR';
   const myMemberId = myMember?._id ?? '';
   const isAdmin = myMember?.role === 'owner' || myMember?.role === 'admin';
   const myParticipatesInFinances = myMember?.participatesInFinances ?? false;
@@ -511,6 +523,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
         open={addTransactionOpen}
         onOpenChange={setAddTransactionOpen}
         currency={currency}
+        currentBalance={currentJointBalance}
       />
     </DashboardContext.Provider>
   );
