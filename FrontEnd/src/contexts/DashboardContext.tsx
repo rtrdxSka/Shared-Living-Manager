@@ -165,13 +165,13 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   // consumers that don't paginate (counts, summaries). The TasksPage drives
   // fetchNextPage on its own copy of the same query (shared cache by key).
   const tasks = useMemo(
-    () => tasksData?.pages.flatMap((p) => p.tasks) ?? EMPTY_TASKS,
+    () => tasksData?.pages.flatMap((p) => p.items) ?? EMPTY_TASKS,
     [tasksData]
   );
   const rotationStatus = tasksData?.pages[0]?.rotation ?? null;
 
   const { data: goalsData, isLoading: goalsLoading } = useGoals(household._id);
-  const goals = goalsData?.goals ?? EMPTY_GOALS;
+  const goals = goalsData?.items ?? EMPTY_GOALS;
 
   // ── Mutations ─────────────────────────────────────────────────────────
   const deleteExpenseMutation = useDeleteExpense(household._id);
