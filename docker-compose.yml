@@ -37,8 +37,8 @@ services:
   # Backend API
   backend:
     build:
-      context: ./BackEnd
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: BackEnd/Dockerfile
     container_name: splitmate-backend
     restart: unless-stopped
     ports:
@@ -54,8 +54,9 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       FROM_EMAIL: ${FROM_EMAIL}
     volumes:
-      - ./BackEnd/src:/app/src
-      - backend_node_modules:/app/node_modules
+      - ./BackEnd/src:/app/BackEnd/src
+      - backend_root_node_modules:/app/node_modules
+      - backend_pkg_node_modules:/app/BackEnd/node_modules
     depends_on:
       mongodb:
         condition: service_healthy
@@ -65,8 +66,8 @@ services:
   # Frontend Vite Dev Server
   frontend:
     build:
-      context: ./FrontEnd
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: FrontEnd/Dockerfile
     container_name: splitmate-frontend
     restart: unless-stopped
     ports:
@@ -76,9 +77,10 @@ services:
       VITE_API_PROXY_TARGET: http://backend:5000
       DOCKER: "true"
     volumes:
-      - ./FrontEnd/src:/app/src
-      - ./FrontEnd/public:/app/public
-      - frontend_node_modules:/app/node_modules
+      - ./FrontEnd/src:/app/FrontEnd/src
+      - ./FrontEnd/public:/app/FrontEnd/public
+      - frontend_root_node_modules:/app/node_modules
+      - frontend_pkg_node_modules:/app/FrontEnd/node_modules
     depends_on:
       - backend
     networks:
@@ -89,9 +91,13 @@ volumes:
     driver: local
   mongodb_config:
     driver: local
-  backend_node_modules:
+  backend_root_node_modules:
     driver: local
-  frontend_node_modules:
+  backend_pkg_node_modules:
+    driver: local
+  frontend_root_node_modules:
+    driver: local
+  frontend_pkg_node_modules:
     driver: local
 
 networks:
