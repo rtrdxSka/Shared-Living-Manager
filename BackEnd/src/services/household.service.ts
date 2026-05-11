@@ -14,6 +14,8 @@ import {
 } from '../types/household.types';
 import mongoose, { Types } from 'mongoose';
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../utils/error';
+import { sendHouseholdInvitationEmail } from '../utils/email';
+import { INVITE_CODE_TTL_MS } from '../utils/invite';
 
 class HouseholdService {
   // ── Create from Onboarding ──────────────────────────────────────────
@@ -130,6 +132,11 @@ class HouseholdService {
     const household = await Household.findOne({ inviteCode: input.inviteCode });
     if (!household) {
       throw NotFoundError('Invalid invite code');
+    }
+    if (household.inviteCodeExpiresAt && household.inviteCodeExpiresAt < new Date()) {
+      throw BadRequestError(
+        'This invite code has expired. Ask the household admin to regenerate it.'
+      );
     }
 
     // 2. Verify user exists
@@ -284,6 +291,28 @@ class HouseholdService {
       throw ForbiddenError('You are not a member of this household');
     }
 
+    // ── Read-path migrations (idempotent, one-time per row) ─────────────
+    // C1: legacy 'BGN' settings.currency → 'EUR'.
+    // C5: pre-existing households created before invite-expiry shipped get
+    //     `inviteCodeExpiresAt` backfilled to `now + 7 days`.
+    // Both are coalesced into a single $set so we never double-write.
+    const updates: Record<string, unknown> = {};
+    if ((household.settings.currency as string) === 'BGN') {
+      updates['settings.currency'] = 'EUR';
+    }
+    if (!household.inviteCodeExpiresAt) {
+      updates.inviteCodeExpiresAt = new Date(Date.now() + INVITE_CODE_TTL_MS);
+    }
+    if (Object.keys(updates).length > 0) {
+      await Household.updateOne({ _id: household._id }, { $set: updates });
+      if (updates['settings.currency']) {
+        household.settings.currency = 'EUR';
+      }
+      if (updates.inviteCodeExpiresAt) {
+        household.inviteCodeExpiresAt = updates.inviteCodeExpiresAt as Date;
+      }
+    }
+
     return this.formatHouseholdResponse(household);
   }
 
@@ -301,8 +330,56 @@ class HouseholdService {
       throw ForbiddenError('Only admins can regenerate the invite code');
 
     household.inviteCode = crypto.randomUUID();
+    household.inviteCodeExpiresAt = new Date(Date.now() + INVITE_CODE_TTL_MS);
     await household.save();
     return this.formatHouseholdResponse(household);
+  }
+
+  // ── Send Invite Email ────────────────────────────────────────────────
+
+  async sendInviteEmail(
+    householdId: string,
+    requesterId: string,
+    recipientEmail: string,
+    personalNote?: string
+  ): Promise<void> {
+    const household = await Household.findById(householdId);
+    if (!household) {
+      throw NotFoundError('Household not found');
+    }
+
+    const requesterMember = household.members.find(
+      (m) => m.userId?.toString() === requesterId
+    );
+    if (
+      !requesterMember ||
+      (requesterMember.role !== 'owner' && requesterMember.role !== 'admin')
+    ) {
+      throw ForbiddenError('Only admins can send invite emails');
+    }
+
+    if (household.inviteCodeExpiresAt && household.inviteCodeExpiresAt < new Date()) {
+      throw BadRequestError(
+        'This invite code has expired. Regenerate it before sending a new invite.'
+      );
+    }
+
+    const requester = await User.findById(requesterId);
+    if (!requester) {
+      throw NotFoundError('Requesting user not found');
+    }
+
+    const expiresAt =
+      household.inviteCodeExpiresAt ?? new Date(Date.now() + INVITE_CODE_TTL_MS);
+
+    await sendHouseholdInvitationEmail(
+      recipientEmail,
+      requester.firstName,
+      household.name,
+      household.inviteCode,
+      expiresAt,
+      personalNote
+    );
   }
 
   // ── Private helpers ─────────────────────────────────────────────────
@@ -328,6 +405,9 @@ class HouseholdService {
       settings: household.settings,
       createdBy: household.createdBy.toString(),
       inviteCode: household.inviteCode,
+      ...(household.inviteCodeExpiresAt && {
+        inviteCodeExpiresAt: household.inviteCodeExpiresAt.toISOString(),
+      }),
       createdAt: household.createdAt.toISOString(),
       updatedAt: household.updatedAt.toISOString(),
     };

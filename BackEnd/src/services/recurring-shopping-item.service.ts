@@ -7,11 +7,35 @@ import {
   IFireRulesResult,
   RecurrenceCadence,
 } from '../types/recurring-shopping-item.types';
+import type { ExpenseType } from '../types/household.types';
+import type { IShoppingListItemResponse } from '../types/shopping-list.types';
 import { NotFoundError, ForbiddenError } from '../utils/error';
 import { getHouseholdForMember } from '../utils/household.helpers';
 import { ShoppingListItem } from '../models/shopping-list-item.model';
 import { shoppingListService } from './shopping-list.service';
 import { logger } from '../utils/logger';
+
+/**
+ * Case-insensitive "any trigger word appears as a substring of the item name".
+ * Used by the dry-run preview endpoint (C6/D18) to show users which currently
+ * active shopping items would match a candidate recurring rule before saving.
+ *
+ * NOTE: the cron path (`fireRulesForCadence`) does a stricter `name+category`
+ * exact-key dedup; the preview is a forward-looking fuzzy hint, not a literal
+ * dry-run of the cron's dedup check. The two are intentionally different —
+ * preview helps the user pick good rule names; the cron prevents duplicates.
+ */
+export function matchesTriggerWords(
+  itemName: string,
+  triggerWords: string[]
+): boolean {
+  if (!itemName || triggerWords.length === 0) return false;
+  const lower = itemName.toLowerCase();
+  return triggerWords.some((word) => {
+    const w = word.trim().toLowerCase();
+    return w.length > 0 && lower.includes(w);
+  });
+}
 
 class RecurringShoppingItemService {
   async createRule(
@@ -94,6 +118,60 @@ class RecurringShoppingItemService {
     }
 
     await rule.deleteOne();
+  }
+
+  /**
+   * Dry-run preview for the recurring-rule editor. Returns the subset of
+   * currently active (un-archived) shopping items in this household whose
+   * `name` matches any of the provided trigger words (case-insensitive
+   * substring). Optional category filter narrows the candidate pool.
+   *
+   * Membership is enforced via getHouseholdForMember (same as other writes).
+   */
+  async previewMatches(
+    householdId: string,
+    userId: string,
+    triggerWords: string[],
+    category?: ExpenseType
+  ): Promise<{ matchedItems: IShoppingListItemResponse[] }> {
+    const { household } = await getHouseholdForMember(householdId, userId);
+
+    const query: Record<string, unknown> = {
+      householdId: household._id,
+      archivedAt: null,
+    };
+    if (category) {
+      query.category = category;
+    }
+
+    const items = await ShoppingListItem.find(query).lean();
+    const matched = items.filter((item) =>
+      matchesTriggerWords(item.name, triggerWords)
+    );
+
+    return {
+      matchedItems: matched.map((item) => ({
+        _id: item._id.toString(),
+        householdId: item.householdId.toString(),
+        name: item.name,
+        quantity: item.quantity,
+        notes: item.notes,
+        category: item.category,
+        addedByUserId: item.addedByUserId.toString(),
+        isBought: item.isBought,
+        boughtAt: item.boughtAt ? item.boughtAt.toISOString() : undefined,
+        boughtByMemberId: item.boughtByMemberId
+          ? item.boughtByMemberId.toString()
+          : undefined,
+        archivedAt: item.archivedAt ? item.archivedAt.toISOString() : undefined,
+        archivedExpenseId: item.archivedExpenseId
+          ? item.archivedExpenseId.toString()
+          : undefined,
+        archivedDominantCategory: item.archivedDominantCategory,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+      })),
+    };
   }
 
   async fireRulesForCadence(cadence: RecurrenceCadence): Promise<IFireRulesResult> {
