@@ -24,8 +24,6 @@ interface AddExpenseFormProps {
   onOpenChange: (o: boolean) => void;
   household: HouseholdResponse;
   expense?: ExpenseResponse;
-  isAdmin: boolean;
-  currentUserId: string;
   initialValues?: Partial<AddExpenseInput>;  // prefill in create mode (ignored when `expense` is provided)
   onCreated?: (expense: ExpenseResponse) => void;  // optional callback fired after a successful create
 }
@@ -39,8 +37,6 @@ export default function AddExpenseForm({
   onOpenChange,
   household,
   expense,
-  isAdmin,
-  currentUserId,
   initialValues,
   onCreated,
 }: AddExpenseFormProps) {
@@ -48,9 +44,7 @@ export default function AddExpenseForm({
   const payableMembers = household.members.filter(
     (m) => m.participatesInFinances && m.userId
   );
-  const dropdownMembers = isAdmin
-    ? payableMembers
-    : payableMembers.filter((m) => m.userId === currentUserId);
+  const dropdownMembers = payableMembers;
 
   const [description, setDescription] = useState(expense?.description ?? initialValues?.description ?? '');
   const [amount, setAmount] = useState(
