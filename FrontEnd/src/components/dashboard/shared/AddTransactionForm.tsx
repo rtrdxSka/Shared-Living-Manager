@@ -20,6 +20,8 @@ interface AddTransactionFormProps {
   currency: string;
   /** Current joint-account balance — used to intercept withdrawals that would overdraw. */
   currentBalance?: number;
+  /** Which mode the form opens in. Defaults to 'deposit'. */
+  defaultType?: TransactionType;
 }
 
 interface PendingPayload {
@@ -34,8 +36,9 @@ export default function AddTransactionForm({
   onOpenChange,
   currency,
   currentBalance,
+  defaultType,
 }: AddTransactionFormProps) {
-  const [type, setType] = useState<TransactionType>('deposit');
+  const [type, setType] = useState<TransactionType>(defaultType ?? 'deposit');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -45,15 +48,17 @@ export default function AddTransactionForm({
   const addMutation = useAddJointTransaction(householdId);
 
   useEffect(() => {
-    if (!open) {
-      setType('deposit');
+    if (open) {
+      setType(defaultType ?? 'deposit');
+    } else {
+      setType(defaultType ?? 'deposit');
       setAmount('');
       setNote('');
       setError(null);
       setOverdrawConfirmOpen(false);
       setPendingPayload(null);
     }
-  }, [open]);
+  }, [open, defaultType]);
 
   async function runMutation(payload: PendingPayload) {
     setError(null);
