@@ -26,9 +26,6 @@ export default defineConfig({
       exclude: [
         'src/index.ts',
         'src/instrument.ts',
-        // Batch 4 will add scheduler tests — when that lands, REMOVE the next line
-        // so coverage reflects scheduler code.
-        'src/scheduler/**',
         'src/types/**',
         'src/**/*.d.ts',
       ],
