@@ -171,11 +171,10 @@ class TaskService {
       if (pastOneDay) {
         throw ForbiddenError('This task can no longer be marked incomplete');
       }
-      const isAdmin = requesterMember.role === 'owner' || requesterMember.role === 'admin';
       const isCompleter = task.completedByMemberId?.toString() === requesterMember._id.toString();
-      if (!isAdmin && !isCompleter) {
+      if (!isCompleter) {
         throw ForbiddenError(
-          'Only the admin or the person who completed this task can undo it within 24 hours'
+          'Only the person who completed this task can undo it within 24 hours'
         );
       }
     }
@@ -246,21 +245,21 @@ class TaskService {
     const task = await Task.findOne({ _id: taskId, householdId: household._id });
     if (!task) throw NotFoundError('Task not found');
 
-    const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
-
-    if (household.settings.taskDistributionMethod === 'fixed') {
-      const isCreator = task.createdByUserId.toString() === userId;
-      if (!isAdminOrOwner && !isCreator) {
-        throw ForbiddenError('Only the task creator or an admin can reassign tasks');
-      }
-    }
+    const isCreator = task.createdByUserId.toString() === userId;
+    const isFixedMode = household.settings.taskDistributionMethod === 'fixed';
 
     let updatedTask: typeof task | null;
 
     if (input.assignedToMemberId !== null) {
-      // Regular members can only assign tasks to themselves.
-      if (!isAdminOrOwner && input.assignedToMemberId !== requesterMember._id.toString()) {
-        throw ForbiddenError('You can only assign tasks to yourself');
+      const isSelfAssign = input.assignedToMemberId === requesterMember._id.toString();
+
+      if (!isSelfAssign) {
+        if (!isFixedMode) {
+          throw ForbiddenError('You can only assign tasks to yourself');
+        }
+        if (!isCreator) {
+          throw ForbiddenError('Only the task creator can assign this task to another member');
+        }
       }
 
       const assignee = household.members.find(
@@ -273,13 +272,13 @@ class TaskService {
 
       const newAssigneeId = new Types.ObjectId(input.assignedToMemberId);
 
-      if (isAdminOrOwner) {
-        // Admin reassignment is intentional — overwrite without precondition.
+      if (isCreator && isFixedMode && !isSelfAssign) {
+        // Creator reassigning their own task in fixed mode — overwrite without precondition.
         task.assignedToMemberId = newAssigneeId;
         await task.save();
         updatedTask = task;
       } else {
-        // Regular member claiming an unassigned task — first-claim-wins via atomic update.
+        // Self-assigning an unassigned task — first-claim-wins via atomic update.
         updatedTask = await Task.findOneAndUpdate(
           {
             _id: task._id,
@@ -295,8 +294,10 @@ class TaskService {
         }
       }
     } else {
-      // Regular members can only unassign tasks currently assigned to themselves.
-      if (!isAdminOrOwner && task.assignedToMemberId?.toString() !== requesterMember._id.toString()) {
+      const isCurrentAssignee =
+        task.assignedToMemberId?.toString() === requesterMember._id.toString();
+      const canUnassign = isCurrentAssignee || (isFixedMode && isCreator);
+      if (!canUnassign) {
         throw ForbiddenError('You can only unassign tasks assigned to yourself');
       }
       task.assignedToMemberId = undefined;
