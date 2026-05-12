@@ -100,6 +100,12 @@ export function useDeleteExpense(householdId: string) {
         refetchType: 'active',
       });
     },
+    onError: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
+      });
+    },
   });
 }
 
@@ -112,6 +118,19 @@ async function cancelExpenseListQueries(
   await queryClient.cancelQueries({ queryKey: queryKeys.expenses.all(householdId) });
 }
 
+// Refetch the expense list whether the mutation succeeded or hit a stale-state
+// conflict (e.g. another member already claimed / resolved / disputed the same
+// expense). Without onError the row would keep the stale state after a 4xx.
+function invalidateExpensesActive(
+  queryClient: ReturnType<typeof useQueryClient>,
+  householdId: string,
+) {
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.expenses.all(householdId),
+    refetchType: 'active',
+  });
+}
+
 export function useClaimExpense(householdId: string) {
   const queryClient = useQueryClient();
 
@@ -119,12 +138,8 @@ export function useClaimExpense(householdId: string) {
     mutationFn: (expenseId: string) =>
       expenseApi.claimExpense(householdId, expenseId),
     onMutate: () => cancelExpenseListQueries(queryClient, householdId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(householdId),
-        refetchType: 'active',
-      });
-    },
+    onSuccess: () => invalidateExpensesActive(queryClient, householdId),
+    onError: () => invalidateExpensesActive(queryClient, householdId),
   });
 }
 
@@ -133,12 +148,8 @@ export function useRequestResolution(householdId: string) {
   return useMutation({
     mutationFn: (expenseId: string) => expenseApi.requestResolution(householdId, expenseId),
     onMutate: () => cancelExpenseListQueries(queryClient, householdId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(householdId),
-        refetchType: 'active',
-      });
-    },
+    onSuccess: () => invalidateExpensesActive(queryClient, householdId),
+    onError: () => invalidateExpensesActive(queryClient, householdId),
   });
 }
 
@@ -147,12 +158,8 @@ export function useConfirmResolution(householdId: string) {
   return useMutation({
     mutationFn: (expenseId: string) => expenseApi.confirmResolution(householdId, expenseId),
     onMutate: () => cancelExpenseListQueries(queryClient, householdId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(householdId),
-        refetchType: 'active',
-      });
-    },
+    onSuccess: () => invalidateExpensesActive(queryClient, householdId),
+    onError: () => invalidateExpensesActive(queryClient, householdId),
   });
 }
 
@@ -161,11 +168,7 @@ export function useDisputeResolution(householdId: string) {
   return useMutation({
     mutationFn: (expenseId: string) => expenseApi.disputeResolution(householdId, expenseId),
     onMutate: () => cancelExpenseListQueries(queryClient, householdId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(householdId),
-        refetchType: 'active',
-      });
-    },
+    onSuccess: () => invalidateExpensesActive(queryClient, householdId),
+    onError: () => invalidateExpensesActive(queryClient, householdId),
   });
 }

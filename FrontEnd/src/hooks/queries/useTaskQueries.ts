@@ -125,6 +125,13 @@ export function useAssignTask(householdId: string) {
         queryKey: queryKeys.tasks.all(householdId),
       });
     },
+    // Refetch on conflict so a stale "Claim this task" row reconciles to the
+    // true assignee (e.g. another member won the atomic claim race).
+    onError: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks.all(householdId),
+      });
+    },
   });
 }
 
