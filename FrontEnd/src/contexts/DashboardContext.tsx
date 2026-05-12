@@ -5,6 +5,7 @@ import type { HouseholdResponse, HouseholdMemberResponse } from '@/types/househo
 import type { ExpenseResponse } from '@/types/expense.types';
 import type { GoalResponse } from '@/types/goal.types';
 import type { TaskResponse, RotationStatus } from '@/types/task.types';
+import type { TransactionType } from '@/types/joint-account.types';
 import type {
   FinanceMode,
   ExpenseSplitMethod,
@@ -105,6 +106,7 @@ export interface DashboardContextValue {
 
   addTransactionOpen: boolean;
   setAddTransactionOpen: (o: boolean) => void;
+  openTransactionForm: (type: TransactionType) => void;
 
   // Mutation functions
   deleteExpense: (id: string) => Promise<void>;
@@ -155,6 +157,12 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [contributionTarget, setContributionTarget] = useState<GoalResponse | null>(null);
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
+  const [transactionFormDefaultType, setTransactionFormDefaultType] = useState<TransactionType | null>(null);
+
+  const openTransactionForm = useCallback((type: TransactionType) => {
+    setTransactionFormDefaultType(type);
+    setAddTransactionOpen(true);
+  }, []);
 
   const [customMyPct, setCustomMyPct] = useState(
     household.settings.customSplitPercentage ?? 50
@@ -392,6 +400,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     setContributionTarget,
     addTransactionOpen,
     setAddTransactionOpen,
+    openTransactionForm,
     deleteExpense,
     claimExpense,
     requestResolution,
@@ -443,6 +452,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     addGoalOpen,
     contributionTarget,
     addTransactionOpen,
+    openTransactionForm,
     deleteExpense,
     claimExpense,
     requestResolution,
@@ -521,9 +531,13 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
       <AddTransactionForm
         householdId={household._id}
         open={addTransactionOpen}
-        onOpenChange={setAddTransactionOpen}
+        onOpenChange={(o) => {
+          setAddTransactionOpen(o);
+          if (!o) setTransactionFormDefaultType(null);
+        }}
         currency={currency}
         currentBalance={currentJointBalance}
+        defaultType={transactionFormDefaultType ?? undefined}
       />
     </DashboardContext.Provider>
   );
