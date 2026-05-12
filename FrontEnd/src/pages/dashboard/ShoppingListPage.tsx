@@ -36,7 +36,6 @@ export default function ShoppingListPage() {
   const {
     household,
     currentUserId,
-    isAdmin,
   } = useDashboard();
   const householdId = household._id;
 
@@ -311,8 +310,6 @@ export default function ShoppingListPage() {
             if (!open) setExpensePrefill(null);
           }}
           household={household}
-          isAdmin={isAdmin}
-          currentUserId={currentUserId}
           initialValues={expensePrefill}
           onCreated={handleExpenseCreated}
         />

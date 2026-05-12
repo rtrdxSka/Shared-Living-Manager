@@ -184,12 +184,13 @@ const TaskRow = React.memo(function TaskRow({
     () =>
       !task.isCompleted ||
       (!pastOneDay &&
-        (isAdmin ||
-          (task.completedByMemberId === myMemberId && task.completedAt != null))),
-    [task.isCompleted, task.completedByMemberId, task.completedAt, pastOneDay, isAdmin, myMemberId]
+        task.completedByMemberId === myMemberId &&
+        task.completedAt != null),
+    [task.isCompleted, task.completedByMemberId, task.completedAt, pastOneDay, myMemberId]
   );
 
-  const canReassign = isAdmin || task.createdByUserId === currentUserId;
+  const canReassign = task.createdByUserId === currentUserId;
+  const canDelete = isAdmin || task.createdByUserId === currentUserId;
 
   async function handleToggleComplete(e: React.MouseEvent) {
     e.stopPropagation();
@@ -427,41 +428,43 @@ const TaskRow = React.memo(function TaskRow({
             )}
 
             {/* Delete — two-step inline confirmation */}
-            {!isConfirmingThisDelete ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-neg hover:text-neg hover:bg-neg-bg/40"
-                onClick={() => setConfirmingDelete(task._id)}
-              >
-                Delete task
-              </Button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-neg font-medium">
-                  Delete this task?
-                </span>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={deletePending}
-                >
-                  {deletePending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    'Yes, delete'
-                  )}
-                </Button>
+            {canDelete && (
+              !isConfirmingThisDelete ? (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setConfirmingDelete(null)}
-                  disabled={deletePending}
+                  className="text-neg hover:text-neg hover:bg-neg-bg/40"
+                  onClick={() => setConfirmingDelete(task._id)}
                 >
-                  Cancel
+                  Delete task
                 </Button>
-              </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-neg font-medium">
+                    Delete this task?
+                  </span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDelete}
+                    disabled={deletePending}
+                  >
+                    {deletePending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      'Yes, delete'
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmingDelete(null)}
+                    disabled={deletePending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )
             )}
           </div>
         </div>
