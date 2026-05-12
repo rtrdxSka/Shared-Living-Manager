@@ -47,6 +47,9 @@ class ExpenseService {
     }
 
     // 4. Create expense
+    const isJoint = household.settings?.financeMode === 'joint';
+    const now = new Date();
+
     const expense = await Expense.create({
       householdId: household._id,
       ...(input.paidByUserId && { paidByUserId: input.paidByUserId }),
@@ -57,6 +60,11 @@ class ExpenseService {
       date: new Date(input.date),
       ...(input.notes && { notes: input.notes }),
       isFullRepayment: input.isFullRepayment ?? false,
+      ...(isJoint && {
+        isResolved: true,
+        resolvedAt: now,
+        // resolvedByUserId intentionally NOT set — absence marks auto-resolution.
+      }),
     });
 
     // 5. Return formatted response
@@ -249,7 +257,11 @@ class ExpenseService {
       throw NotFoundError('Household not found');
     }
 
-    // Verify requester is a financial member
+    // Joint accounts don't use the claim flow — money came from a shared pot.
+    if (household.settings?.financeMode === 'joint') {
+      throw BadRequestError('Joint accounts do not track per-user claims');
+    }
+
     const requesterMember = household.members.find(
       (m) => m.userId?.toString() === requestingUserId && m.participatesInFinances
     );
@@ -257,17 +269,25 @@ class ExpenseService {
       throw ForbiddenError('You must be a financial member to claim an expense');
     }
 
-    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
-    if (!expense) {
-      throw NotFoundError('Expense not found');
-    }
+    // Atomic conditional update — only succeeds if paidByUserId is currently unset.
+    // Two parallel requests both pass their filter; only the first $set wins; the
+    // second sees a different document state and findOneAndUpdate returns null.
+    const expense = await Expense.findOneAndUpdate(
+      {
+        _id: expenseId,
+        householdId: household._id,
+        $or: [{ paidByUserId: { $exists: false } }, { paidByUserId: null }],
+      },
+      { $set: { paidByUserId: requesterMember.userId } },
+      { new: true },
+    );
 
-    if (expense.paidByUserId) {
+    if (!expense) {
+      // Disambiguate not-found vs already-claimed.
+      const exists = await Expense.exists({ _id: expenseId, householdId: household._id });
+      if (!exists) throw NotFoundError('Expense not found');
       throw BadRequestError('This expense has already been claimed');
     }
-
-    expense.paidByUserId = requesterMember.userId as unknown as typeof expense.paidByUserId;
-    await expense.save();
 
     return this.formatExpenseResponse(expense, requesterMember.nickname);
   }
@@ -279,6 +299,10 @@ class ExpenseService {
   ): Promise<IExpenseResponse> {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
+
+    if (household.settings?.financeMode === 'joint') {
+      throw BadRequestError('Joint accounts do not use the claim/resolve flow');
+    }
 
     const isMember = household.members.some(
       (m) => m.userId?.toString() === requestingUserId && m.participatesInFinances
@@ -312,6 +336,10 @@ class ExpenseService {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
 
+    if (household.settings?.financeMode === 'joint') {
+      throw BadRequestError('Joint accounts do not use the claim/resolve flow');
+    }
+
     const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
     if (!expense) throw NotFoundError('Expense not found');
     if (!expense.paidByUserId) throw BadRequestError('Expense has no payer');
@@ -341,6 +369,10 @@ class ExpenseService {
   ): Promise<IExpenseResponse> {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
+
+    if (household.settings?.financeMode === 'joint') {
+      throw BadRequestError('Joint accounts do not use the claim/resolve flow');
+    }
 
     const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
     if (!expense) throw NotFoundError('Expense not found');

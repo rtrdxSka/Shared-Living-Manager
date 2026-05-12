@@ -255,8 +255,10 @@ class TaskService {
       }
     }
 
+    let updatedTask: typeof task | null;
+
     if (input.assignedToMemberId !== null) {
-      // Regular members can only assign tasks to themselves
+      // Regular members can only assign tasks to themselves.
       if (!isAdminOrOwner && input.assignedToMemberId !== requesterMember._id.toString()) {
         throw ForbiddenError('You can only assign tasks to yourself');
       }
@@ -268,33 +270,56 @@ class TaskService {
       if (!assignee.participatesInTasks) {
         throw BadRequestError('That member does not participate in tasks');
       }
-      task.assignedToMemberId = new Types.ObjectId(input.assignedToMemberId);
+
+      const newAssigneeId = new Types.ObjectId(input.assignedToMemberId);
+
+      if (isAdminOrOwner) {
+        // Admin reassignment is intentional — overwrite without precondition.
+        task.assignedToMemberId = newAssigneeId;
+        await task.save();
+        updatedTask = task;
+      } else {
+        // Regular member claiming an unassigned task — first-claim-wins via atomic update.
+        updatedTask = await Task.findOneAndUpdate(
+          {
+            _id: task._id,
+            householdId: household._id,
+            $or: [{ assignedToMemberId: { $exists: false } }, { assignedToMemberId: null }],
+          },
+          { $set: { assignedToMemberId: newAssigneeId } },
+          { new: true },
+        );
+
+        if (!updatedTask) {
+          throw BadRequestError('This task has already been claimed');
+        }
+      }
     } else {
-      // Regular members can only unassign tasks currently assigned to themselves
+      // Regular members can only unassign tasks currently assigned to themselves.
       if (!isAdminOrOwner && task.assignedToMemberId?.toString() !== requesterMember._id.toString()) {
         throw ForbiddenError('You can only unassign tasks assigned to yourself');
       }
       task.assignedToMemberId = undefined;
+      await task.save();
+      updatedTask = task;
     }
-
-    await task.save();
 
     const memberMap = new Map<string, string>();
     for (const m of household.members) {
       memberMap.set(m._id.toString(), m.nickname);
     }
 
-    const assignedToNickname = task.assignedToMemberId
-      ? memberMap.get(task.assignedToMemberId.toString())
+    const assignedToNickname = updatedTask.assignedToMemberId
+      ? memberMap.get(updatedTask.assignedToMemberId.toString())
       : undefined;
 
-    const completedByNickname = task.completedByMemberId
-      ? (memberMap.get(task.completedByMemberId.toString()) ?? 'Unknown')
+    const completedByNickname = updatedTask.completedByMemberId
+      ? (memberMap.get(updatedTask.completedByMemberId.toString()) ?? 'Unknown')
       : undefined;
 
     return this.formatTaskResponse(
-      task,
-      task.assignedToMemberId?.toString(),
+      updatedTask,
+      updatedTask.assignedToMemberId?.toString(),
       assignedToNickname,
       completedByNickname
     );
