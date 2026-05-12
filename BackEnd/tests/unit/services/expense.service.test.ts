@@ -52,6 +52,28 @@ describe('expenseService.addExpense', () => {
     expect(result.pendingConfirmation).toBe(false);
   });
 
+  it('lets a non-admin set paidByUserId to a financial partner', async () => {
+    // Bob (member role in couple) records an expense Alice actually paid.
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+
+    const result = await expenseService.addExpense(
+      couple._id.toString(),
+      bob._id.toString(),
+      baseAddInput({
+        description: 'Partner paid for groceries',
+        amount: 30,
+        category: 'groceries',
+        date: '2026-05-04',
+        paidByUserId: alice._id.toString(),
+      })
+    );
+
+    expect(result.paidByUserId).toBe(alice._id.toString());
+    expect(result.createdByUserId).toBe(bob._id.toString());
+  });
+
   it('rejects a non-financial member with Forbidden (403)', async () => {
     // No seeded member has participatesInFinances: false, so add a new
     // non-financial member to the flatshare household for this test.

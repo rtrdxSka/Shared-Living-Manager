@@ -72,17 +72,17 @@ describe('Task routes', () => {
     expect(res.status).toBe(403);
   });
 
-  it('PATCH /:taskId/assign → 200 (admin reassigns)', async () => {
-    const alice = FIXTURES.user('alice');
-    const couple = FIXTURES.household('couple');
-    const id = FIXTURES.task('dishes');
-    const aliceMember = FIXTURES.member('alice-member');
+  it('PATCH /:taskId/assign → 200 (creator reassigns in fixed mode)', async () => {
+    const carol = FIXTURES.user('carol');
+    const flatshare = FIXTURES.household('flatshare');
+    const id = FIXTURES.task('flat-bathroom');
+    const eveMember = FIXTURES.member('eve-member');
     const res = await request(app)
-      .patch(`/api/households/${couple._id}/tasks/${id}/assign`)
-      .set('Authorization', auth(alice._id.toString()))
-      .send({ assignedToMemberId: aliceMember.toString() });
+      .patch(`/api/households/${flatshare._id}/tasks/${id}/assign`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ assignedToMemberId: eveMember.toString() });
     expect(res.status).toBe(200);
-    expect(res.body.data.task.assignedToMemberId).toBe(aliceMember.toString());
+    expect(res.body.data.task.assignedToMemberId).toBe(eveMember.toString());
   });
 
   it('PATCH /:taskId/complete → 200', async () => {

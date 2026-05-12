@@ -102,33 +102,32 @@ describe('taskService.toggleComplete', () => {
     expect(reopened.completedByMemberId).toBeUndefined();
   });
 
-  // F4.6: task.service.ts toggleComplete (lines 174-180) blocks non-completer
-  // non-admin users from undoing a completion within 24 hours.
-  it('blocks non-completer non-admin from undoing within 24h', async () => {
+  // Only the completer can undo a completion within 24h. Even an admin who
+  // did not complete the task is rejected.
+  it('blocks a non-completer from undoing within 24h, even if they are admin', async () => {
     const couple = FIXTURES.household('couple');
-    const alice = FIXTURES.user('alice');
-    const bob = FIXTURES.user('bob'); // member role, not admin
+    const alice = FIXTURES.user('alice'); // owner of couple
+    const bob = FIXTURES.user('bob');
 
-    // Use a fresh task so we don't perturb other tests.
     const created = await taskService.addTask(
       couple._id.toString(),
       alice._id.toString(),
       { title: 'Undo-authz target' }
     );
 
-    // Alice completes the task. completedByMemberId becomes alice-member.
+    // Bob completes the task.
     const completed = await taskService.toggleComplete(
       couple._id.toString(),
-      alice._id.toString(),
+      bob._id.toString(),
       created._id
     );
     expect(completed.isCompleted).toBe(true);
 
-    // Bob (member, neither admin nor completer) cannot undo within 24h.
+    // Alice is the owner but did not complete it — she cannot undo.
     await expect(
       taskService.toggleComplete(
         couple._id.toString(),
-        bob._id.toString(),
+        alice._id.toString(),
         created._id
       )
     ).rejects.toSatisfy(expectAppError(403));
@@ -219,26 +218,50 @@ describe('taskService.deleteTask', () => {
 // ── assignTask ───────────────────────────────────────────────────────
 
 describe('taskService.assignTask', () => {
-  it('lets an admin reassign any task', async () => {
-    // Alice (owner) in couple reassigns a fresh task to bob.
-    const couple = FIXTURES.household('couple');
-    const alice = FIXTURES.user('alice');
-    const bobMemberId = FIXTURES.member('bob-member');
+  it('lets the task creator reassign their task in fixed mode', async () => {
+    // Flatshare is fixed mode. Carol creates a task and reassigns it to eve.
+    const flatshare = FIXTURES.household('flatshare');
+    const carol = FIXTURES.user('carol');
+    const eveMemberId = FIXTURES.member('eve-member');
 
     const created = await taskService.addTask(
-      couple._id.toString(),
-      alice._id.toString(),
-      { title: 'Admin-reassign target' }
+      flatshare._id.toString(),
+      carol._id.toString(),
+      { title: 'Creator-reassign target' }
     );
 
     const reassigned = await taskService.assignTask(
-      couple._id.toString(),
-      alice._id.toString(),
+      flatshare._id.toString(),
+      carol._id.toString(),
       created._id,
-      { assignedToMemberId: bobMemberId.toString() }
+      { assignedToMemberId: eveMemberId.toString() }
     );
 
-    expect(reassigned.assignedToMemberId).toBe(bobMemberId.toString());
+    expect(reassigned.assignedToMemberId).toBe(eveMemberId.toString());
+  });
+
+  it('rejects an admin reassigning a task they did not create in fixed mode', async () => {
+    // Carol creates a task; eve is admin but not the creator, so eve cannot
+    // assign it to carol-member (someone other than herself).
+    const flatshare = FIXTURES.household('flatshare');
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+    const carolMemberId = FIXTURES.member('carol-member');
+
+    const created = await taskService.addTask(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      { title: 'Admin-cannot-reassign target' }
+    );
+
+    await expect(
+      taskService.assignTask(
+        flatshare._id.toString(),
+        eve._id.toString(),
+        created._id,
+        { assignedToMemberId: carolMemberId.toString() }
+      )
+    ).rejects.toSatisfy(expectAppError(403));
   });
 
   it('lets a regular member self-assign an unassigned task', async () => {
@@ -264,8 +287,8 @@ describe('taskService.assignTask', () => {
     expect(assigned.assignedToMemberId).toBe(bobMemberId.toString());
   });
 
-  it('rejects a regular member assigning to someone else with Forbidden (403)', async () => {
-    // Bob tries to assign a task to alice — only admins or self are allowed.
+  it('rejects a non-creator non-self assignment with Forbidden (403)', async () => {
+    // Bob (not creator, not self) tries to assign a task to alice.
     const couple = FIXTURES.household('couple');
     const alice = FIXTURES.user('alice');
     const bob = FIXTURES.user('bob');
