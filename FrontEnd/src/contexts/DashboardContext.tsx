@@ -485,8 +485,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
         }}
         household={household}
         expense={editingExpense ?? undefined}
-        isAdmin={isAdmin}
-        currentUserId={currentUserId}
       />
 
       <AddTaskForm
