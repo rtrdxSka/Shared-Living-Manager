@@ -3,6 +3,9 @@ import request from 'supertest';
 import app from '../../src/index';
 import { signTestJwt } from '../helpers/auth';
 import { FIXTURES } from '../seed/fixtures';
+import { expenseService } from '../../src/services/expense.service';
+import { Household } from '../../src/models/household.model';
+import { Expense } from '../../src/models/expense.model';
 
 const auth = (uid: string) => `Bearer ${signTestJwt(uid)}`;
 
@@ -166,5 +169,123 @@ describe('Expense routes', () => {
       .set('Authorization', auth(bob._id.toString()));
     expect(res.status).toBe(200);
     expect(res.body.data.expense.pendingConfirmation).toBe(false);
+  });
+
+  it('POST /:expenseId/claim → first call wins under concurrency, second returns 400', async () => {
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+
+    // Couple household is seeded with financeMode: 'joint'; force split mode so the
+    // claim flow is permitted. (After the parallel claimExpense fix lands, joint
+    // households reject /claim entirely — see the joint-mode case below.)
+    await Household.updateOne(
+      { _id: couple._id },
+      { $set: { 'settings.financeMode': 'split' } },
+    );
+
+    // Seed a fresh unclaimed expense via the service (service-first arrange).
+    const created = await expenseService.addExpense(
+      couple._id.toString(),
+      alice._id.toString(),
+      {
+        description: 'Race-test expense',
+        amount: 50,
+        category: 'groceries',
+        date: new Date().toISOString(),
+      },
+    );
+
+    // Fire two parallel claims from different financial members.
+    const [resA, resB] = await Promise.all([
+      request(app)
+        .post(`/api/households/${couple._id}/expenses/${created._id}/claim`)
+        .set('Authorization', auth(alice._id.toString())),
+      request(app)
+        .post(`/api/households/${couple._id}/expenses/${created._id}/claim`)
+        .set('Authorization', auth(bob._id.toString())),
+    ]);
+
+    const successes = [resA, resB].filter((r) => r.status === 200);
+    const failures = [resA, resB].filter((r) => r.status === 400);
+    expect(successes).toHaveLength(1);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]!.body.message).toMatch(/already.*claimed/i);
+
+    // Restore split mode (idempotent — file teardown handled at process exit).
+    await Household.updateOne(
+      { _id: couple._id },
+      { $set: { 'settings.financeMode': 'split' } },
+    );
+  });
+
+  it('POST in joint-mode household → creates expense with isResolved: true', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+
+    // Flip the household to joint mode. settings.financeMode is not exposed via
+    // expenseService, so a direct Model.updateOne is the minimum-surface arrange.
+    await Household.updateOne(
+      { _id: couple._id },
+      { $set: { 'settings.financeMode': 'joint' } },
+    );
+
+    const res = await request(app)
+      .post(`/api/households/${couple._id}/expenses`)
+      .set('Authorization', auth(alice._id.toString()))
+      .send({
+        description: 'Joint-mode expense',
+        amount: 25,
+        category: 'groceries',
+        date: new Date().toISOString(),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.expense.isResolved).toBe(true);
+    expect(res.body.data.expense.resolvedAt).toBeDefined();
+
+    // Restore split mode so subsequent cases in this file aren't affected.
+    await Household.updateOne(
+      { _id: couple._id },
+      { $set: { 'settings.financeMode': 'split' } },
+    );
+  });
+
+  it('POST /:expenseId/claim → 400 in joint mode', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+
+    await Household.updateOne(
+      { _id: couple._id },
+      { $set: { 'settings.financeMode': 'joint' } },
+    );
+
+    // Create an unclaimed expense directly via the Model so we can override the
+    // auto-resolve flag and exercise the /claim rejection path even when the
+    // service auto-resolves on create. settings.financeMode + isResolved aren't
+    // both reachable via a single service call in joint mode.
+    const created = await Expense.create({
+      householdId: couple._id,
+      createdByUserId: alice._id,
+      description: 'Joint-mode claim attempt',
+      amount: 10,
+      category: 'groceries',
+      date: new Date(),
+      isFullRepayment: false,
+      isResolved: false,
+    });
+
+    const res = await request(app)
+      .post(`/api/households/${couple._id}/expenses/${created._id}/claim`)
+      .set('Authorization', auth(alice._id.toString()));
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/joint accounts/i);
+
+    // Restore split mode so subsequent cases in this file aren't affected.
+    await Household.updateOne(
+      { _id: couple._id },
+      { $set: { 'settings.financeMode': 'split' } },
+    );
   });
 });

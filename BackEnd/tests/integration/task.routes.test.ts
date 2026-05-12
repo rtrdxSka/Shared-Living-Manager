@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../../src/index';
 import { signTestJwt } from '../helpers/auth';
 import { FIXTURES } from '../seed/fixtures';
+import { taskService } from '../../src/services/task.service';
 
 const auth = (uid: string) => `Bearer ${signTestJwt(uid)}`;
 
@@ -156,5 +157,51 @@ describe('Task routes', () => {
       .set('Authorization', auth(frank._id.toString()))
       .send({ title: 'Frank attempt' });
     expect(res.status).toBe(403);
+  });
+
+  it('PATCH /:taskId/assign → first claim wins under concurrency, second returns 400', async () => {
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+    const aliceMember = FIXTURES.member('alice-member');
+    const bobMember = FIXTURES.member('bob-member');
+
+    // Seed an unassigned task via the service (service-first arrange).
+    const created = await taskService.addTask(
+      couple._id.toString(),
+      alice._id.toString(),
+      { title: 'Race-test task' },
+    );
+
+    // The seeded couple household has rotation enabled, which auto-assigns new
+    // tasks via taskService.addTask. Clear any auto-assignment by unassigning
+    // through the service before the race so both contenders are claiming an
+    // unassigned task. Use alice (owner) for the unassign since admin can
+    // unassign tasks regardless of who they're currently assigned to.
+    if (created.assignedToMemberId) {
+      await taskService.assignTask(
+        couple._id.toString(),
+        alice._id.toString(),
+        created._id,
+        { assignedToMemberId: null },
+      );
+    }
+
+    const [resA, resB] = await Promise.all([
+      request(app)
+        .patch(`/api/households/${couple._id}/tasks/${created._id}/assign`)
+        .set('Authorization', auth(alice._id.toString()))
+        .send({ assignedToMemberId: aliceMember.toString() }),
+      request(app)
+        .patch(`/api/households/${couple._id}/tasks/${created._id}/assign`)
+        .set('Authorization', auth(bob._id.toString()))
+        .send({ assignedToMemberId: bobMember.toString() }),
+    ]);
+
+    const successes = [resA, resB].filter((r) => r.status === 200);
+    const failures = [resA, resB].filter((r) => r.status === 400);
+    expect(successes).toHaveLength(1);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]!.body.message).toMatch(/already.*claimed/i);
   });
 });

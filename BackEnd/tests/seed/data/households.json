@@ -37,7 +37,7 @@
     ],
     "settlements": [],
     "settings": {
-      "financeMode": "joint",
+      "financeMode": "split",
       "expenseSplitMethod": "income_based",
       "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
       "currency": "BGN",
