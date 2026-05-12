@@ -17,6 +17,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useJointAccountSummary } from '@/hooks/queries';
 import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
+import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { HeroNumberCard } from '@/components/ui/hero-number-card';
@@ -150,10 +151,12 @@ const CONTRIB_BAR: [string, string] = ['bg-accent', 'bg-cat-rent'];
 export default function AccountPage() {
   const {
     household,
+    currentUserId,
     currency,
     isAdmin,
     financeMode,
     setAddTransactionOpen,
+    openTransactionForm,
     deleteJointTransaction,
   } = useDashboard();
 
@@ -185,6 +188,12 @@ export default function AccountPage() {
 
   // Total deposits for contributions percentage
   const totalDeposits = memberBreakdown.reduce((s, m) => s + m.deposits, 0);
+
+  const financialMembers = household.members.filter((m) => m.participatesInFinances);
+  const totalIncome = financialMembers.reduce((s, m) => s + (m.monthlyIncome ?? 0), 0);
+  const isProportional = summary?.targetMode === 'proportional';
+  const showIncomeCard = isProportional;
+  const showIncomeChips = isProportional && totalIncome > 0;
 
   return (
     <div className="pb-8">
@@ -259,14 +268,30 @@ export default function AccountPage() {
                     </Button>
                   </div>
                 ) : null}
+                {hasTarget && summary.targetMode && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
+                      summary.targetMode === 'proportional'
+                        ? 'bg-accent/10 text-accent'
+                        : 'bg-surface-2 text-ink-3'
+                    )}
+                  >
+                    {summary.targetMode === 'proportional'
+                      ? totalIncome === 0
+                        ? 'Mode: Income-based · waiting for incomes'
+                        : 'Mode: Income-based'
+                      : 'Mode: Equal'}
+                  </span>
+                )}
               </div>
             }
             actions={
               <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={() => setAddTransactionOpen(true)}>
+                <Button onClick={() => openTransactionForm('deposit')}>
                   Deposit
                 </Button>
-                <Button variant="outline" onClick={() => setAddTransactionOpen(true)}>
+                <Button variant="outline" onClick={() => openTransactionForm('withdrawal')}>
                   Withdraw
                 </Button>
                 {isAdmin && (
@@ -335,23 +360,49 @@ export default function AccountPage() {
 
           {/* Right rail */}
           <div className="space-y-4">
+            {showIncomeCard && (
+              <IncomeManagementCard
+                household={household}
+                currentUserId={currentUserId}
+                currency={currency}
+              />
+            )}
             {/* Contributions this month */}
             {memberBreakdown.length > 0 && (
               <Card className="p-5 space-y-4">
                 <EyebrowLabel as="div">CONTRIBUTIONS THIS MONTH</EyebrowLabel>
                 <div className="space-y-3">
                   {memberBreakdown.map((m, i) => {
-                    const memberPct =
-                      totalDeposits > 0
+                    const barClass = CONTRIB_BAR[i % CONTRIB_BAR.length];
+                    const member = financialMembers.find(
+                      (fm) => fm._id === m.memberId
+                    );
+                    const showIncomePct =
+                      showIncomeChips && member?.monthlyIncome !== undefined;
+                    const incomePct = showIncomePct
+                      ? Math.round(((member!.monthlyIncome ?? 0) / totalIncome) * 100)
+                      : null;
+                    const hasTargetAmount =
+                      typeof m.targetAmount === 'number' && m.targetAmount > 0;
+                    const memberPct = hasTargetAmount
+                      ? Math.round((m.deposits / (m.targetAmount as number)) * 100)
+                      : totalDeposits > 0
                         ? Math.round((m.deposits / totalDeposits) * 100)
                         : 0;
-                    const barClass = CONTRIB_BAR[i % CONTRIB_BAR.length];
+                    const barWidthPct = hasTargetAmount
+                      ? Math.min(100, (m.deposits / (m.targetAmount as number)) * 100)
+                      : memberPct;
                     return (
                       <div key={m.memberId} className="space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <Avatar name={m.nickname} size={28} />
                             <span className="text-sm text-ink truncate">{m.nickname}</span>
+                            {showIncomePct && (
+                              <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-accent bg-accent/10 rounded-full px-1.5 py-0.5 shrink-0">
+                                {incomePct}%
+                              </span>
+                            )}
                           </div>
                           <span className="text-xs text-ink-3 font-mono shrink-0">
                             {memberPct}%
@@ -360,12 +411,13 @@ export default function AccountPage() {
                         <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                           <div
                             className={cn('h-full rounded-full transition-all', barClass)}
-                            style={{ width: `${memberPct}%` }}
+                            style={{ width: `${barWidthPct}%` }}
                           />
                         </div>
                         <p className="text-[11px] font-mono text-ink-3">
-                          {fmt(m.deposits)} {currency} deposited
-                          {m.withdrawals > 0 && ` · ${fmt(m.withdrawals)} withdrawn`}
+                          {hasTargetAmount
+                            ? `${fmt(m.deposits)} of ${fmt(m.targetAmount as number)} ${currency} target`
+                            : `${fmt(m.deposits)} ${currency} deposited${m.withdrawals > 0 ? ` · ${fmt(m.withdrawals)} withdrawn` : ''}`}
                         </p>
                       </div>
                     );

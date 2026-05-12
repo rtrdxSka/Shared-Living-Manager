@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   CheckSquare,
@@ -28,6 +28,7 @@ import DashboardHeader from '@/components/layout/DashboardHeader';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { Avatar } from '@/components/ui/avatar';
 import { getDueDateStatus, formatDueDate } from '@/utils/dashboardHelpers';
+import { extractApiError } from '@/utils/extractApiError';
 import type { TaskResponse } from '@/types/task.types';
 import type { RecurringTaskResponse } from '@/types/recurring-task.types';
 
@@ -136,6 +137,8 @@ interface TaskRowProps {
   onToggleExpand: (id: string) => void;
   confirmingDelete: string | null;
   setConfirmingDelete: (id: string | null) => void;
+  onAssign: (taskId: string, memberId: string | null) => Promise<void>;
+  onToggleComplete: (taskId: string) => Promise<void>;
 }
 
 const TaskRow = React.memo(function TaskRow({
@@ -144,6 +147,8 @@ const TaskRow = React.memo(function TaskRow({
   onToggleExpand,
   confirmingDelete,
   setConfirmingDelete,
+  onAssign,
+  onToggleComplete,
 }: TaskRowProps) {
   const {
     myMemberId,
@@ -153,9 +158,7 @@ const TaskRow = React.memo(function TaskRow({
     distribution,
     taskMembers,
     rotationStatus,
-    toggleTaskComplete,
     deleteTask,
-    assignTask,
   } = useDashboard();
 
   const [completePending, setCompletePending] = useState(false);
@@ -192,7 +195,7 @@ const TaskRow = React.memo(function TaskRow({
     e.stopPropagation();
     setCompletePending(true);
     try {
-      await toggleTaskComplete(task._id);
+      await onToggleComplete(task._id);
     } finally {
       setCompletePending(false);
     }
@@ -376,14 +379,14 @@ const TaskRow = React.memo(function TaskRow({
                   task={task}
                   myMemberId={myMemberId}
                   myNickname={myNickname}
-                  onAssign={assignTask}
+                  onAssign={onAssign}
                 />
               ) : distribution === 'fixed' ? (
                 canReassign ? (
                   <AssignSelect
                     task={task}
                     taskMembers={taskMembers}
-                    onAssign={assignTask}
+                    onAssign={onAssign}
                   />
                 ) : (
                   <span className="text-xs text-ink-3">
@@ -701,11 +704,44 @@ export default function TasksPage() {
     overdueCount,
     setAddTaskOpen,
     setAddRecurringTaskOpen,
+    assignTask,
+    toggleTaskComplete,
   } = useDashboard();
 
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!actionError) return;
+    const id = window.setTimeout(() => setActionError(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [actionError]);
+
+  const handleAssign = useCallback(
+    async (taskId: string, memberId: string | null) => {
+      try {
+        await assignTask(taskId, memberId);
+        setActionError(null);
+      } catch (err) {
+        setActionError(extractApiError(err, 'Could not update this task.'));
+      }
+    },
+    [assignTask],
+  );
+
+  const handleToggleComplete = useCallback(
+    async (taskId: string) => {
+      try {
+        await toggleTaskComplete(taskId);
+        setActionError(null);
+      } catch (err) {
+        setActionError(extractApiError(err, 'Could not update this task.'));
+      }
+    },
+    [toggleTaskComplete],
+  );
 
   // Re-subscribes to the same query the dashboard context uses (shared cache
   // via identical query key) so this page can drive fetchNextPage.
@@ -764,6 +800,16 @@ export default function TasksPage() {
         {/* Rotation banner (only when distribution === 'rotation') */}
         {distribution === 'rotation' && <RotationBanner />}
 
+        {/* Inline alert for assign/claim conflicts (no toast library installed) */}
+        {actionError && (
+          <div
+            className="rounded-xl border border-neg/40 bg-neg/[0.08] px-4 py-3 text-sm text-neg mb-4"
+            role="alert"
+          >
+            {actionError}
+          </div>
+        )}
+
         {/* Two-column layout */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
           {/* Main column */}
@@ -796,6 +842,8 @@ export default function TasksPage() {
                       onToggleExpand={toggleExpand}
                       confirmingDelete={confirmingDelete}
                       setConfirmingDelete={setConfirmingDelete}
+                      onAssign={handleAssign}
+                      onToggleComplete={handleToggleComplete}
                     />
                   ))}
                 </div>
@@ -818,6 +866,8 @@ export default function TasksPage() {
                       onToggleExpand={toggleExpand}
                       confirmingDelete={confirmingDelete}
                       setConfirmingDelete={setConfirmingDelete}
+                      onAssign={handleAssign}
+                      onToggleComplete={handleToggleComplete}
                     />
                   ))}
                 </div>

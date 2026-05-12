@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, Receipt, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import {
   getMyShareLabel,
   getBalanceSplitLabel,
 } from '@/utils/dashboardHelpers';
+import { extractApiError } from '@/utils/extractApiError';
 import type { ExpenseResponse, ExpenseFilters } from '@/types/expense.types';
 import { EMPTY_EXPENSE_FILTERS } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
@@ -87,6 +88,13 @@ export default function ExpensesPage() {
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [outstandingOpen, setOutstandingOpen] = useState(true);
   const [settledOpen, setSettledOpen] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!actionError) return;
+    const id = window.setTimeout(() => setActionError(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [actionError]);
 
   const {
     data: expensesData,
@@ -255,6 +263,15 @@ export default function ExpensesPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
           {/* ── Left column — main expense list ─────────────────────── */}
           <div className="space-y-4">
+            {/* Inline alert for claim/resolution/delete conflicts */}
+            {actionError && (
+              <div
+                className="rounded-xl border border-neg/40 bg-neg/[0.08] px-4 py-3 text-sm text-neg"
+                role="alert"
+              >
+                {actionError}
+              </div>
+            )}
             {expensesLoading ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
@@ -276,7 +293,8 @@ export default function ExpensesPage() {
               />
             ) : (
               <>
-                {/* Outstanding section */}
+                {/* Outstanding section — split-mode only (joint accounts don't track per-user owed amounts) */}
+                {financeMode === 'split' && (
                 <section>
                   <div className="rounded-xl border border-warn/30 bg-warn-bg/40 px-4 py-3 mb-3 flex items-center gap-3">
                     <EyebrowLabel className="text-warn">OUTSTANDING</EyebrowLabel>
@@ -323,12 +341,14 @@ export default function ExpensesPage() {
                             partnerNickname={partnerNickname}
                             myParticipatesInFinances={myParticipatesInFinances}
                             hasFinancialPartner={hasFinancialPartner}
+                            onActionError={setActionError}
                           />
                         ))}
                       </div>
                     )
                   )}
                 </section>
+                )}
 
                 {/* Settled section */}
                 {settledExpenses.length > 0 && (
@@ -375,6 +395,7 @@ export default function ExpensesPage() {
                             partnerNickname={partnerNickname}
                             myParticipatesInFinances={myParticipatesInFinances}
                             hasFinancialPartner={hasFinancialPartner}
+                            onActionError={setActionError}
                           />
                         ))}
                       </div>
@@ -509,6 +530,7 @@ interface ExpenseRowProps {
   partnerNickname: string;
   myParticipatesInFinances: boolean;
   hasFinancialPartner: boolean;
+  onActionError: (msg: string | null) => void;
 }
 
 const ExpenseRow = React.memo(function ExpenseRow({
@@ -534,6 +556,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
   partnerNickname,
   myParticipatesInFinances,
   hasFinancialPartner,
+  onActionError,
 }: ExpenseRowProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -596,7 +619,14 @@ const ExpenseRow = React.memo(function ExpenseRow({
 
   async function handleAction(action: () => Promise<void>, key: string) {
     setActionLoading(key);
-    try { await action(); } finally { setActionLoading(null); }
+    try {
+      await action();
+      onActionError(null);
+    } catch (err) {
+      onActionError(extractApiError(err, 'Could not complete this action.'));
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   return (
