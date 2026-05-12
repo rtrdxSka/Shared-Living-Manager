@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useExpenses, useJointAccountSummary } from '@/hooks/queries';
-import IncomeEntryCard from '@/components/dashboard/shared/IncomeEntryCard';
+import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
 import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { HeroNumberCard } from '@/components/ui/hero-number-card';
@@ -78,7 +78,8 @@ export default function OverviewPage() {
   );
   const jointAccount = jointAccountData ?? null;
 
-  const showIncomeCard = splitMethod === 'income_based' && myParticipatesInFinances;
+  const showIncomeCard =
+    financeMode === 'split' && splitMethod === 'income_based' && myParticipatesInFinances;
 
   return (
     <div className="pb-8">
@@ -89,7 +90,11 @@ export default function OverviewPage() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {showIncomeCard && (
-          <IncomeEntryCard household={household} currentUserId={currentUserId} />
+          <IncomeManagementCard
+            household={household}
+            currentUserId={currentUserId}
+            currency={currency}
+          />
         )}
 
         {/* Period filter */}

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useExpenses, useRecurringExpenses } from '@/hooks/queries';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
+import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import ExpenseFilterBar from '@/components/dashboard/shared/ExpenseFilterBar';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
@@ -256,6 +257,13 @@ export default function ExpensesPage() {
             myNickname={myNickname}
             partnerNickname={partnerNickname}
             isAdmin={isAdmin}
+          />
+        )}
+        {financeMode === 'split' && splitMethod === 'income_based' && myParticipatesInFinances && (
+          <IncomeManagementCard
+            household={household}
+            currentUserId={currentUserId}
+            currency={currency}
           />
         )}
 
@@ -855,7 +863,7 @@ function SplitMethodCallout({
       )}
       {splitMethod === 'income_based' && !incomeSplit && (
         <p className="text-sm text-ink-2">
-          Income data is incomplete — enter income on the Overview page to see the split.
+          Income data is incomplete — enter your income below to see the split.
         </p>
       )}
       {splitMethod === 'custom' && (
