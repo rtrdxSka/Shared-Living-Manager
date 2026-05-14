@@ -61,3 +61,56 @@ export const mockHouseholdJoint: HouseholdResponse = {
     expenseSplitMethod: undefined as never,
   },
 };
+
+// ── Finance-mode × split-method variants ──────────────────────────────
+
+export const mockHouseholdSplitEqual: HouseholdResponse = {
+  ...mockHousehold,
+  settings: { ...mockHousehold.settings, financeMode: 'split', expenseSplitMethod: 'equal' },
+};
+
+export const mockHouseholdSplitIncomeBased: HouseholdResponse = {
+  ...mockHousehold,
+  settings: { ...mockHousehold.settings, financeMode: 'split', expenseSplitMethod: 'income_based' },
+};
+
+export const mockHouseholdSplitUsageBased: HouseholdResponse = {
+  ...mockHousehold,
+  settings: { ...mockHousehold.settings, financeMode: 'split', expenseSplitMethod: 'usage_based' },
+};
+
+// ── Task-management × distribution-method variants ────────────────────
+
+export const mockHouseholdTaskFixed: HouseholdResponse = {
+  ...mockHousehold,
+  settings: { ...mockHousehold.settings, taskManagementEnabled: 'full', taskDistributionMethod: 'fixed' },
+};
+
+export const mockHouseholdTaskRotation: HouseholdResponse = {
+  ...mockHousehold,
+  settings: {
+    ...mockHousehold.settings,
+    taskManagementEnabled: 'full',
+    taskDistributionMethod: 'rotation',
+    taskRotationConfig: {
+      orderedMemberIds: ['mem-alice-001', 'mem-bob-001'],
+      startedAt: '2026-05-01T00:00:00.000Z',
+      periodDays: 7,
+    },
+  },
+} as unknown as HouseholdResponse;
+
+export const mockHouseholdTaskVoluntary: HouseholdResponse = {
+  ...mockHousehold,
+  settings: { ...mockHousehold.settings, taskManagementEnabled: 'full', taskDistributionMethod: 'voluntary' },
+};
+
+export const mockHouseholdTaskBasic: HouseholdResponse = {
+  ...mockHousehold,
+  settings: { ...mockHousehold.settings, taskManagementEnabled: 'basic' },
+};
+
+export const mockHouseholdTaskDisabled: HouseholdResponse = {
+  ...mockHousehold,
+  settings: { ...mockHousehold.settings, taskManagementEnabled: 'disabled' },
+};
