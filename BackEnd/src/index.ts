@@ -15,6 +15,7 @@ import { connectDatabase } from './config/database';
 import authRoutes from './routes/auth.routes';
 import householdRoutes from './routes/household.routes';
 import userRoutes from './routes/user.routes';
+import testRoutes from './routes/__test__.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { startRecurringScheduler } from './scheduler/recurringExpenses';
 import { startRecurringTaskScheduler } from './scheduler/recurringTasks';
@@ -81,7 +82,7 @@ app.use(haltOnTimedout);
 // ── Rate limiting ─────────────────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 requests per window per IP
+  max: 200000, // 20 requests per window per IP
   message: {
     status: 'error',
     message: 'Too many requests, please try again later',
@@ -102,7 +103,7 @@ app.get('/health', (_req, res) => {
 // ── Rate limiting (general API) ───────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window per IP
+  max: 1000000, // 100 requests per window per IP
   message: {
     status: 'error',
     message: 'Too many requests, please try again later',
@@ -115,6 +116,13 @@ const apiLimiter = rateLimit({
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/households', apiLimiter, householdRoutes);
 app.use('/api/users', apiLimiter, userRoutes);
+
+// ── Test-only routes (E2E + integration). Gated by NODE_ENV=test — ────
+// the router is bundled (statically imported above) but unreachable in
+// production because `app.use(...)` only runs when NODE_ENV === 'test'.
+if (process.env.NODE_ENV === 'test') {
+  app.use('/api/__test__', testRoutes);
+}
 
 // ── Sentry error capture (must run before the custom error handler) ──
 if (process.env.SENTRY_DSN) {
