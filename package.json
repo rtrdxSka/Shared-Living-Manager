@@ -12,7 +12,11 @@
     "build": "pnpm -r build",
     "test": "pnpm --filter backend test",
     "type-check": "pnpm -r type-check",
-    "audit": "pnpm audit"
+    "audit": "pnpm audit",
+    "e2e": "pnpm --filter e2e test",
+    "e2e:ui": "pnpm --filter e2e test:ui",
+    "e2e:debug": "pnpm --filter e2e test:debug",
+    "e2e:install": "pnpm --filter e2e install-browsers"
   },
   "pnpm": {
     "onlyBuiltDependencies": []
