@@ -2,7 +2,11 @@ import mongoose from 'mongoose';
 import { Household } from '../models/household.model';
 import { User } from '../models/user.model';
 import { BadRequestError, NotFoundError } from '../utils/error';
-import { emailLog } from '../utils/emailLog';
+import {
+  clearRawTokens,
+  emailLog,
+  getRawToken,
+} from '../utils/emailLog';
 
 /**
  * Test-only utility service. The corresponding HTTP routes are mounted in
@@ -27,21 +31,37 @@ class TestUtilityService {
     const collections = await mongoose.connection.db!.collections();
     await Promise.all(collections.map((c) => c.deleteMany({})));
     emailLog.clear();
+    clearRawTokens();
   }
 
   /**
    * Returns the latest verify or password-reset token for a user.
-   * Reads the (hashed) token field on the user document — set by
-   * authService.register / requestPasswordReset.
+   *
+   * The User document only stores a HASHED token (set by
+   * authService.register / requestPasswordReset). The public verify and
+   * reset endpoints expect the RAW token (they hash again before lookup),
+   * so we capture the raw token in `emailLog`'s side-stash at send time
+   * (`recordRawToken`, gated on NODE_ENV=test) and return it here.
+   *
+   * The presence check on the User document is retained so callers still
+   * get a clean NotFoundError when the user simply doesn't exist or the
+   * server has restarted between register and getLastToken.
    */
   async getLastToken(email: string, type: 'verify' | 'reset'): Promise<string> {
     const user = await User.findOne({ email })
       .select('+emailVerificationToken +passwordResetToken')
       .lean();
     if (!user) throw NotFoundError(`No user with email ${email}`);
-    const token = type === 'verify' ? user.emailVerificationToken : user.passwordResetToken;
-    if (!token) throw NotFoundError(`No ${type} token for ${email}`);
-    return token;
+    const hashed = type === 'verify' ? user.emailVerificationToken : user.passwordResetToken;
+    if (!hashed) throw NotFoundError(`No ${type} token for ${email}`);
+
+    const raw = getRawToken(email, type);
+    if (!raw) {
+      throw NotFoundError(
+        `No raw ${type} token captured for ${email} — was sendVerificationEmail / sendPasswordResetEmail invoked in this process?`,
+      );
+    }
+    return raw;
   }
 
   /**

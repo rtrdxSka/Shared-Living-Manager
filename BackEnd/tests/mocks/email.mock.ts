@@ -1,15 +1,17 @@
 import { vi } from 'vitest';
-import { recordEmail } from '../../src/utils/emailLog';
+import { recordEmail, recordRawToken } from '../../src/utils/emailLog';
 
 vi.mock('../../src/utils/email', () => ({
-  sendVerificationEmail: vi.fn(async (to: string) => {
+  sendVerificationEmail: vi.fn(async (to: string, _firstName: string, token: string) => {
+    recordRawToken(to, 'verify', token);
     recordEmail(to, {
       kind: 'verify',
       subject: 'Verify your email address',
       sentAt: new Date(),
     });
   }),
-  sendPasswordResetEmail: vi.fn(async (to: string) => {
+  sendPasswordResetEmail: vi.fn(async (to: string, _firstName: string, token: string) => {
+    recordRawToken(to, 'reset', token);
     recordEmail(to, {
       kind: 'reset',
       subject: 'Reset your password',

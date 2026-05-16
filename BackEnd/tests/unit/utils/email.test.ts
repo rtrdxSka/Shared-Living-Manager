@@ -18,6 +18,11 @@ beforeEach(() => {
   mockSend.mockReset();
   mockSend.mockResolvedValue({ id: 'msg_123' });
   vi.resetModules();
+  // email.ts short-circuits to an in-memory stash when NODE_ENV=test (so
+  // E2E specs can capture the raw verify/reset token without talking to
+  // Resend). These unit tests intentionally exercise the REAL Resend path,
+  // so we drop into production-mode for the duration of each test.
+  vi.stubEnv('NODE_ENV', 'production');
 });
 
 afterEach(() => {

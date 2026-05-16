@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { recordEmail, recordRawToken } from './emailLog';
 
 const RESEND_TIMEOUT_MS = Number(process.env.RESEND_TIMEOUT_MS ?? 5000);
 
@@ -50,6 +51,21 @@ export const sendVerificationEmail = async (
   firstName: string,
   token: string
 ): Promise<void> => {
+  // E2E stash: capture the raw token before Resend is invoked, so the
+  // /api/__test__/last-token endpoint can hand it back to a Playwright
+  // spec. The User document only stores the hashed token, so without this
+  // stash the raw token is unrecoverable. Gated on NODE_ENV so the
+  // production server never builds up an unbounded map.
+  if (process.env.NODE_ENV === 'test') {
+    recordRawToken(to, 'verify', token);
+    recordEmail(to, {
+      kind: 'verify',
+      subject: 'Verify your email address',
+      sentAt: new Date(),
+    });
+    return;
+  }
+
   const resend = getResendClient();
   const verificationUrl = `${getFrontendUrl()}/verify-email?token=${token}`;
 
@@ -123,6 +139,17 @@ export const sendPasswordResetEmail = async (
   firstName: string,
   token: string
 ): Promise<void> => {
+  // See sendVerificationEmail above — same E2E stash pattern.
+  if (process.env.NODE_ENV === 'test') {
+    recordRawToken(to, 'reset', token);
+    recordEmail(to, {
+      kind: 'reset',
+      subject: 'Reset your password',
+      sentAt: new Date(),
+    });
+    return;
+  }
+
   const resend = getResendClient();
   const resetUrl = `${getFrontendUrl()}/reset-password?token=${token}`;
 
