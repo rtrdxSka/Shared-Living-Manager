@@ -16,9 +16,12 @@ const router = Router();
 
 // Dedicated rate limiter for household join attempts (5 req / min per IP).
 // Prevents brute-force enumeration of valid invite codes.
+// In `NODE_ENV=test` (E2E + integration) the limit is effectively disabled —
+// e2e tests legitimately spin up many households in series and would otherwise
+// trip the limiter after the 5th run.
 const joinLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: process.env.NODE_ENV === 'test' ? 100_000 : 5,
   message: {
     status: 'error',
     message: 'Too many join attempts, please try again later',
