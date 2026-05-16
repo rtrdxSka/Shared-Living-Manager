@@ -7,7 +7,11 @@ import {
 
 import { TestApi } from './testApi';
 
-const API_BASE = 'http://localhost:5001/api';
+// Backend root (NOT including `/api`). Playwright's `request.newContext`
+// treats the request path's leading `/` as absolute, so a baseURL like
+// `http://localhost:5001/api` would have its path segment stripped on every
+// call. Keep baseURL as origin-only and prefix the API version per request.
+const API_BASE = 'http://localhost:5001';
 
 export interface TestUser {
   email: string;
@@ -32,7 +36,7 @@ export async function registerAndVerify(user: TestUser): Promise<TestUser> {
   const api = await playwrightRequest.newContext({ baseURL: API_BASE });
 
   try {
-    const registerRes = await api.post('/auth/register', {
+    const registerRes = await api.post('/api/auth/register', {
       data: {
         email: user.email,
         password: user.password,
@@ -57,7 +61,7 @@ export async function registerAndVerify(user: TestUser): Promise<TestUser> {
 
     // POST /api/auth/verify-email { token } — confirmed in auth.routes.ts /
     // verifyEmailValidation.
-    const verifyRes = await api.post('/auth/verify-email', {
+    const verifyRes = await api.post('/api/auth/verify-email', {
       data: { token },
     });
     if (!verifyRes.ok()) {
@@ -106,8 +110,11 @@ export async function loginAs(
  */
 export async function uiRegister(page: Page, user: TestUser): Promise<void> {
   await page.goto('/register');
-  await page.getByPlaceholder('Ivan').fill(user.firstName);
-  await page.getByPlaceholder('Smith').fill(user.lastName);
+  // First-name placeholder `Ivan` is a substring of `ivan@example.com`, and
+  // Playwright's getByPlaceholder is case-insensitive substring by default.
+  // Use exact:true so we don't accidentally also match the email input.
+  await page.getByPlaceholder('Ivan', { exact: true }).fill(user.firstName);
+  await page.getByPlaceholder('Smith', { exact: true }).fill(user.lastName);
   await page.getByPlaceholder('ivan@example.com').fill(user.email);
   // Password + Confirm password share placeholder="••••••••". `.first()` is
   // password, `.nth(1)` is confirm.

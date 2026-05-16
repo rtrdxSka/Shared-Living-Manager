@@ -2,7 +2,10 @@ import { request as playwrightRequest } from '@playwright/test';
 
 import { TestApi } from './testApi';
 
-const API_BASE = 'http://localhost:5001/api';
+// Origin-only base. Playwright's `request.newContext({ baseURL })` strips the
+// path segment of `baseURL` whenever the request URL starts with `/`, so we
+// prefix `/api/` per request (matches the pattern in `auth.ts` / `household.ts`).
+const API_BASE = 'http://localhost:5001';
 
 type ExpenseCategory =
   | 'rent'
@@ -40,7 +43,7 @@ export async function seedExpense(opts: {
     extraHTTPHeaders: { Authorization: `Bearer ${opts.token}` },
   });
   try {
-    const res = await api.post(`/households/${opts.householdId}/expenses`, {
+    const res = await api.post(`/api/households/${opts.householdId}/expenses`, {
       data: {
         description: opts.description,
         amount: opts.amount,
@@ -93,7 +96,7 @@ export async function seedTask(opts: {
     extraHTTPHeaders: { Authorization: `Bearer ${opts.token}` },
   });
   try {
-    const res = await api.post(`/households/${opts.householdId}/tasks`, {
+    const res = await api.post(`/api/households/${opts.householdId}/tasks`, {
       data: {
         title: opts.title,
         ...(opts.notes !== undefined ? { notes: opts.notes } : {}),
@@ -133,5 +136,161 @@ export async function fastForwardRotation(
     await testApi.fastForwardRotation(householdId, daysBack);
   } finally {
     await testApi.dispose();
+  }
+}
+
+type ShoppingCategory =
+  | 'rent'
+  | 'utilities'
+  | 'internet'
+  | 'groceries'
+  | 'cleaning'
+  | 'subscriptions'
+  | 'other';
+
+/**
+ * Seeds a shopping-list item via `POST /api/households/:id/shopping-list`.
+ * Body shape per `addShoppingItemValidation`: `{ name, quantity?, notes?,
+ * category }` — `category` is required by the validator.
+ *
+ * Response (per shopping-list.controller.ts `addItem`):
+ *   { status: 'success', data: { item: { _id, ... } } }
+ */
+export async function seedShoppingItem(opts: {
+  token: string;
+  householdId: string;
+  name: string;
+  quantity?: string;
+  notes?: string;
+  category?: ShoppingCategory;
+}): Promise<{ _id: string }> {
+  const api = await playwrightRequest.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: { Authorization: `Bearer ${opts.token}` },
+  });
+  try {
+    const res = await api.post(`/api/households/${opts.householdId}/shopping-list`, {
+      data: {
+        name: opts.name,
+        category: opts.category ?? 'groceries',
+        ...(opts.quantity !== undefined ? { quantity: opts.quantity } : {}),
+        ...(opts.notes !== undefined ? { notes: opts.notes } : {}),
+      },
+    });
+    if (!res.ok()) {
+      throw new Error(`seedShoppingItem failed: ${res.status()} ${await res.text()}`);
+    }
+    const body = (await res.json()) as {
+      data?: { item?: { _id?: string } };
+    };
+    const item = body.data?.item;
+    if (!item?._id) {
+      throw new Error(`seedShoppingItem response missing _id: ${JSON.stringify(body)}`);
+    }
+    return { _id: item._id };
+  } finally {
+    await api.dispose();
+  }
+}
+
+type GoalCategory = 'savings' | 'travel' | 'home' | 'emergency' | 'other';
+
+/**
+ * Seeds a goal via `POST /api/households/:id/goals`. Body shape per
+ * `addGoalValidation`: `{ name, description?, targetAmount, deadline?,
+ * category? }`. `targetAmount` is validated as `isFloat({ min: 0.01 })`.
+ *
+ * Response (per goal.controller.ts `addGoal`):
+ *   { status: 'success', data: { goal: { _id, ... } } }
+ */
+export async function seedGoal(opts: {
+  token: string;
+  householdId: string;
+  name: string;
+  targetAmount: number;
+  description?: string;
+  deadline?: string;
+  category?: GoalCategory;
+}): Promise<{ _id: string }> {
+  const api = await playwrightRequest.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: { Authorization: `Bearer ${opts.token}` },
+  });
+  try {
+    const res = await api.post(`/api/households/${opts.householdId}/goals`, {
+      data: {
+        name: opts.name,
+        targetAmount: opts.targetAmount,
+        ...(opts.description !== undefined ? { description: opts.description } : {}),
+        ...(opts.deadline !== undefined ? { deadline: opts.deadline } : {}),
+        ...(opts.category !== undefined ? { category: opts.category } : {}),
+      },
+    });
+    if (!res.ok()) {
+      throw new Error(`seedGoal failed: ${res.status()} ${await res.text()}`);
+    }
+    const body = (await res.json()) as {
+      data?: { goal?: { _id?: string } };
+    };
+    const goal = body.data?.goal;
+    if (!goal?._id) {
+      throw new Error(`seedGoal response missing _id: ${JSON.stringify(body)}`);
+    }
+    return { _id: goal._id };
+  } finally {
+    await api.dispose();
+  }
+}
+
+/**
+ * Seeds a contribution onto an existing goal via
+ * `POST /api/households/:id/goals/:goalId/contributions`. Body shape per
+ * `addContributionValidation`: `{ amount, note? }`. `amount` is validated as
+ * `isFloat({ min: 0.01 })`.
+ *
+ * Note: the backend AUTO-COMPLETES the goal when cumulative contributions
+ * reach `targetAmount` (goal.service.ts addContribution branch
+ * `if (currentAmount >= goal.targetAmount) goal.status = 'completed'`). This
+ * is the surprise pinned by E05 — seeding a 100%-contribution goal then
+ * trying to "mark complete" via the UI will not find the button because
+ * the goal is already completed.
+ *
+ * Response (per goal.controller.ts `addContribution`):
+ *   { status: 'success', data: { goal: { _id, ..., status, contributions } } }
+ */
+export async function seedGoalContribution(opts: {
+  token: string;
+  householdId: string;
+  goalId: string;
+  amount: number;
+  note?: string;
+}): Promise<{ status: string }> {
+  const api = await playwrightRequest.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: { Authorization: `Bearer ${opts.token}` },
+  });
+  try {
+    const res = await api.post(
+      `/api/households/${opts.householdId}/goals/${opts.goalId}/contributions`,
+      {
+        data: {
+          amount: opts.amount,
+          ...(opts.note !== undefined ? { note: opts.note } : {}),
+        },
+      },
+    );
+    if (!res.ok()) {
+      throw new Error(`seedGoalContribution failed: ${res.status()} ${await res.text()}`);
+    }
+    const body = (await res.json()) as {
+      data?: { goal?: { status?: string } };
+    };
+    const status = body.data?.goal?.status;
+    if (!status) {
+      throw new Error(`seedGoalContribution response missing status: ${JSON.stringify(body)}`);
+    }
+    return { status };
+  } finally {
+    await api.dispose();
   }
 }

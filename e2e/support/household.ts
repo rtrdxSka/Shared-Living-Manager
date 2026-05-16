@@ -2,7 +2,11 @@ import { request as playwrightRequest, type Browser, type BrowserContext } from 
 
 import { registerAndVerify, loginAs, type TestUser } from './auth';
 
-const API_BASE = 'http://localhost:5001/api';
+// Backend root (NOT including `/api`). Playwright's `request.newContext`
+// strips the path segment of `baseURL` whenever the request URL starts with
+// `/`, so we keep baseURL as origin-only and prefix the API version per
+// request.
+const API_BASE = 'http://localhost:5001';
 
 type FinanceMode = 'joint' | 'split';
 type TaskMethod = 'rotation' | 'fixed' | 'voluntary';
@@ -29,7 +33,7 @@ function uniqueEmail(prefix: string): string {
 async function loginAndGetToken(email: string, password: string): Promise<string> {
   const api = await playwrightRequest.newContext({ baseURL: API_BASE });
   try {
-    const res = await api.post('/auth/login', { data: { email, password } });
+    const res = await api.post('/api/auth/login', { data: { email, password } });
     if (!res.ok()) {
       throw new Error(`login failed: ${res.status()} ${await res.text()}`);
     }
@@ -101,7 +105,7 @@ async function apiCreateHousehold(
     extraHTTPHeaders: { Authorization: `Bearer ${token}` },
   });
   try {
-    const res = await api.post('/households', { data: payload });
+    const res = await api.post('/api/households', { data: payload });
     if (!res.ok()) {
       throw new Error(`createHousehold failed: ${res.status()} ${await res.text()}`);
     }
@@ -130,10 +134,51 @@ async function apiJoinHousehold(token: string, inviteCode: string): Promise<void
     extraHTTPHeaders: { Authorization: `Bearer ${token}` },
   });
   try {
-    const res = await api.post('/households/join', { data: { inviteCode } });
+    const res = await api.post('/api/households/join', { data: { inviteCode } });
     if (!res.ok()) {
       throw new Error(`joinHousehold failed: ${res.status()} ${await res.text()}`);
     }
+  } finally {
+    await api.dispose();
+  }
+}
+
+export interface HouseholdMemberSummary {
+  _id: string;
+  userId?: string;
+  nickname: string;
+  role: string;
+  isCreator: boolean;
+  participatesInTasks: boolean;
+}
+
+/**
+ * GET /api/households/:id — returns the full household payload. The Group D
+ * task tests need each member's subdocument `_id` (NOT the user id) to pass
+ * to `assignedToMemberId` etc., so this helper exposes a minimal
+ * `members[]` slice.
+ */
+export async function fetchHouseholdMembers(
+  token: string,
+  householdId: string,
+): Promise<HouseholdMemberSummary[]> {
+  const api = await playwrightRequest.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: { Authorization: `Bearer ${token}` },
+  });
+  try {
+    const res = await api.get(`/api/households/${householdId}`);
+    if (!res.ok()) {
+      throw new Error(`fetchHouseholdMembers failed: ${res.status()} ${await res.text()}`);
+    }
+    const body = (await res.json()) as {
+      data?: { household?: { members?: HouseholdMemberSummary[] } };
+    };
+    const members = body.data?.household?.members;
+    if (!members) {
+      throw new Error(`fetchHouseholdMembers: missing members in ${JSON.stringify(body)}`);
+    }
+    return members;
   } finally {
     await api.dispose();
   }
