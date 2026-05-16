@@ -135,6 +135,8 @@ export default function AddTransactionForm({
               <button
                 type="button"
                 onClick={() => setType('deposit')}
+                data-testid="transaction-form-tab-deposit"
+                data-state={type === 'deposit' ? 'active' : 'inactive'}
                 className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   type === 'deposit'
                     ? 'border-accent bg-accent/10 text-accent'
@@ -147,6 +149,8 @@ export default function AddTransactionForm({
               <button
                 type="button"
                 onClick={() => setType('withdrawal')}
+                data-testid="transaction-form-tab-withdrawal"
+                data-state={type === 'withdrawal' ? 'active' : 'inactive'}
                 className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   type === 'withdrawal'
                     ? 'border-warn/60 bg-warn-bg text-warn'
