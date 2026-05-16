@@ -596,7 +596,10 @@ const ExpenseRow = React.memo(function ExpenseRow({
     return {
       isUnpaid: isUnpaidLocal,
       isDebtor: isDebtorLocal,
-      canClaim: isUnpaidLocal && myParticipatesInFinances,
+      // Joint-mode expenses are auto-resolved and the household has no notion
+      // of per-member debt, so the claim flow is meaningless there. Gate
+      // `canClaim` on split-mode in addition to "unpaid + participating".
+      canClaim: financeMode === 'split' && isUnpaidLocal && myParticipatesInFinances,
       canRequestResolution:
         isSplitModeLocal && isDebtorLocal && !expense.isResolved && !expense.pendingConfirmation,
       canConfirmOrDispute:

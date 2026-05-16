@@ -232,7 +232,10 @@ function InvitePromptView({
 
       {/* invite code row */}
       <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 p-2">
-        <code className="flex-1 truncate font-mono text-xs text-ink-2 px-2 tracking-wider">
+        <code
+          data-testid="invite-code"
+          className="flex-1 truncate font-mono text-xs text-ink-2 px-2 tracking-wider"
+        >
           {inviteCode}
         </code>
         <Button size="sm" onClick={onCopy}>
