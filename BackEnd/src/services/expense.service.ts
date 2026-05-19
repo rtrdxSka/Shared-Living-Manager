@@ -41,7 +41,8 @@ class ExpenseService {
     }
 
     // 4. Create expense
-    const isJoint = household.settings?.financeMode === 'joint';
+    const autoResolve =
+      household.settings?.financeMode === 'joint' || household.uiMode === 'solo';
     const now = new Date();
 
     const expense = await Expense.create({
@@ -54,7 +55,7 @@ class ExpenseService {
       date: new Date(input.date),
       ...(input.notes && { notes: input.notes }),
       isFullRepayment: input.isFullRepayment ?? false,
-      ...(isJoint && {
+      ...(autoResolve && {
         isResolved: true,
         resolvedAt: now,
         // resolvedByUserId intentionally NOT set — absence marks auto-resolution.

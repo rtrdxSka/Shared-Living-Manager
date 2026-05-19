@@ -11,6 +11,7 @@ import shoppingListRouter from './shopping-list.routes';
 import recurringTaskRouter from './recurring-task.routes';
 import goalRouter from './goal.routes';
 import jointAccountRouter from './joint-account.routes';
+import budgetRouter from './budget.routes';
 
 const router = Router();
 
@@ -118,5 +119,6 @@ router.use('/:id/shopping-list', shoppingListRouter);
 router.use('/:id/recurring-tasks', recurringTaskRouter);
 router.use('/:id/goals', goalRouter);
 router.use('/:id/joint-account', jointAccountRouter);
+router.use('/:id/budget', budgetRouter);
 
 export default router;
