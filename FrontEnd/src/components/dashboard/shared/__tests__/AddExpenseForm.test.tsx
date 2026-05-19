@@ -8,6 +8,12 @@ import { mockHousehold } from '@/test/mocks/data/households';
 import { server } from '@/test/mocks/server';
 import type { ExpenseResponse } from '@/types/expense.types';
 
+vi.mock('@/contexts/DashboardContext', () => ({
+  useDashboard: () => ({
+    uiMode: 'couple',
+  }),
+}));
+
 const mockExpenseResponse: ExpenseResponse = {
   _id: 'expense-001',
   householdId: mockHousehold._id,

@@ -13,6 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { useAddExpense, useUpdateExpense, useCreateRecurringExpense } from '@/hooks/queries';
+import { useDashboard } from '@/contexts/DashboardContext';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
 import { RECURRENCE_INTERVALS, PAYER_MODES } from '@/types/recurring-expense.types';
 import type { HouseholdResponse } from '@/types/household.types';
@@ -40,6 +41,7 @@ export default function AddExpenseForm({
   initialValues,
   onCreated,
 }: AddExpenseFormProps) {
+  const { uiMode } = useDashboard();
   const isEditMode = expense !== undefined;
   const payableMembers = household.members.filter(
     (m) => m.participatesInFinances && m.userId
@@ -363,21 +365,23 @@ export default function AddExpenseForm({
             </div>
           )}
 
-          {/* Split */}
-          <div className="flex flex-col gap-1.5">
-            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
-              SPLIT
-            </label>
-            <Select value={splitMode} onValueChange={(v) => setSplitMode(v as 'default' | 'full')} disabled={submitting}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">Default (household method)</SelectItem>
-                <SelectItem value="full">Full repayment by other member</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Split — couple-mode only (solo has no other member to repay) */}
+          {uiMode === 'couple' && (
+            <div className="flex flex-col gap-1.5">
+              <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                SPLIT
+              </label>
+              <Select value={splitMode} onValueChange={(v) => setSplitMode(v as 'default' | 'full')} disabled={submitting}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default (household method)</SelectItem>
+                  <SelectItem value="full">Full repayment by other member</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Notes */}
           <div className="flex flex-col gap-1.5">
