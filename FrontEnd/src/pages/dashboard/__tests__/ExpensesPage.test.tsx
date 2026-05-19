@@ -24,6 +24,7 @@ vi.mock('@/contexts/DashboardContext', async () => {
       partnerNickname: 'Bob',
       currency: 'EUR',
       myMemberId: 'mem-alice-001',
+      uiMode: dashboardOverride.household.uiMode ?? 'couple',
       isAdmin: true,
       myParticipatesInFinances: true,
       hasFinancialPartner: true,
