@@ -11,6 +11,7 @@ import type {
   ExpenseSplitMethod,
   TaskManagementLevel,
   TaskDistributionMethod,
+  UIMode,
 } from '@/types/onboarding.types';
 
 import {
@@ -56,6 +57,7 @@ export interface DashboardContextValue {
   // Core data
   household: HouseholdResponse;
   currentUserId: string;
+  uiMode: UIMode;
 
   // Derived member data
   myMember: HouseholdMemberResponse | undefined;
@@ -358,9 +360,12 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     [deleteJointTxAsync]
   );
 
+  const uiMode: UIMode = household.uiMode;
+
   const value = useMemo<DashboardContextValue>(() => ({
     household,
     currentUserId,
+    uiMode,
     myMember,
     partnerMember,
     myNickname,
@@ -422,6 +427,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   }), [
     household,
     currentUserId,
+    uiMode,
     myMember,
     partnerMember,
     myNickname,
@@ -503,12 +509,14 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
         taskMembers={taskMembers}
       />
 
-      <SetRotationDialog
-        open={rotationConfigOpen}
-        onOpenChange={setRotationConfigOpen}
-        taskMembers={taskMembers}
-        onConfirm={setRotation}
-      />
+      {uiMode === 'couple' && (
+        <SetRotationDialog
+          open={rotationConfigOpen}
+          onOpenChange={setRotationConfigOpen}
+          taskMembers={taskMembers}
+          onConfirm={setRotation}
+        />
+      )}
 
       <AddGoalForm
         householdId={household._id}

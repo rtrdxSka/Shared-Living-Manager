@@ -54,4 +54,12 @@ export const queryKeys = {
     summary: (householdId: string, month: string) =>
       ['jointAccount', householdId, 'summary', month] as const,
   },
+  budget: {
+    all: (householdId: string) => ['budget', householdId] as const,
+    current: (householdId: string) => ['budget', householdId, 'current'] as const,
+    insights: (householdId: string, month: string) =>
+      ['budget', householdId, 'insights', month] as const,
+    snapshot: (householdId: string, month: string) =>
+      ['budget', householdId, 'snapshot', month] as const,
+  },
 } as const;

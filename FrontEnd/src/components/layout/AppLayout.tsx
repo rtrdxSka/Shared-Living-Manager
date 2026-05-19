@@ -8,6 +8,7 @@ import {
   Target,
   ShoppingCart,
   Wallet,
+  PiggyBank,
   UserPlus,
   User,
   LogOut,
@@ -36,7 +37,25 @@ interface NavItem {
 }
 
 function useNavItems(): NavItem[] {
-  const { household, financeMode, taskLevel, overdueCount } = useDashboard();
+  const { uiMode, financeMode, taskLevel, overdueCount } = useDashboard();
+
+  if (uiMode === 'solo') {
+    const items: NavItem[] = [
+      { id: 'overview', label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
+      { id: 'expenses', label: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
+      {
+        id: 'tasks',
+        label: 'Tasks',
+        href: '/dashboard/tasks',
+        icon: CheckSquare,
+        badge: overdueCount > 0 ? overdueCount : undefined,
+      },
+      { id: 'goals', label: 'Goals', href: '/dashboard/goals', icon: Target },
+      { id: 'shopping-list', label: 'Shopping', href: '/dashboard/shopping-list', icon: ShoppingCart },
+      { id: 'budget', label: 'Budget', href: '/dashboard/budget', icon: PiggyBank },
+    ];
+    return items;
+  }
 
   const items: NavItem[] = [
     { id: 'overview', label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
@@ -53,7 +72,7 @@ function useNavItems(): NavItem[] {
     });
   }
 
-  if (household?.uiMode === 'couple') {
+  if (uiMode === 'couple') {
     items.push({
       id: 'shopping-list',
       label: 'Shopping',
@@ -114,7 +133,7 @@ function SidebarItem({
 // ── Sidebar ───────────────────────────────────────────────────────────────
 
 function Sidebar() {
-  const { household, myNickname, partnerNickname } = useDashboard();
+  const { household, myNickname, partnerNickname, uiMode } = useDashboard();
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -150,9 +169,13 @@ function Sidebar() {
           <div className="flex items-center gap-2 mt-2">
             <AvatarGroup ringColor="surface-2">
               <Avatar name={myNickname} size={24} variant="filled" />
-              <Avatar name={partnerNickname} size={24} variant="filled" />
+              {uiMode === 'couple' && (
+                <Avatar name={partnerNickname} size={24} variant="filled" />
+              )}
             </AvatarGroup>
-            <span className="text-xs text-ink-3">{myNickname} &amp; {partnerNickname}</span>
+            <span className="text-xs text-ink-3">
+              {uiMode === 'couple' ? `${myNickname} & ${partnerNickname}` : myNickname}
+            </span>
           </div>
         </div>
       </div>
@@ -206,7 +229,7 @@ interface MoreSheetProps {
 }
 
 function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
-  const { household, myNickname, partnerNickname } = useDashboard();
+  const { household, myNickname, partnerNickname, uiMode } = useDashboard();
   const { logout } = useAuth();
   const { toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -241,9 +264,13 @@ function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
             <div className="flex items-center gap-2 mt-2">
               <AvatarGroup ringColor="surface-2">
                 <Avatar name={myNickname} size={24} variant="filled" />
-                <Avatar name={partnerNickname} size={24} variant="filled" />
+                {uiMode === 'couple' && (
+                  <Avatar name={partnerNickname} size={24} variant="filled" />
+                )}
               </AvatarGroup>
-              <span className="text-xs text-ink-3">{myNickname} &amp; {partnerNickname}</span>
+              <span className="text-xs text-ink-3">
+                {uiMode === 'couple' ? `${myNickname} & ${partnerNickname}` : myNickname}
+              </span>
             </div>
           </div>
         </div>
