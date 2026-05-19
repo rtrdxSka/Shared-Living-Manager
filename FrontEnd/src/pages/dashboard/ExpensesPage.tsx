@@ -25,7 +25,7 @@ import { extractApiError } from '@/utils/extractApiError';
 import type { ExpenseResponse, ExpenseFilters } from '@/types/expense.types';
 import { EMPTY_EXPENSE_FILTERS } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
-import { EXPENSE_TYPES, type ExpenseType } from '@/types/onboarding.types';
+import { EXPENSE_TYPES, type ExpenseType, type UIMode } from '@/types/onboarding.types';
 
 // ── Date formatter ────────────────────────────────────────────────────────
 
@@ -60,6 +60,7 @@ export default function ExpensesPage() {
   const {
     household,
     currentUserId,
+    uiMode,
     financeMode,
     splitMethod,
     customMyPct,
@@ -247,7 +248,7 @@ export default function ExpensesPage() {
         />
 
         {/* ── Split method callout ───────────────────────────────────── */}
-        {financeMode === 'split' && (
+        {uiMode === 'couple' && financeMode === 'split' && (
           <SplitMethodCallout
             splitMethod={splitMethod}
             customMyPct={customMyPct}
@@ -259,7 +260,7 @@ export default function ExpensesPage() {
             isAdmin={isAdmin}
           />
         )}
-        {financeMode === 'split' && splitMethod === 'income_based' && myParticipatesInFinances && (
+        {uiMode === 'couple' && financeMode === 'split' && splitMethod === 'income_based' && myParticipatesInFinances && (
           <IncomeManagementCard
             household={household}
             currentUserId={currentUserId}
@@ -301,8 +302,8 @@ export default function ExpensesPage() {
               />
             ) : (
               <>
-                {/* Outstanding section — split-mode only (joint accounts don't track per-user owed amounts) */}
-                {financeMode === 'split' && (
+                {/* Outstanding section — split-mode + couple-mode only (joint accounts don't track per-user owed amounts; solo has no partner debt) */}
+                {uiMode === 'couple' && financeMode === 'split' && (
                 <section>
                   <div className="rounded-xl border border-warn/30 bg-warn-bg/40 px-4 py-3 mb-3 flex items-center gap-3">
                     <EyebrowLabel className="text-warn">OUTSTANDING</EyebrowLabel>
@@ -339,6 +340,7 @@ export default function ExpensesPage() {
                             onRequestResolution={() => requestResolution(expense._id)}
                             onConfirmResolution={() => confirmResolution(expense._id)}
                             onDisputeResolution={() => disputeResolution(expense._id)}
+                            uiMode={uiMode}
                             financeMode={financeMode}
                             splitMethod={splitMethod}
                             customMyPct={customMyPct}
@@ -393,6 +395,7 @@ export default function ExpensesPage() {
                             onRequestResolution={() => requestResolution(expense._id)}
                             onConfirmResolution={() => confirmResolution(expense._id)}
                             onDisputeResolution={() => disputeResolution(expense._id)}
+                            uiMode={uiMode}
                             financeMode={financeMode}
                             splitMethod={splitMethod}
                             customMyPct={customMyPct}
@@ -412,7 +415,7 @@ export default function ExpensesPage() {
                 )}
 
                 {/* Balance summary for split mode */}
-                {financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && splitBalance.unresolvedPaidCount > 0 && (
+                {uiMode === 'couple' && financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && splitBalance.unresolvedPaidCount > 0 && (
                   <div className="mt-2 border-t border-line pt-3 text-sm">
                     <span className={splitBalance.balance > 0 ? 'text-pos' : 'text-warn'}>
                       {splitBalance.balance > 0
@@ -446,7 +449,7 @@ export default function ExpensesPage() {
           {/* ── Right rail ────────────────────────────────────────────── */}
           <div className="space-y-4">
             {/* Net Balance card */}
-            {financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && (
+            {uiMode === 'couple' && financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && (
               <Card className="p-5">
                 <EyebrowLabel className="mb-3 block">NET BALANCE</EyebrowLabel>
                 <div className="flex items-end gap-2 mb-1">
@@ -528,6 +531,7 @@ interface ExpenseRowProps {
   onRequestResolution: () => Promise<void>;
   onConfirmResolution: () => Promise<void>;
   onDisputeResolution: () => Promise<void>;
+  uiMode: UIMode;
   financeMode: string;
   splitMethod: string;
   customMyPct: number;
@@ -554,6 +558,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
   onRequestResolution,
   onConfirmResolution,
   onDisputeResolution,
+  uiMode,
   financeMode,
   splitMethod,
   customMyPct,
@@ -655,12 +660,12 @@ const ExpenseRow = React.memo(function ExpenseRow({
           <RefreshCw className="h-3.5 w-3.5 text-ink-3 shrink-0" aria-label="Recurring" />
         )}
         <span className="flex-1 min-w-0 truncate text-sm text-ink">{expense.description}</span>
-        {!expense.paidByNickname && (
+        {uiMode === 'couple' && !expense.paidByNickname && (
           <span className="shrink-0 rounded-full bg-warn-bg border border-warn/30 px-2 py-0.5 text-[11px] font-medium text-warn">
             Unpaid
           </span>
         )}
-        {expense.pendingConfirmation && !expense.isResolved && (
+        {uiMode === 'couple' && expense.pendingConfirmation && !expense.isResolved && (
           <span className="shrink-0 rounded-full bg-warn-bg border border-warn/30 px-2 py-0.5 text-[11px] font-medium text-warn">
             Pending
           </span>
@@ -695,7 +700,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
                 <span className="rounded-full bg-warn-bg border border-warn/30 px-2 py-0.5 text-[11px] font-medium text-warn w-fit">Full repayment</span>
               </>
             )}
-            {financeMode === 'split' && myParticipatesInFinances && expense.paidByUserId && (
+            {uiMode === 'couple' && financeMode === 'split' && myParticipatesInFinances && expense.paidByUserId && (
               <>
                 <span className="text-ink-3">Your share</span>
                 <span className="text-ink">{getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency, myNickname)}</span>
@@ -707,7 +712,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
           {expense.isResolved && (
             <p className="text-xs text-pos">✓ Share settled</p>
           )}
-          {isUnpaid && (
+          {uiMode === 'couple' && isUnpaid && (
             <p className="text-xs text-warn">
               No payer assigned yet. Claim this expense if you paid for it.
             </p>

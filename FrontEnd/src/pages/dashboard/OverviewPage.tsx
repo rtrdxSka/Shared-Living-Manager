@@ -8,6 +8,7 @@ import { useDashboard } from '@/contexts/DashboardContext';
 import { useExpenses, useJointAccountSummary } from '@/hooks/queries';
 import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
 import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
+import OverBudgetBanner from '@/components/dashboard/solo/OverBudgetBanner';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { HeroNumberCard } from '@/components/ui/hero-number-card';
 import { Donut } from '@/components/ui/donut';
@@ -38,6 +39,7 @@ export default function OverviewPage() {
   const {
     household,
     currentUserId,
+    uiMode,
     financeMode,
     splitMethod,
     customMyPct,
@@ -54,7 +56,6 @@ export default function OverviewPage() {
     isAdmin,
     setAddGoalOpen,
     setAddTransactionOpen,
-    splitMethod: _splitMethod,
   } = useDashboard();
 
   const [viewMode, setViewMode] = useState<ViewMode>('current');
@@ -79,16 +80,24 @@ export default function OverviewPage() {
   const jointAccount = jointAccountData ?? null;
 
   const showIncomeCard =
-    financeMode === 'split' && splitMethod === 'income_based' && myParticipatesInFinances;
+    uiMode === 'couple' && financeMode === 'split' && splitMethod === 'income_based' && myParticipatesInFinances;
 
   return (
     <div className="pb-8">
       <DashboardHeader
         title="Overview"
-        subtitle={`${myNickname} & ${partnerNickname} · ${household.name}`}
+        subtitle={
+          uiMode === 'couple'
+            ? `${myNickname} & ${partnerNickname} · ${household.name}`
+            : household.name
+        }
       />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {uiMode === 'solo' && household._id && (
+          <OverBudgetBanner householdId={household._id} />
+        )}
+
         {showIncomeCard && (
           <IncomeManagementCard
             household={household}
@@ -133,27 +142,29 @@ export default function OverviewPage() {
           )}
         </div>
 
-        <StatsRow
-          financeMode={financeMode}
-          splitMethod={splitMethod}
-          customMyPct={customMyPct}
-          incomeSplit={incomeSplit}
-          myNickname={myNickname}
-          partnerNickname={partnerNickname}
-          currency={currency}
-          expenses={expenses}
-          myParticipatesInFinances={myParticipatesInFinances}
-          hasFinancialPartner={hasFinancialPartner}
-          currentMonth={effectiveMonth}
-          household={household}
-          tasks={tasks}
-          taskLevel={taskLevel}
-          jointAccount={jointAccount}
-          isAdmin={isAdmin}
-          onSetJointTarget={() => setJointConfigOpen(true)}
-        />
+        {uiMode === 'couple' && (
+          <StatsRow
+            financeMode={financeMode}
+            splitMethod={splitMethod}
+            customMyPct={customMyPct}
+            incomeSplit={incomeSplit}
+            myNickname={myNickname}
+            partnerNickname={partnerNickname}
+            currency={currency}
+            expenses={expenses}
+            myParticipatesInFinances={myParticipatesInFinances}
+            hasFinancialPartner={hasFinancialPartner}
+            currentMonth={effectiveMonth}
+            household={household}
+            tasks={tasks}
+            taskLevel={taskLevel}
+            jointAccount={jointAccount}
+            isAdmin={isAdmin}
+            onSetJointTarget={() => setJointConfigOpen(true)}
+          />
+        )}
 
-        {financeMode === 'joint' && jointAccount && (
+        {uiMode === 'couple' && financeMode === 'joint' && jointAccount && (
           <JointAccountOverviewCard
             jointAccount={jointAccount}
             currency={currency}
@@ -185,7 +196,7 @@ export default function OverviewPage() {
 
       </div>
 
-      {financeMode === 'joint' && (
+      {uiMode === 'couple' && financeMode === 'joint' && (
         <JointAccountConfigDialog
           householdId={household._id}
           open={jointConfigOpen}

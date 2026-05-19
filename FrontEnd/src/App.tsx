@@ -32,6 +32,7 @@ const ExpensesPage = lazy(() => import('@/pages/dashboard/ExpensesPage'));
 const TasksPage    = lazy(() => import('@/pages/dashboard/TasksPage'));
 const ShoppingListPage = lazy(() => import('@/pages/dashboard/ShoppingListPage'));
 const GoalsPage    = lazy(() => import('@/pages/dashboard/GoalsPage'));
+const BudgetPage   = lazy(() => import('@/pages/dashboard/BudgetPage'));
 const AccountPage  = lazy(() => import('@/pages/dashboard/AccountPage'));
 const InvitePage   = lazy(() => import('@/pages/dashboard/InvitePage'));
 
@@ -102,6 +103,7 @@ const routes: RouteObject[] = [
           { path: 'tasks',         element: <TasksPage /> },
           { path: 'shopping-list', element: <ShoppingListPage /> },
           { path: 'goals',         element: <GoalsPage /> },
+          { path: 'budget',        element: <BudgetPage /> },
           { path: 'account',       element: <AccountPage /> },
           { path: 'invite',        element: <InvitePage /> },
         ],

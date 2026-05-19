@@ -159,6 +159,7 @@ const TaskRow = React.memo(function TaskRow({
     taskMembers,
     rotationStatus,
     deleteTask,
+    uiMode,
   } = useDashboard();
 
   const [completePending, setCompletePending] = useState(false);
@@ -361,7 +362,7 @@ const TaskRow = React.memo(function TaskRow({
           )}
 
           {/* Assignment section */}
-          {!task.isCompleted && (
+          {!task.isCompleted && uiMode === 'couple' && (
             <div>
               <p className="text-xs font-medium text-ink-3 mb-1.5">Assignment</p>
               {distribution === 'rotation' ? (
@@ -709,6 +710,7 @@ export default function TasksPage() {
     setAddRecurringTaskOpen,
     assignTask,
     toggleTaskComplete,
+    uiMode,
   } = useDashboard();
 
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -801,7 +803,7 @@ export default function TasksPage() {
         </div>
 
         {/* Rotation banner (only when distribution === 'rotation') */}
-        {distribution === 'rotation' && <RotationBanner />}
+        {uiMode === 'couple' && distribution === 'rotation' && <RotationBanner />}
 
         {/* Inline alert for assign/claim conflicts (no toast library installed) */}
         {actionError && (

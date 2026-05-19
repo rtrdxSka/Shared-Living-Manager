@@ -152,6 +152,7 @@ export default function AccountPage() {
   const {
     household,
     currentUserId,
+    uiMode,
     currency,
     isAdmin,
     financeMode,
@@ -173,8 +174,27 @@ export default function AccountPage() {
     !isSplitMode
   );
 
-  if (isSplitMode) {
+  if (uiMode === 'couple' && isSplitMode) {
     return <Navigate to="/dashboard/expenses" replace />;
+  }
+
+  // Solo users have no joint account — show a clean Account view with just income management.
+  if (uiMode === 'solo') {
+    return (
+      <div className="pb-8">
+        <DashboardHeader
+          title="Account"
+          subtitle={`${household.name} · Your monthly income`}
+        />
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          <IncomeManagementCard
+            household={household}
+            currentUserId={currentUserId}
+            currency={currency}
+          />
+        </div>
+      </div>
+    );
   }
 
   const transactions = summary?.transactions ?? [];
@@ -360,7 +380,7 @@ export default function AccountPage() {
 
           {/* Right rail */}
           <div className="space-y-4">
-            {showIncomeCard && (
+            {uiMode === 'couple' && showIncomeCard && (
               <IncomeManagementCard
                 household={household}
                 currentUserId={currentUserId}
@@ -444,14 +464,16 @@ export default function AccountPage() {
       </div>
 
       {/* Config dialog */}
-      <JointAccountConfigDialog
-        householdId={household._id}
-        open={configOpen}
-        onOpenChange={setConfigOpen}
-        currency={currency}
-        currentTarget={summary?.monthlyTarget}
-        currentMode={summary?.targetMode}
-      />
+      {uiMode === 'couple' && (
+        <JointAccountConfigDialog
+          householdId={household._id}
+          open={configOpen}
+          onOpenChange={setConfigOpen}
+          currency={currency}
+          currentTarget={summary?.monthlyTarget}
+          currentMode={summary?.targetMode}
+        />
+      )}
     </div>
   );
 }
