@@ -41,7 +41,7 @@ export default function AddExpenseForm({
   initialValues,
   onCreated,
 }: AddExpenseFormProps) {
-  const { uiMode } = useDashboard();
+  const { uiMode, financeMode } = useDashboard();
   const isEditMode = expense !== undefined;
   const payableMembers = household.members.filter(
     (m) => m.participatesInFinances && m.userId
@@ -177,14 +177,14 @@ export default function AddExpenseForm({
   }
 
   const currency = household.settings.currency;
+  const showPaidBy = isEditMode || (!isRecurring) || (isRecurring && payerMode === 'fixed');
+  const paidByRequired = (isRecurring && payerMode === 'fixed') || financeMode === 'joint';
+
   const canSubmit =
     description.trim() &&
     amount &&
     !submitting &&
-    !(isRecurring && payerMode === 'fixed' && !paidByUserId);
-
-  const showPaidBy = isEditMode || (!isRecurring) || (isRecurring && payerMode === 'fixed');
-  const paidByRequired = isRecurring && payerMode === 'fixed';
+    !(paidByRequired && !paidByUserId);
 
   const dateLabel = isRecurring ? 'STARTS FROM' : 'DATE';
 
@@ -365,8 +365,8 @@ export default function AddExpenseForm({
             </div>
           )}
 
-          {/* Split — couple-mode only (solo has no other member to repay) */}
-          {uiMode === 'couple' && (
+          {/* Split — couple+split only (joint mode has no debt; solo has no other member) */}
+          {uiMode === 'couple' && financeMode === 'split' && (
             <div className="flex flex-col gap-1.5">
               <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
                 SPLIT

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
@@ -8,11 +8,16 @@ import { mockHousehold } from '@/test/mocks/data/households';
 import { server } from '@/test/mocks/server';
 import type { ExpenseResponse } from '@/types/expense.types';
 
+const dashboardMock = { uiMode: 'couple' as 'couple' | 'solo', financeMode: 'split' as 'split' | 'joint' };
+
 vi.mock('@/contexts/DashboardContext', () => ({
-  useDashboard: () => ({
-    uiMode: 'couple',
-  }),
+  useDashboard: () => dashboardMock,
 }));
+
+beforeEach(() => {
+  dashboardMock.uiMode = 'couple';
+  dashboardMock.financeMode = 'split';
+});
 
 const mockExpenseResponse: ExpenseResponse = {
   _id: 'expense-001',
@@ -50,6 +55,28 @@ describe('<AddExpenseForm />', () => {
     // In create mode the button reads "Add Expense"
     const submit = screen.getByRole('button', { name: /add expense/i });
     expect(submit).toBeDisabled();
+  });
+
+  it('joint mode marks Paid By as required (no "(optional)" on PAID BY)', () => {
+    // Two labels carry "(optional)" in split mode: PAID BY and NOTES.
+    // In joint mode PAID BY drops its hint, so only NOTES remains.
+    dashboardMock.financeMode = 'joint';
+    renderWithProviders(<AddExpenseForm {...baseProps} />);
+    expect(screen.getAllByText(/\(optional\)/i)).toHaveLength(1);
+  });
+
+  it('joint mode hides the SPLIT dropdown entirely', () => {
+    dashboardMock.financeMode = 'joint';
+    renderWithProviders(<AddExpenseForm {...baseProps} />);
+    expect(screen.queryByText('SPLIT')).not.toBeInTheDocument();
+  });
+
+  it('split mode shows the SPLIT dropdown and keeps Paid By optional', () => {
+    dashboardMock.financeMode = 'split';
+    renderWithProviders(<AddExpenseForm {...baseProps} />);
+    expect(screen.getByText('SPLIT')).toBeInTheDocument();
+    // Both PAID BY and NOTES carry "(optional)" in split mode.
+    expect(screen.getAllByText(/\(optional\)/i)).toHaveLength(2);
   });
 
   it('submits a single expense and calls onOpenChange(false)', async () => {
