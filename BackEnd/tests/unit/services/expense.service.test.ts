@@ -121,6 +121,24 @@ describe('expenseService.addExpense', () => {
       )
     ).rejects.toSatisfy(expectAppError(403));
   });
+
+  it('auto-resolves expenses for solo households', async () => {
+    const solo = FIXTURES.household('solo');
+    const dave = FIXTURES.user('dave');
+
+    const result = await expenseService.addExpense(
+      solo._id.toString(),
+      dave._id.toString(),
+      baseAddInput({
+        description: 'Solo grocery run',
+        amount: 25,
+        category: 'groceries',
+        date: '2026-05-15',
+      })
+    );
+
+    expect(result.isResolved).toBe(true);
+  });
 });
 
 // ── listExpenses ─────────────────────────────────────────────────────
