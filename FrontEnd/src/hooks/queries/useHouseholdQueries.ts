@@ -33,6 +33,9 @@ export function useUpdateIncome(householdId: string) {
       householdApi.updateMyIncome(householdId, monthlyIncome),
     onSuccess: (updated: HouseholdResponse) => {
       queryClient.setQueryData(queryKeys.household.detail(householdId), updated);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+      });
     },
   });
 }

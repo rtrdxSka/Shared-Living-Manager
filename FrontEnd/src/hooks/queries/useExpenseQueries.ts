@@ -56,6 +56,10 @@ export function useAddExpense(householdId: string) {
         queryKey: queryKeys.jointAccount.all(householdId),
         refetchType: 'active',
       });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+        refetchType: 'active',
+      });
     },
   });
 }
@@ -80,6 +84,10 @@ export function useUpdateExpense(householdId: string) {
         queryKey: queryKeys.jointAccount.all(householdId),
         refetchType: 'active',
       });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+        refetchType: 'active',
+      });
     },
   });
 }
@@ -99,10 +107,18 @@ export function useDeleteExpense(householdId: string) {
         queryKey: queryKeys.jointAccount.all(householdId),
         refetchType: 'active',
       });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+        refetchType: 'active',
+      });
     },
     onError: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
         refetchType: 'active',
       });
     },
@@ -127,6 +143,10 @@ function invalidateExpensesActive(
 ) {
   void queryClient.invalidateQueries({
     queryKey: queryKeys.expenses.all(householdId),
+    refetchType: 'active',
+  });
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.budget.all(householdId),
     refetchType: 'active',
   });
 }

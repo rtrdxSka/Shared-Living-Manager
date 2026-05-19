@@ -28,6 +28,9 @@ export function useCreateRecurringExpense(householdId: string) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+      });
     },
   });
 }
