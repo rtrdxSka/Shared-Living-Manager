@@ -14,35 +14,15 @@ import { extractApiError } from '@/utils/extractApiError';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Donut } from '@/components/ui/donut';
-import { SparkBars } from '@/components/ui/spark-bars';
 import { MoneyAmount } from '@/components/ui/money-amount';
 import CategoryBudgetRow from '@/components/dashboard/solo/CategoryBudgetRow';
+import SpendingBreakdownCard from '@/components/dashboard/solo/SpendingBreakdownCard';
+import MonthlyTrendCard from '@/components/dashboard/solo/MonthlyTrendCard';
 import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
 
 import { BUDGET_CATEGORIES } from '@/types/budget.types';
 import type { BudgetCategories } from '@/types/budget.types';
-import type { ExpenseType } from '@/types/onboarding.types';
-
-const CATEGORY_LABELS: Record<ExpenseType, string> = {
-  rent: 'Rent',
-  utilities: 'Utilities',
-  internet: 'Internet',
-  groceries: 'Groceries',
-  cleaning: 'Cleaning',
-  subscriptions: 'Subscriptions',
-  other: 'Other',
-};
-
-const CATEGORY_COLORS: Record<ExpenseType, string> = {
-  rent: 'hsl(var(--cat-rent))',
-  utilities: 'hsl(var(--cat-utilities))',
-  internet: 'hsl(var(--cat-internet))',
-  groceries: 'hsl(var(--cat-groceries))',
-  cleaning: 'hsl(var(--cat-cleaning))',
-  subscriptions: 'hsl(var(--cat-subscriptions))',
-  other: 'hsl(var(--cat-other))',
-};
+import { CATEGORY_LABELS } from '@/utils/categoryDisplay';
 
 export default function BudgetPage() {
   const { household, currentUserId, currency } = useDashboard();
@@ -66,17 +46,6 @@ export default function BudgetPage() {
   const handleSave = (next: BudgetCategories) => {
     updateBudget.mutate({ categories: next });
   };
-
-  // Donut: { value, color } — only categories with spend > 0
-  const donutSegments = BUDGET_CATEGORIES
-    .map((cat) => ({
-      value: data.spendByCategory[cat] ?? 0,
-      color: CATEGORY_COLORS[cat],
-    }))
-    .filter((seg) => seg.value > 0);
-
-  // SparkBars: number[] — totals per month from monthlyTrend
-  const trendValues = data.monthlyTrend.map((p) => p.totalSpent);
 
   const isCurrentOrFuture = month >= currentMonthString();
 
@@ -205,39 +174,9 @@ export default function BudgetPage() {
         </CardContent>
       </Card>
 
-      {/* Donut + SparkBars */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Spending Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {donutSegments.length > 0 ? (
-              <Donut
-                size={160}
-                segments={donutSegments}
-                centerLabel={data.totalSpent.toFixed(0)}
-                centerSubLabel={
-                  <span className="uppercase tracking-[0.14em]">spent</span>
-                }
-              />
-            ) : (
-              <p className="text-sm text-ink-3">No spending this month.</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Last 6 Months</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {trendValues.length > 0 ? (
-              <SparkBars values={trendValues} highlightLast />
-            ) : (
-              <p className="text-sm text-ink-3">No trend data yet.</p>
-            )}
-          </CardContent>
-        </Card>
+        <SpendingBreakdownCard data={data} currency={currency} />
+        <MonthlyTrendCard data={data} currency={currency} />
       </div>
     </div>
   );
