@@ -111,6 +111,7 @@ describe('BudgetPage smoke', () => {
   it('renders categories from insights payload', async () => {
     renderWithProviders(<BudgetPage />);
     expect(await screen.findByText('Categories')).toBeInTheDocument();
-    expect(screen.getByText('Groceries')).toBeInTheDocument();
+    // "Groceries" appears in both the CategoryBudgetRow and the SpendingBreakdownCard legend.
+    expect(screen.getAllByText('Groceries').length).toBeGreaterThan(0);
   });
 });
