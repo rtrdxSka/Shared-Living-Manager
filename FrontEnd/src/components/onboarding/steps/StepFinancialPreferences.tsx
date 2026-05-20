@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useOnboarding } from '@/hooks/useOnboarding';
@@ -34,7 +34,6 @@ export function StepFinancialPreferences() {
   const {
     handleSubmit,
     control,
-    watch,
     setValue,
     formState: { errors },
   } = useForm<StepFinancialPreferencesData>({
@@ -47,7 +46,7 @@ export function StepFinancialPreferences() {
     },
   });
 
-  const watchedFinanceMode = watch('financeMode');
+  const watchedFinanceMode = useWatch({ control, name: 'financeMode' });
   const showSplitMethod = isNonSolo && watchedFinanceMode === 'split';
 
   // Reset split method when switching to joint pool

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Users } from 'lucide-react';
 
@@ -58,7 +58,6 @@ export function StepHouseholdStructure() {
     register,
     handleSubmit,
     control,
-    watch,
     setValue,
     formState: { errors },
   } = useForm<StepHouseholdStructureData>({
@@ -89,7 +88,7 @@ export function StepHouseholdStructure() {
     name: 'memberStructure',
   });
 
-  const members = watch('memberStructure');
+  const members = useWatch({ control, name: 'memberStructure' });
 
   // Auto-disable finances for children
   useEffect(() => {

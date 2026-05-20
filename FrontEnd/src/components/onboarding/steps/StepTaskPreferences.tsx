@@ -1,4 +1,4 @@
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useOnboarding } from '@/hooks/useOnboarding';
@@ -27,7 +27,6 @@ export function StepTaskPreferences() {
   const {
     handleSubmit,
     control,
-    watch,
     formState: { errors },
   } = useForm<StepTaskPreferencesData>({
     resolver: zodResolver(schema),
@@ -39,7 +38,7 @@ export function StepTaskPreferences() {
     },
   });
 
-  const taskLevel = watch('taskManagementEnabled');
+  const taskLevel = useWatch({ control, name: 'taskManagementEnabled' });
   const showDistribution = shouldShowDistributionMethod(arrangement, taskLevel);
   const availableMethods = getAvailableDistributionMethods(arrangement);
   const filteredDistributionOptions = TASK_DISTRIBUTION_OPTIONS.filter((opt) =>
