@@ -7,7 +7,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'location', {
     writable: true,
     configurable: true,
-    value: { href: 'http://localhost/' },
+    value: { href: 'http://localhost:3000/' },
   });
   tokenStorage.clear();
 });
@@ -121,7 +121,7 @@ describe('axios refresh-token interceptor', () => {
       api.post('/auth/login', { email: 'a@b.co', password: 'x' }),
     ).rejects.toBeDefined();
     expect(refreshCallSpy).not.toHaveBeenCalled();
-    expect(window.location.href).toBe('http://localhost/');
+    expect(window.location.href).toBe('http://localhost:3000/');
     expect(tokenStorage.get()).toBeNull();
   });
 
