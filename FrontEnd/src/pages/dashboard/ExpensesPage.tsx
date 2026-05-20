@@ -22,6 +22,7 @@ import {
   getBalanceSplitLabel,
 } from '@/utils/dashboardHelpers';
 import { extractApiError } from '@/utils/extractApiError';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ExpenseResponse, ExpenseFilters } from '@/types/expense.types';
 import { EMPTY_EXPENSE_FILTERS } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
@@ -646,12 +647,12 @@ const ExpenseRow = React.memo(function ExpenseRow({
   }
 
   return (
-    <div className={cn('rounded-xl border border-line bg-surface overflow-hidden transition-colors', isExpanded && 'border-line-2')}>
+    <div className={cn('rounded-xl border border-line bg-surface overflow-hidden interactive-surface', isExpanded && 'border-line-2')}>
       {/* Collapsed summary row */}
       <div
         onClick={onToggle}
         className={cn(
-          'flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:border-line-2',
+          'flex items-center gap-3 px-4 py-3 cursor-pointer',
           isExpanded && 'bg-surface-2'
         )}
       >
@@ -666,9 +667,19 @@ const ExpenseRow = React.memo(function ExpenseRow({
           </span>
         )}
         {uiMode === 'couple' && expense.pendingConfirmation && !expense.isResolved && (
-          <span className="shrink-0 rounded-full bg-warn-bg border border-warn/30 px-2 py-0.5 text-[11px] font-medium text-warn">
-            Pending
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className="shrink-0 rounded-full bg-warn-bg border border-warn/30 px-2 py-0.5 text-[11px] font-medium text-warn cursor-help"
+              >
+                Pending
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Waiting for the other person to confirm the repayment.
+            </TooltipContent>
+          </Tooltip>
         )}
         <span className="text-xs text-ink-3 hidden sm:inline shrink-0">Paid by</span>
         {expense.paidByNickname && (
@@ -733,9 +744,19 @@ const ExpenseRow = React.memo(function ExpenseRow({
             </p>
           )}
           {isDebtor && wasRecentlyDisputed && !expense.pendingConfirmation && (
-            <p className="text-xs text-warn">
-              {partnerNickname} disputed your payment claim. Sort it out and try again.
-            </p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p
+                  tabIndex={0}
+                  className="text-xs text-warn cursor-help underline decoration-dotted underline-offset-2 w-fit"
+                >
+                  {partnerNickname} disputed your payment claim. Sort it out and try again.
+                </p>
+              </TooltipTrigger>
+              <TooltipContent>
+                Your partner pushed back on the repayment. Settle the disagreement, then request resolution again from this expense.
+              </TooltipContent>
+            </Tooltip>
           )}
 
           {/* Action buttons */}

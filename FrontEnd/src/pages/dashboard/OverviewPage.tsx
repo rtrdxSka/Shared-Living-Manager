@@ -17,6 +17,7 @@ import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { CategoryChip } from '@/components/ui/category-chip';
 import { Avatar } from '@/components/ui/avatar';
 import { SparkBars } from '@/components/ui/spark-bars';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   fmt,
   getDueDateStatus,
@@ -95,7 +96,7 @@ export default function OverviewPage() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {uiMode === 'solo' && household._id && (
-          <OverBudgetBanner householdId={household._id} />
+          <OverBudgetBanner householdId={household._id} currency={currency} />
         )}
 
         {showIncomeCard && (
@@ -445,7 +446,18 @@ const StatsRow = React.memo(function StatsRow({
       <HeroNumberCard
         eyebrow={<EyebrowLabel>THE CURRENT STATE OF THINGS</EyebrowLabel>}
         hero={<div className="space-y-2">{heroContent}</div>}
-        subline={<span className="text-sm text-ink-3">{sublineLabel}</span>}
+        subline={
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-sm text-ink-3 cursor-help underline decoration-dotted underline-offset-2" tabIndex={0}>
+                {sublineLabel}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              How shared expenses are split. Income-based uses each partner&apos;s reported monthly income; custom is set by an admin.
+            </TooltipContent>
+          </Tooltip>
+        }
         
         rightSlot={donutRightSlot}
       />
@@ -519,12 +531,20 @@ function JointAccountTile({
         <div className="flex items-center justify-between gap-2 mb-2">
           <EyebrowLabel as="div">JOINT ACCOUNT</EyebrowLabel>
           {overdrawn && (
-            <span
-              role="status"
-              className="rounded-full bg-neg/[0.12] px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-neg"
-            >
-              Overdrawn
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  role="status"
+                  tabIndex={0}
+                  className="rounded-full bg-neg/[0.12] px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-neg cursor-help"
+                >
+                  Overdrawn
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                The joint account balance is negative. Add funds to cover upcoming expenses.
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
         <MoneyAmount amount={jointAccount.balance} currency={currency} size="lg" tone="auto" />
@@ -589,15 +609,28 @@ function OpenTasksTile({
         {overdueCount === 0 && (
           <p className="mt-1 text-xs text-ink-3">all on track</p>
         )}
-        <div className="flex items-end gap-1 mt-3" style={{ height: 28 }} aria-hidden>
-          {bars.map((bar, i) => (
-            <div
-              key={i}
-              className={`rounded-sm shrink-0 ${bar.color}`}
-              style={{ width: 12, height: Math.max(2, bar.h) }}
-            />
-          ))}
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Task urgency breakdown"
+              className="flex items-end gap-1 mt-3 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
+              style={{ height: 28 }}
+            >
+              {bars.map((bar, i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className={`rounded-sm shrink-0 ${bar.color}`}
+                  style={{ width: 12, height: Math.max(2, bar.h) }}
+                />
+              ))}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Red = overdue, yellow = due today, gray = upcoming or no due date.
+          </TooltipContent>
+        </Tooltip>
       </CardContent>
     </Card>
   );
@@ -720,9 +753,16 @@ const GoalsPreviewCard = React.memo(function GoalsPreviewCard({
                     <span className="flex items-baseline gap-1">
                       <span>{pct}%</span>
                       {overflowAmount > 0 && (
-                        <span className="text-[10px] text-ink-3/80">
-                          (+{fmt(overflowAmount)} {currency})
-                        </span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-[10px] text-ink-3/80 cursor-help underline decoration-dotted underline-offset-2" tabIndex={0}>
+                              (+{fmt(overflowAmount)} {currency})
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            You&apos;ve saved more than your target. The extra is held in this goal.
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </span>
                     <span>
@@ -811,9 +851,19 @@ const RecentActivityCard = React.memo(function RecentActivityCard({
                   {taskLevel === 'full' && task.assignedToNickname ? (
                     <Avatar name={task.assignedToNickname} size={24} />
                   ) : !task.assignedToNickname ? (
-                    <span className="rounded-full bg-accent/20 text-accent-ink px-2 py-0.5 text-[10px] font-medium">
-                      Up for grabs
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          tabIndex={0}
+                          className="rounded-full bg-accent/20 text-accent-ink px-2 py-0.5 text-[10px] font-medium cursor-help"
+                        >
+                          Up for grabs
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        No one&apos;s claimed this task yet. Click into it to take it on.
+                      </TooltipContent>
+                    </Tooltip>
                   ) : null}
                 </div>
               ))

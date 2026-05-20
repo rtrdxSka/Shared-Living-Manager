@@ -29,6 +29,7 @@ import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { Avatar } from '@/components/ui/avatar';
 import { getDueDateStatus, formatDueDate } from '@/utils/dashboardHelpers';
 import { extractApiError } from '@/utils/extractApiError';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { TaskResponse } from '@/types/task.types';
 import type { RecurringTaskResponse } from '@/types/recurring-task.types';
 
@@ -216,12 +217,12 @@ const TaskRow = React.memo(function TaskRow({
   return (
     <div
       className={cn(
-        'rounded-xl border transition-colors',
+        'rounded-xl border',
         task.isCompleted
           ? 'border-line bg-surface'
           : isOverdue
-            ? 'border-neg/40 bg-neg-bg/30'
-            : 'border-line bg-surface hover:border-line-2'
+            ? 'border-neg/40 bg-neg-bg/30 interactive-surface'
+            : 'border-line bg-surface interactive-surface'
       )}
     >
       {/* Collapsed row — click to expand */}
@@ -307,9 +308,19 @@ const TaskRow = React.memo(function TaskRow({
           task.assignedToNickname ? (
             <Avatar name={task.assignedToNickname} size={24} />
           ) : (
-            <span className="rounded-full bg-accent/20 text-accent-ink px-2 py-0.5 text-[10px] font-medium shrink-0">
-              Up for grabs
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  tabIndex={0}
+                  className="rounded-full bg-accent/20 text-accent-ink px-2 py-0.5 text-[10px] font-medium shrink-0 cursor-help"
+                >
+                  Up for grabs
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                No one&apos;s claimed this task yet. Open it to take it on.
+              </TooltipContent>
+            </Tooltip>
           )
         )}
 
@@ -900,7 +911,7 @@ export default function TasksPage() {
             {taskLevel === 'full' && (
               <div>
                 <button
-                  className="flex w-full items-center justify-between rounded-xl border border-line bg-surface px-5 py-3 text-left hover:border-line-2 transition-colors"
+                  className="flex w-full items-center justify-between rounded-xl border border-line bg-surface px-5 py-3 text-left interactive-surface"
                   onClick={() => setRecurringOpen((o) => !o)}
                 >
                   <div className="flex items-center gap-2">
