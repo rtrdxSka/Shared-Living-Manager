@@ -6,12 +6,14 @@ import {
   IBudget,
   IBudgetCategories,
   BudgetInsightsResponse,
+  BudgetInsightsByMemberEntry,
   BudgetMonthlyTrendPoint,
   BudgetUpdateRequest,
 } from '../types/budget.types';
 import { ExpenseType, EXPENSE_TYPES } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { getHouseholdForMember } from '../utils/household.helpers';
+import { computeMemberAttributionsForExpense } from '../utils/expenseShare';
 
 const currentMonthString = (now = new Date()): string =>
   `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -107,21 +109,91 @@ class BudgetService {
     userId: string,
     monthString: string
   ): Promise<BudgetInsightsResponse> {
-    const { member } = await getHouseholdForMember(householdId, userId);
+    const { household, member } = await getHouseholdForMember(householdId, userId);
     this.validateMonthString(monthString);
 
     const budgetForMonth = await this.getForMonth(householdId, userId, monthString);
 
     const range = monthRange(monthString);
-    const spendAgg = await Expense.aggregate<{ _id: ExpenseType; total: number }>([
-      { $match: { householdId: new Types.ObjectId(householdId), date: { $gte: range.gte, $lt: range.lt } } },
-      { $group: { _id: '$category', total: { $sum: '$amount' } } },
-    ]);
+    const monthExpenses = await Expense.find({
+      householdId: new Types.ObjectId(householdId),
+      date: { $gte: range.gte, $lt: range.lt },
+    });
+
     const spendByCategory: IBudgetCategories = {};
     let totalSpent = 0;
-    for (const row of spendAgg) {
-      spendByCategory[row._id] = row.total;
-      totalSpent += row.total;
+    for (const exp of monthExpenses) {
+      spendByCategory[exp.category] = (spendByCategory[exp.category] ?? 0) + exp.amount;
+      totalSpent += exp.amount;
+    }
+
+    // Per-member attribution. Use the split-aware utility to compute
+    // share + paid amounts for each expense, then accumulate per member.
+    // In joint mode, `share` is undefined on every attribution and we
+    // surface that by leaving `totalShare`/`shareByCategory` undefined on
+    // the response entries.
+    const isJointMode = household.settings.financeMode === 'joint';
+
+    interface PerMemberAccumulator {
+      totalShare?: number;
+      totalPaid: number;
+      shareByCategory?: Partial<Record<ExpenseType, number>>;
+      paidByCategory: Partial<Record<ExpenseType, number>>;
+    }
+
+    const perMemberAccumulator = new Map<string, PerMemberAccumulator>();
+
+    for (const exp of monthExpenses) {
+      const attributions = computeMemberAttributionsForExpense(exp, household);
+      for (const [memberId, attribution] of attributions) {
+        let entry = perMemberAccumulator.get(memberId);
+        if (!entry) {
+          entry = isJointMode
+            ? { totalPaid: 0, paidByCategory: {} }
+            : { totalShare: 0, totalPaid: 0, shareByCategory: {}, paidByCategory: {} };
+          perMemberAccumulator.set(memberId, entry);
+        }
+
+        if (attribution.share !== undefined) {
+          entry.totalShare = (entry.totalShare ?? 0) + attribution.share;
+          entry.shareByCategory = entry.shareByCategory ?? {};
+          entry.shareByCategory[exp.category] =
+            (entry.shareByCategory[exp.category] ?? 0) + attribution.share;
+        }
+
+        entry.totalPaid += attribution.paid;
+        if (attribution.paid !== 0) {
+          entry.paidByCategory[exp.category] =
+            (entry.paidByCategory[exp.category] ?? 0) + attribution.paid;
+        }
+      }
+    }
+
+    const byMember: BudgetInsightsByMemberEntry[] = [];
+    for (const m of household.members) {
+      if (m.participatesInFinances === false) continue;
+      const memberKey = m._id.toString();
+      const acc = perMemberAccumulator.get(memberKey);
+
+      const entry: BudgetInsightsByMemberEntry = isJointMode
+        ? {
+            memberId: memberKey,
+            nickname: m.nickname,
+            totalShare: undefined,
+            shareByCategory: undefined,
+            totalPaid: acc?.totalPaid ?? 0,
+            paidByCategory: acc?.paidByCategory ?? {},
+          }
+        : {
+            memberId: memberKey,
+            nickname: m.nickname,
+            totalShare: acc?.totalShare ?? 0,
+            shareByCategory: acc?.shareByCategory ?? {},
+            totalPaid: acc?.totalPaid ?? 0,
+            paidByCategory: acc?.paidByCategory ?? {},
+          };
+
+      byMember.push(entry);
     }
 
     const trend: BudgetMonthlyTrendPoint[] = [];
@@ -178,6 +250,7 @@ class BudgetService {
       savingsRate,
       monthlyIncome,
       overBudgetCategories,
+      byMember,
     };
   }
 
