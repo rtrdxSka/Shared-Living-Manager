@@ -1,0 +1,4 @@
+packages:
+  - BackEnd
+  - FrontEnd
+  - e2e

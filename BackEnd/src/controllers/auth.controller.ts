@@ -4,11 +4,17 @@ import { AuthRequest } from '../middleware/auth';
 import { authService } from '../services/auth.service';
 import { ILoginInput, IRegisterInput } from '../types/user.types';
 
+// `secure: true` enforces HTTPS-only delivery of the refresh-token cookie.
+// Trade-off: in plain-HTTP local dev (e.g. `http://localhost:5173`), browsers
+// will refuse to set this cookie and login won't persist. To develop locally
+// with auth working, run the frontend over HTTPS (e.g. via mkcert at
+// `https://localhost:5173`) or accept that login won't function in plain-HTTP
+// dev. This was approved as part of the refresh-token security audit.
 const REFRESH_COOKIE: CookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure: true,
   sameSite: 'strict',
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days — matches refresh-token TTL
   path: '/api/auth',
 };
 
@@ -27,7 +33,9 @@ class AuthController {
         lastName: req.body.lastName,
       };
 
-      const result = await authService.register(input);
+      const result = await authService.register(input, {
+        userAgent: req.get('user-agent') ?? undefined,
+      });
 
       res.cookie('refreshToken', result.tokens.refreshToken, REFRESH_COOKIE);
       res.status(201).json({
@@ -54,7 +62,9 @@ class AuthController {
         password: req.body.password,
       };
 
-      const result = await authService.login(input);
+      const result = await authService.login(input, {
+        userAgent: req.get('user-agent') ?? undefined,
+      });
 
       res.cookie('refreshToken', result.tokens.refreshToken, REFRESH_COOKIE);
       res.status(200).json({
@@ -76,11 +86,8 @@ class AuthController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const refreshToken = req.cookies?.refreshToken as string | undefined;
-      if (!refreshToken) {
-        res.status(401).json({ status: 'error', message: 'No refresh token' });
-        return;
-      }
+      // refreshTokenValidation has already enforced cookie presence; trust it.
+      const refreshToken = req.cookies.refreshToken as string;
 
       const tokens = await authService.refreshToken(refreshToken);
 
@@ -107,13 +114,11 @@ class AuthController {
         return;
       }
 
-      await authService.logout(req.user.userId);
+      const rawToken = req.cookies?.refreshToken as string | undefined;
+      await authService.logout(req.user.userId, { rawToken });
 
       res.clearCookie('refreshToken', { path: '/api/auth' });
-      res.status(200).json({
-        status: 'success',
-        message: 'Logged out successfully',
-      });
+      res.status(204).send();
     } catch (error) {
       next(error);
     }

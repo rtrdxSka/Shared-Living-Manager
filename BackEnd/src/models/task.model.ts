@@ -32,5 +32,7 @@ taskSchema.index(
   { recurringTaskId: 1, dueDate: 1 },
   { unique: true, partialFilterExpression: { recurringTaskId: { $exists: true } } }
 );
+// Supports findOne({ _id, householdId }) household-scoping on writes/reads
+taskSchema.index({ _id: 1, householdId: 1 });
 
 export const Task = model<ITask>('Task', taskSchema);

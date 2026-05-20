@@ -13,6 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { useAddExpense, useUpdateExpense, useCreateRecurringExpense } from '@/hooks/queries';
+import { useDashboard } from '@/contexts/useDashboard';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
 import { RECURRENCE_INTERVALS, PAYER_MODES } from '@/types/recurring-expense.types';
 import type { HouseholdResponse } from '@/types/household.types';
@@ -24,12 +25,9 @@ interface AddExpenseFormProps {
   onOpenChange: (o: boolean) => void;
   household: HouseholdResponse;
   expense?: ExpenseResponse;
-  isAdmin: boolean;
-  currentUserId: string;
+  initialValues?: Partial<AddExpenseInput>;  // prefill in create mode (ignored when `expense` is provided)
+  onCreated?: (expense: ExpenseResponse) => void;  // optional callback fired after a successful create
 }
-
-const selectClass =
-  'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -40,24 +38,29 @@ export default function AddExpenseForm({
   onOpenChange,
   household,
   expense,
-  isAdmin,
-  currentUserId,
+  initialValues,
+  onCreated,
 }: AddExpenseFormProps) {
+  const { uiMode, financeMode } = useDashboard();
   const isEditMode = expense !== undefined;
   const payableMembers = household.members.filter(
     (m) => m.participatesInFinances && m.userId
   );
-  const dropdownMembers = isAdmin
-    ? payableMembers
-    : payableMembers.filter((m) => m.userId === currentUserId);
+  const dropdownMembers = payableMembers;
 
-  const [description, setDescription] = useState(expense?.description ?? '');
-  const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
-  const [category, setCategory] = useState(expense?.category ?? EXPENSE_TYPES[0]);
-  const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : todayISO());
-  const [paidByUserId, setPaidByUserId] = useState(expense?.paidByUserId ?? '');
-  const [notes, setNotes] = useState(expense?.notes ?? '');
-  const [splitMode, setSplitMode] = useState<'default' | 'full'>(expense?.isFullRepayment ? 'full' : 'default');
+  const [description, setDescription] = useState(expense?.description ?? initialValues?.description ?? '');
+  const [amount, setAmount] = useState(
+    expense ? String(expense.amount) : initialValues?.amount != null ? String(initialValues.amount) : ''
+  );
+  const [category, setCategory] = useState(expense?.category ?? initialValues?.category ?? EXPENSE_TYPES[0]);
+  const [date, setDate] = useState(
+    expense ? expense.date.slice(0, 10) : (initialValues?.date ?? todayISO())
+  );
+  const [paidByUserId, setPaidByUserId] = useState(expense?.paidByUserId ?? initialValues?.paidByUserId ?? '');
+  const [notes, setNotes] = useState(expense?.notes ?? initialValues?.notes ?? '');
+  const [splitMode, setSplitMode] = useState<'default' | 'full'>(
+    expense?.isFullRepayment ? 'full' : initialValues?.isFullRepayment ? 'full' : 'default'
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Recurring state (not available in edit mode)
@@ -71,7 +74,8 @@ export default function AddExpenseForm({
 
   const submitting = addExpenseMutation.isPending || updateExpenseMutation.isPending || createRecurringMutation.isPending;
 
-  // Re-populate form whenever the expense being edited changes
+  // Re-populate form whenever the expense being edited or initialValues prefill changes,
+  // or when the sheet opens in create mode with prefill data.
   useEffect(() => {
     if (expense) {
       setDescription(expense.description);
@@ -82,8 +86,21 @@ export default function AddExpenseForm({
       setNotes(expense.notes ?? '');
       setSplitMode(expense.isFullRepayment ? 'full' : 'default');
       setError(null);
+      return;
     }
-  }, [expense?._id]);
+    if (open && initialValues) {
+      if (initialValues.description !== undefined) setDescription(initialValues.description);
+      if (initialValues.amount !== undefined) setAmount(String(initialValues.amount));
+      if (initialValues.category !== undefined) setCategory(initialValues.category);
+      if (initialValues.date !== undefined) setDate(initialValues.date);
+      if (initialValues.paidByUserId !== undefined) setPaidByUserId(initialValues.paidByUserId);
+      if (initialValues.notes !== undefined) setNotes(initialValues.notes);
+      if (initialValues.isFullRepayment !== undefined) {
+        setSplitMode(initialValues.isFullRepayment ? 'full' : 'default');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expense, open]);
 
   // Reset all fields when the sheet is dismissed
   useEffect(() => {
@@ -142,7 +159,8 @@ export default function AddExpenseForm({
           ...(notes.trim() && { notes: notes.trim() }),
           isFullRepayment: splitMode === 'full',
         };
-        await addExpenseMutation.mutateAsync(input);
+        const created = await addExpenseMutation.mutateAsync(input);
+        if (onCreated) onCreated(created);
       }
       if (!isEditMode) resetForm();
       onOpenChange(false);
@@ -159,16 +177,16 @@ export default function AddExpenseForm({
   }
 
   const currency = household.settings.currency;
+  const showPaidBy = isEditMode || (!isRecurring) || (isRecurring && payerMode === 'fixed');
+  const paidByRequired = (isRecurring && payerMode === 'fixed') || financeMode === 'joint';
+
   const canSubmit =
     description.trim() &&
     amount &&
     !submitting &&
-    !(isRecurring && payerMode === 'fixed' && !paidByUserId);
+    !(paidByRequired && !paidByUserId);
 
-  const showPaidBy = isEditMode || (!isRecurring) || (isRecurring && payerMode === 'fixed');
-  const paidByRequired = isRecurring && payerMode === 'fixed';
-
-  const dateLabel = isRecurring ? 'Starts from' : 'Date';
+  const dateLabel = isRecurring ? 'STARTS FROM' : 'DATE';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -182,7 +200,9 @@ export default function AddExpenseForm({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Description */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Description</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              DESCRIPTION
+            </label>
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -195,7 +215,9 @@ export default function AddExpenseForm({
 
           {/* Amount */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Amount ({currency})</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              AMOUNT ({currency})
+            </label>
             <Input
               type="number"
               min="0.01"
@@ -211,9 +233,11 @@ export default function AddExpenseForm({
 
           {/* Category */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Category</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              CATEGORY
+            </label>
             <Select value={category} onValueChange={(v) => setCategory(v as typeof category)} disabled={submitting}>
-              <SelectTrigger className={selectClass}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -228,7 +252,9 @@ export default function AddExpenseForm({
 
           {/* Date / Starts from */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">{dateLabel}</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              {dateLabel}
+            </label>
             <Input
               type="date"
               value={date}
@@ -247,10 +273,10 @@ export default function AddExpenseForm({
                   type="button"
                   onClick={() => setIsRecurring((r) => !r)}
                   disabled={submitting}
-                  className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
                     isRecurring
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-transparent text-muted-foreground hover:bg-muted'
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-line bg-surface-2 text-ink-3 hover:border-line-2 hover:text-ink'
                   }`}
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
@@ -259,10 +285,12 @@ export default function AddExpenseForm({
               </div>
 
               {isRecurring && (
-                <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface-2 p-3">
                   {/* Interval */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Interval</label>
+                    <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                      INTERVAL
+                    </label>
                     <div className="flex gap-2">
                       {RECURRENCE_INTERVALS.map((iv) => (
                         <button
@@ -272,8 +300,8 @@ export default function AddExpenseForm({
                           disabled={submitting}
                           className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                             interval === iv
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-border bg-transparent hover:bg-muted'
+                              ? 'border-accent bg-accent text-accent-ink'
+                              : 'border-line bg-surface text-ink-3 hover:border-line-2 hover:text-ink'
                           }`}
                         >
                           {iv.charAt(0).toUpperCase() + iv.slice(1)}
@@ -284,7 +312,9 @@ export default function AddExpenseForm({
 
                   {/* Payer mode */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Payer</label>
+                    <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                      PAYER
+                    </label>
                     <div className="flex gap-2">
                       {PAYER_MODES.map((pm) => (
                         <button
@@ -297,8 +327,8 @@ export default function AddExpenseForm({
                           disabled={submitting}
                           className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                             payerMode === pm
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-border bg-transparent hover:bg-muted'
+                              ? 'border-accent bg-accent text-accent-ink'
+                              : 'border-line bg-surface text-ink-3 hover:border-line-2 hover:text-ink'
                           }`}
                         >
                           {pm === 'fixed' ? 'Fixed payer' : 'Open to claim'}
@@ -314,15 +344,15 @@ export default function AddExpenseForm({
           {/* Paid by — shown for edit mode, non-recurring, or recurring+fixed */}
           {showPaidBy && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">
-                Paid by{!paidByRequired && <span className="text-muted-foreground"> (optional)</span>}
+              <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                PAID BY{!paidByRequired && <span className="normal-case tracking-normal font-sans text-ink-3"> (optional)</span>}
               </label>
               <Select
                 value={paidByUserId || '__none__'}
                 onValueChange={(v) => setPaidByUserId(v === '__none__' ? '' : v)}
                 disabled={submitting}
               >
-                <SelectTrigger className={selectClass}>
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -335,23 +365,29 @@ export default function AddExpenseForm({
             </div>
           )}
 
-          {/* Split */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Split</label>
-            <Select value={splitMode} onValueChange={(v) => setSplitMode(v as 'default' | 'full')} disabled={submitting}>
-              <SelectTrigger className={selectClass}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">Default (household method)</SelectItem>
-                <SelectItem value="full">Full repayment by other member</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Split — couple+split only (joint mode has no debt; solo has no other member) */}
+          {uiMode === 'couple' && financeMode === 'split' && (
+            <div className="flex flex-col gap-1.5">
+              <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                SPLIT
+              </label>
+              <Select value={splitMode} onValueChange={(v) => setSplitMode(v as 'default' | 'full')} disabled={submitting}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default (household method)</SelectItem>
+                  <SelectItem value="full">Full repayment by other member</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Notes */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Notes (optional)</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              NOTES <span className="normal-case tracking-normal font-sans text-ink-3">(optional)</span>
+            </label>
             <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -361,7 +397,7 @@ export default function AddExpenseForm({
             />
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-neg mt-1">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
             {submitting ? (

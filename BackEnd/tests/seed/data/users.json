@@ -1,0 +1,80 @@
+[
+  {
+    "key": "alice",
+    "email": "alice@example.com",
+    "password": "Password123!",
+    "firstName": "Alice",
+    "lastName": "Anderson",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "BGN",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "bob",
+    "email": "bob@example.com",
+    "password": "Password123!",
+    "firstName": "Bob",
+    "lastName": "Brown",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "BGN",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "carol",
+    "email": "carol@example.com",
+    "password": "Password123!",
+    "firstName": "Carol",
+    "lastName": "Carter",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "BGN",
+      "notifications": { "email": true, "push": true, "frequency": "instant" }
+    }
+  },
+  {
+    "key": "dave",
+    "email": "dave@example.com",
+    "password": "Password123!",
+    "firstName": "Dave",
+    "lastName": "Davis",
+    "isEmailVerified": false,
+    "preferences": {
+      "language": "en",
+      "currency": "BGN",
+      "notifications": { "email": false, "push": false, "frequency": "weekly" }
+    }
+  },
+  {
+    "key": "eve",
+    "email": "eve@example.com",
+    "password": "Password123!",
+    "firstName": "Eve",
+    "lastName": "Evans",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "BGN",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "frank",
+    "email": "frank@example.com",
+    "password": "Password123!",
+    "firstName": "Frank",
+    "lastName": "Foster",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "bg",
+      "currency": "BGN",
+      "notifications": { "email": true, "push": true, "frequency": "daily" }
+    }
+  }
+]

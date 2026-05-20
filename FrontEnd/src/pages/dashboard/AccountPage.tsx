@@ -1,114 +1,30 @@
 import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import {
   ArrowDownLeft,
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Plus,
   Settings2,
+  Sparkles,
   Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { Avatar } from '@/components/ui/avatar';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useJointAccountSummary } from '@/hooks/queries';
 import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
+import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
+import DashboardHeader from '@/components/layout/DashboardHeader';
+import { HeroNumberCard } from '@/components/ui/hero-number-card';
+import { MoneyAmount } from '@/components/ui/money-amount';
+import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { fmt, stepMonth, formatMonthLabel, currentMonthString } from '@/utils/dashboardHelpers';
 import type { JointAccountTransactionResponse } from '@/types/joint-account.types';
-
-// ── Stats bar ────────────────────────────────────────────────────────────
-
-interface StatsBarProps {
-  balance: number;
-  monthlyDeposits: number;
-  monthlyWithdrawals: number;
-  monthlyExpenses: number;
-  currency: string;
-}
-
-function StatsBar({
-  balance,
-  monthlyDeposits,
-  monthlyWithdrawals,
-  monthlyExpenses,
-  currency,
-}: StatsBarProps) {
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <Card className="p-3">
-        <p className="text-xs text-muted-foreground">Total balance</p>
-        <p className={cn('text-2xl font-bold tracking-tight mt-0.5', balance < 0 && 'text-destructive')}>
-          {fmt(balance)}
-        </p>
-        <p className="text-[10px] text-muted-foreground">{currency}</p>
-      </Card>
-      <Card className="p-3">
-        <p className="text-xs text-muted-foreground">Deposits this month</p>
-        <p className="text-2xl font-bold tracking-tight mt-0.5 text-green-600 dark:text-green-400">
-          +{fmt(monthlyDeposits)}
-        </p>
-        <p className="text-[10px] text-muted-foreground">{currency}</p>
-      </Card>
-      <Card className="p-3">
-        <p className="text-xs text-muted-foreground">Withdrawals</p>
-        <p className="text-2xl font-bold tracking-tight mt-0.5 text-amber-600 dark:text-amber-400">
-          -{fmt(monthlyWithdrawals)}
-        </p>
-        <p className="text-[10px] text-muted-foreground">{currency}</p>
-      </Card>
-      <Card className="p-3">
-        <p className="text-xs text-muted-foreground">Expenses paid</p>
-        <p className="text-2xl font-bold tracking-tight mt-0.5 text-destructive">
-          -{fmt(monthlyExpenses)}
-        </p>
-        <p className="text-[10px] text-muted-foreground">{currency}</p>
-      </Card>
-    </div>
-  );
-}
-
-// ── Monthly target progress ───────────────────────────────────────────────
-
-function TargetProgress({
-  monthlyDeposits,
-  monthlyTarget,
-  currency,
-  memberBreakdown,
-}: {
-  monthlyDeposits: number;
-  monthlyTarget: number;
-  currency: string;
-  memberBreakdown: { nickname: string; deposits: number; targetAmount?: number }[];
-}) {
-  const pct = Math.min(100, Math.round((monthlyDeposits / monthlyTarget) * 100));
-  return (
-    <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 space-y-2">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium">Monthly target: {fmt(monthlyTarget)} {currency}</span>
-        <span className={cn('font-semibold', pct >= 100 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground')}>
-          {pct}% reached
-        </span>
-      </div>
-      <div className="h-2 rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn('h-full rounded-full', pct >= 100 ? 'bg-green-500' : 'bg-primary')}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      {memberBreakdown.map((m) => m.targetAmount !== undefined && (
-        <div key={m.nickname} className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{m.nickname}</span>
-          <span>
-            {fmt(m.deposits)} / {fmt(m.targetAmount)} {currency}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ── Transaction row ───────────────────────────────────────────────────────
 
@@ -129,8 +45,7 @@ function TransactionRow({
 }: TransactionRowProps) {
   const [deletePending, setDeletePending] = useState(false);
   const isConfirming = confirmingDelete === tx._id;
-
-  const isDeposit = tx.type === 'deposit';
+  const isInbound = tx.type === 'deposit';
 
   async function handleDelete() {
     setDeletePending(true);
@@ -143,28 +58,30 @@ function TransactionRow({
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-card px-3 py-2.5">
-      {/* Type icon */}
+    <div className="flex items-center gap-3 py-2 border-b border-line last:border-b-0">
+      {/* Direction icon */}
       <div
         className={cn(
-          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-          isDeposit ? 'bg-green-100 dark:bg-green-900/30' : 'bg-amber-100 dark:bg-amber-900/30'
+          'h-8 w-8 rounded-full flex items-center justify-center shrink-0',
+          isInbound ? 'bg-pos/15 text-pos' : 'bg-neg/10 text-ink-2'
         )}
       >
-        {isDeposit ? (
-          <ArrowDownLeft className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+        {isInbound ? (
+          <ArrowDownLeft className="h-4 w-4" />
         ) : (
-          <ArrowUpRight className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          <ArrowUpRight className="h-4 w-4" />
         )}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">
+        <p className="text-sm text-ink truncate">
           {tx.memberNickname}
-          {tx.note && <span className="ml-1.5 font-normal text-muted-foreground">— {tx.note}</span>}
+          {tx.note && (
+            <span className="ml-1.5 text-ink-3"> — {tx.note}</span>
+          )}
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[11px] font-mono text-ink-3">
           {new Date(tx.createdAt).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
@@ -174,28 +91,33 @@ function TransactionRow({
       </div>
 
       {/* Amount */}
-      <span
-        className={cn(
-          'text-sm font-semibold shrink-0',
-          isDeposit ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'
-        )}
-      >
-        {isDeposit ? '+' : '-'}{fmt(tx.amount)} {currency}
-      </span>
+      <MoneyAmount
+        amount={isInbound ? tx.amount : -tx.amount}
+        currency={currency}
+        signed
+        tone={isInbound ? 'pos' : 'neutral'}
+        size="sm"
+        className="shrink-0"
+      />
 
       {/* Delete */}
       {!isConfirming ? (
         <button
           onClick={() => setConfirmingDelete(tx._id)}
-          className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
+          className="ml-1 text-ink-3 hover:text-neg transition-colors shrink-0"
           title="Delete transaction"
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none">
-            <path d="M3 4h10M6 4V3a1 1 0 012 0v1m2 0v9a1 1 0 01-1 1H7a1 1 0 01-1-1V4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <path
+              d="M3 4h10M6 4V3a1 1 0 012 0v1m2 0v9a1 1 0 01-1 1H7a1 1 0 01-1-1V4"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
       ) : (
-        <div className="flex items-center gap-1 ml-1">
+        <div className="flex items-center gap-1 ml-1 shrink-0">
           <Button
             variant="destructive"
             size="sm"
@@ -220,14 +142,22 @@ function TransactionRow({
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────
+// ── Contribution bar colour map (primary vs other) ────────────────────────
+
+const CONTRIB_BAR: [string, string] = ['bg-accent', 'bg-cat-rent'];
+
+// ── Main page ─────────────────────────────────────────────────────────────
 
 export default function AccountPage() {
   const {
     household,
+    currentUserId,
+    uiMode,
     currency,
     isAdmin,
+    financeMode,
     setAddTransactionOpen,
+    openTransactionForm,
     deleteJointTransaction,
   } = useDashboard();
 
@@ -235,155 +165,315 @@ export default function AccountPage() {
   const [configOpen, setConfigOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
+  // Redirect direct-URL access in split mode — Account tab does not exist there.
+  const isSplitMode = financeMode === 'split';
+
   const { data: summary, isLoading } = useJointAccountSummary(
     household._id,
     accountMonth,
-    true
+    !isSplitMode
   );
+
+  if (uiMode === 'couple' && isSplitMode) {
+    return <Navigate to="/dashboard/expenses" replace />;
+  }
+
+  // Solo users have no joint account — show a clean Account view with just income management.
+  if (uiMode === 'solo') {
+    return (
+      <div className="pb-8">
+        <DashboardHeader
+          title="Account"
+          subtitle={`${household.name} · Your monthly income`}
+        />
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          <IncomeManagementCard
+            household={household}
+            currentUserId={currentUserId}
+            currency={currency}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const transactions = summary?.transactions ?? [];
   const memberBreakdown = summary?.memberBreakdown ?? [];
 
+  // Monthly target progress
+  const hasTarget = !!summary?.monthlyTarget && summary.monthlyTarget > 0;
+  const pct = hasTarget
+    ? Math.min(100, Math.round(((summary?.monthlyDeposits ?? 0) / (summary?.monthlyTarget ?? 1)) * 100))
+    : 0;
+
+  // Total deposits for contributions percentage
+  const totalDeposits = memberBreakdown.reduce((s, m) => s + m.deposits, 0);
+
+  const financialMembers = household.members.filter((m) => m.participatesInFinances);
+  const totalIncome = financialMembers.reduce((s, m) => s + (m.monthlyIncome ?? 0), 0);
+  const isProportional = summary?.targetMode === 'proportional';
+  const showIncomeCard = isProportional;
+  const showIncomeChips = isProportional && totalIncome > 0;
+
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Joint Account</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Shared balance and monthly transactions
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
-              <Settings2 className="mr-1.5 h-3.5 w-3.5" />
-              Target
-            </Button>
-          )}
-          <Button size="sm" onClick={() => setAddTransactionOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add
-          </Button>
-        </div>
-      </div>
+    <div className="pb-8">
+      <DashboardHeader
+        title="Joint Account"
+        subtitle={`${household.name} · Shared balance & monthly transactions`}
+        rightSlot={
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
+                <Settings2 className="mr-1.5 h-3.5 w-3.5" />
+                Adjust target
+              </Button>
+            )}
+          </div>
+        }
+      />
 
-      {/* Stats bar */}
-      {isLoading ? (
-        <div className="flex justify-center py-10">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : summary ? (
-        <StatsBar
-          balance={summary.balance}
-          monthlyDeposits={summary.monthlyDeposits}
-          monthlyWithdrawals={summary.monthlyWithdrawals}
-          monthlyExpenses={summary.monthlyExpenses}
-          currency={currency}
-        />
-      ) : null}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* ── Overdraft warning rail ── */}
+        {summary && summary.balance < 0 && (
+          <div
+            role="alert"
+            className="rounded-md border border-neg/40 bg-neg/[0.08] px-4 py-2 text-sm text-neg"
+          >
+            Joint account is overdrawn by {fmt(Math.abs(summary.balance))} {currency}.
+          </div>
+        )}
 
-      {/* Monthly target progress */}
-      {summary?.monthlyTarget && summary.monthlyTarget > 0 && (
-        <TargetProgress
-          monthlyDeposits={summary.monthlyDeposits}
-          monthlyTarget={summary.monthlyTarget}
-          currency={currency}
-          memberBreakdown={memberBreakdown}
-        />
-      )}
-
-      {/* Member contribution breakdown */}
-      {memberBreakdown.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Member Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {memberBreakdown.map((m) => (
-              <div
-                key={m.memberId}
-                className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2"
-              >
-                <span className="text-sm font-medium">{m.nickname}</span>
-                <div className="text-right text-xs">
-                  <p className="text-green-600 dark:text-green-400">
-                    +{fmt(m.deposits)} deposits
-                  </p>
-                  {m.withdrawals > 0 && (
-                    <p className="text-amber-600 dark:text-amber-400">
-                      -{fmt(m.withdrawals)} withdrawals
-                    </p>
-                  )}
-                </div>
+        {/* ── Hero balance card ── */}
+        {isLoading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
+          </div>
+        ) : summary ? (
+          <HeroNumberCard
+            eyebrow={<EyebrowLabel as="span">CURRENT BALANCE</EyebrowLabel>}
+            hero={
+              <MoneyAmount
+                amount={summary.balance}
+                currency={currency}
+                size="hero"
+                tone="auto"
+              />
+            }
+            subline={
+              <div className="space-y-3">
+                <p className="text-sm text-ink-2">
+                  {hasTarget
+                    ? `You've deposited ${fmt(summary.monthlyDeposits)} ${currency} of ${fmt(summary.monthlyTarget!)} ${currency} monthly target`
+                    : `${fmt(summary.monthlyDeposits)} ${currency} deposited this month`}
+                </p>
+                {hasTarget ? (
+                  <div className="w-full max-w-[480px] h-2 bg-surface-2 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-accent rounded-full transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                ) : isAdmin ? (
+                  <div className="space-y-2 max-w-[480px]">
+                    <div
+                      className="h-2 w-full rounded-full border border-dashed border-ink-3/40"
+                      aria-hidden
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfigOpen(true)}
+                    >
+                      Set a monthly target
+                    </Button>
+                  </div>
+                ) : null}
+                {hasTarget && summary.targetMode && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
+                      summary.targetMode === 'proportional'
+                        ? 'bg-accent/10 text-accent'
+                        : 'bg-surface-2 text-ink-3'
+                    )}
+                  >
+                    {summary.targetMode === 'proportional'
+                      ? totalIncome === 0
+                        ? 'Mode: Income-based · waiting for incomes'
+                        : 'Mode: Income-based'
+                      : 'Mode: Equal'}
+                  </span>
+                )}
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+            }
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={() => openTransactionForm('deposit')}>
+                  Deposit
+                </Button>
+                <Button variant="outline" onClick={() => openTransactionForm('withdrawal')}>
+                  Withdraw
+                </Button>
+                {isAdmin && (
+                  <Button variant="ghost" onClick={() => setConfigOpen(true)}>
+                    Adjust target
+                  </Button>
+                )}
+              </div>
+            }
+          />
+        ) : null}
 
-      {/* Transactions */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
+        {/* ── Main content grid ── */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+          {/* Left: Recent activity */}
+          <div className="space-y-4">
+            {/* Month navigator */}
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setAccountMonth((m) => stepMonth(m, 'prev'))}
-                className="rounded p-1 hover:bg-muted"
+                className="rounded p-1 hover:bg-surface-2 text-ink-2"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <CardTitle className="text-base font-semibold">
+              <span className="text-sm font-semibold text-ink min-w-[120px] text-center">
                 {formatMonthLabel(accountMonth)}
-              </CardTitle>
+              </span>
               <button
                 onClick={() => setAccountMonth((m) => stepMonth(m, 'next'))}
-                className="rounded p-1 hover:bg-muted"
+                className="rounded p-1 hover:bg-surface-2 text-ink-2"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
-          </div>
-        </CardHeader>
 
-        <CardContent className="space-y-2">
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : transactions.length === 0 ? (
-            <EmptyState
-              icon={Wallet}
-              title="No transactions this month"
-              description="Add a deposit or withdrawal to track your joint account activity."
-              action={{ label: 'Add transaction', onClick: () => setAddTransactionOpen(true) }}
-            />
-          ) : (
-            <div className="space-y-2">
-              {transactions.map((tx) => (
-                <TransactionRow
-                  key={tx._id}
-                  tx={tx}
-                  currency={currency}
-                  confirmingDelete={confirmingDelete}
-                  setConfirmingDelete={setConfirmingDelete}
-                  onDelete={deleteJointTransaction}
+            <EyebrowLabel as="div">RECENT ACTIVITY</EyebrowLabel>
+
+            <Card className="p-5">
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-4 w-4 animate-spin text-ink-3" />
+                </div>
+              ) : transactions.length === 0 ? (
+                <EmptyState
+                  icon={Wallet}
+                  title="No transactions this month"
+                  description="Add a deposit or withdrawal to track your joint account activity."
+                  action={{ label: 'Add transaction', onClick: () => setAddTransactionOpen(true) }}
                 />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : (
+                <div>
+                  {transactions.map((tx) => (
+                    <TransactionRow
+                      key={tx._id}
+                      tx={tx}
+                      currency={currency}
+                      confirmingDelete={confirmingDelete}
+                      setConfirmingDelete={setConfirmingDelete}
+                      onDelete={deleteJointTransaction}
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
 
-      {/* Config dialog — rendered locally to access summary data for pre-fill */}
-      <JointAccountConfigDialog
-        householdId={household._id}
-        open={configOpen}
-        onOpenChange={setConfigOpen}
-        currency={currency}
-        currentTarget={summary?.monthlyTarget}
-        currentMode={summary?.targetMode}
-      />
+          {/* Right rail */}
+          <div className="space-y-4">
+            {uiMode === 'couple' && showIncomeCard && (
+              <IncomeManagementCard
+                household={household}
+                currentUserId={currentUserId}
+                currency={currency}
+              />
+            )}
+            {/* Contributions this month */}
+            {memberBreakdown.length > 0 && (
+              <Card className="p-5 space-y-4">
+                <EyebrowLabel as="div">CONTRIBUTIONS THIS MONTH</EyebrowLabel>
+                <div className="space-y-3">
+                  {memberBreakdown.map((m, i) => {
+                    const barClass = CONTRIB_BAR[i % CONTRIB_BAR.length];
+                    const member = financialMembers.find(
+                      (fm) => fm._id === m.memberId
+                    );
+                    const showIncomePct =
+                      showIncomeChips && member?.monthlyIncome !== undefined;
+                    const incomePct = showIncomePct
+                      ? Math.round(((member!.monthlyIncome ?? 0) / totalIncome) * 100)
+                      : null;
+                    const hasTargetAmount =
+                      typeof m.targetAmount === 'number' && m.targetAmount > 0;
+                    const memberPct = hasTargetAmount
+                      ? Math.round((m.deposits / (m.targetAmount as number)) * 100)
+                      : totalDeposits > 0
+                        ? Math.round((m.deposits / totalDeposits) * 100)
+                        : 0;
+                    const barWidthPct = hasTargetAmount
+                      ? Math.min(100, (m.deposits / (m.targetAmount as number)) * 100)
+                      : memberPct;
+                    return (
+                      <div key={m.memberId} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Avatar name={m.nickname} size={28} />
+                            <span className="text-sm text-ink truncate">{m.nickname}</span>
+                            {showIncomePct && (
+                              <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-accent bg-accent/10 rounded-full px-1.5 py-0.5 shrink-0">
+                                {incomePct}%
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-ink-3 font-mono shrink-0">
+                            {memberPct}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                          <div
+                            className={cn('h-full rounded-full transition-all', barClass)}
+                            style={{ width: `${barWidthPct}%` }}
+                          />
+                        </div>
+                        <p className="text-[11px] font-mono text-ink-3">
+                          {hasTargetAmount
+                            ? `${fmt(m.deposits)} of ${fmt(m.targetAmount as number)} ${currency} target`
+                            : `${fmt(m.deposits)} ${currency} deposited${m.withdrawals > 0 ? ` · ${fmt(m.withdrawals)} withdrawn` : ''}`}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {/* Auto-deposit nudge */}
+            <div className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/10 to-transparent p-5 flex items-start gap-4">
+              <Sparkles className="h-5 w-5 text-accent mt-0.5 shrink-0" />
+              <div className="flex flex-col gap-2">
+                <EyebrowLabel as="span">AUTO-DEPOSIT ON?</EyebrowLabel>
+                <p className="text-sm text-ink-2">
+                  Schedule a recurring transfer so you never miss the target.
+                </p>
+                <Button variant="ghost" size="sm" disabled className="self-start px-0 text-accent hover:text-accent">
+                  Set up
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Config dialog */}
+      {uiMode === 'couple' && (
+        <JointAccountConfigDialog
+          householdId={household._id}
+          open={configOpen}
+          onOpenChange={setConfigOpen}
+          currency={currency}
+          currentTarget={summary?.monthlyTarget}
+          currentMode={summary?.targetMode}
+        />
+      )}
     </div>
   );
 }

@@ -19,10 +19,10 @@ export const recurringExpenseApi = {
   },
 
   async list(householdId: string): Promise<RecurringExpenseResponse[]> {
-    const { data } = await api.get<ApiSuccessResponse<{ recurringExpenses: RecurringExpenseResponse[] }>>(
+    const { data } = await api.get<ApiSuccessResponse<{ items: RecurringExpenseResponse[] }>>(
       `/households/${householdId}/recurring-expenses`
     );
-    return data.data.recurringExpenses;
+    return data.data.items;
   },
 
   async update(

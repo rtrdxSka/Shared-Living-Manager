@@ -1,29 +1,67 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus, Loader2, RefreshCw, Receipt } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, Receipt, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useExpenses, useRecurringExpenses } from '@/hooks/queries';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
+import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
+import DashboardHeader from '@/components/layout/DashboardHeader';
+import ExpenseFilterBar from '@/components/dashboard/shared/ExpenseFilterBar';
+import { EyebrowLabel } from '@/components/ui/eyebrow-label';
+import { CategoryChip } from '@/components/ui/category-chip';
+import { Avatar } from '@/components/ui/avatar';
+import { MoneyAmount } from '@/components/ui/money-amount';
 import {
   fmt,
   stepMonth,
   formatMonthLabel,
   currentMonthString,
-  CATEGORY_CHIP_CLASSES,
   getMyShareLabel,
   getBalanceSplitLabel,
 } from '@/utils/dashboardHelpers';
-import type { ExpenseResponse } from '@/types/expense.types';
+import { extractApiError } from '@/utils/extractApiError';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import type { ExpenseResponse, ExpenseFilters } from '@/types/expense.types';
+import { EMPTY_EXPENSE_FILTERS } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
-import { EXPENSE_TYPES } from '@/types/onboarding.types';
-import type { ExpenseType } from '@/types/onboarding.types';
+import { EXPENSE_TYPES, type ExpenseType, type UIMode } from '@/types/onboarding.types';
+
+// ── Date formatter ────────────────────────────────────────────────────────
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+// ── Category bar colour map (static, no interpolation) ────────────────────
+
+const CAT_BAR_CLASS: Record<ExpenseType, string> = {
+  rent:          'bg-cat-rent',
+  utilities:     'bg-cat-utilities',
+  groceries:     'bg-cat-groceries',
+  internet:      'bg-cat-internet',
+  cleaning:      'bg-cat-cleaning',
+  subscriptions: 'bg-cat-subscriptions',
+  other:         'bg-cat-other',
+};
+
+function hasActiveFilters(f: ExpenseFilters): boolean {
+  return (
+    f.search.trim().length > 0 ||
+    f.categories.length > 0 ||
+    f.paidBy.length > 0 ||
+    f.status !== null
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────
 
 export default function ExpensesPage() {
   const {
     household,
     currentUserId,
+    uiMode,
     financeMode,
     splitMethod,
     customMyPct,
@@ -40,20 +78,38 @@ export default function ExpensesPage() {
     setEditingExpense,
     deleteExpense,
     claimExpense,
-    resolveExpense,
+    requestResolution,
+    confirmResolution,
+    disputeResolution,
     deactivateRecurringExpense,
   } = useDashboard();
 
   const [currentMonth, setCurrentMonth] = useState(currentMonthString);
-  const [categoryFilter, setCategoryFilter] = useState<ExpenseType | 'all'>('all');
+  const [filters, setFilters] = useState<ExpenseFilters>(EMPTY_EXPENSE_FILTERS);
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [outstandingOpen, setOutstandingOpen] = useState(true);
   const [settledOpen, setSettledOpen] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const { data: expensesData, isLoading: expensesLoading } = useExpenses(household._id, currentMonth);
-  const expenses = expensesData?.expenses ?? [];
+  useEffect(() => {
+    if (!actionError) return;
+    const id = window.setTimeout(() => setActionError(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [actionError]);
+
+  const {
+    data: expensesData,
+    isLoading: expensesLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useExpenses(household._id, currentMonth, filters);
+  const expenses = useMemo(
+    () => expensesData?.pages.flatMap((p) => p.items) ?? [],
+    [expensesData]
+  );
 
   const { data: recurringExpensesData, isLoading: recurringLoading } = useRecurringExpenses(
     household._id,
@@ -61,295 +117,409 @@ export default function ExpensesPage() {
   );
   const recurringExpenses = recurringExpensesData ?? [];
 
-  const displayedExpenses =
-    categoryFilter === 'all' ? expenses : expenses.filter((e) => e.category === categoryFilter);
+  const { unsettledExpenses, settledExpenses } = useMemo(() => {
+    const unsettled: ExpenseResponse[] = [];
+    const settled: ExpenseResponse[] = [];
+    for (const e of expenses) {
+      if (e.isResolved) settled.push(e);
+      else unsettled.push(e);
+    }
+    return { unsettledExpenses: unsettled, settledExpenses: settled };
+  }, [expenses]);
 
-  const unsettledExpenses = displayedExpenses.filter((e) => !e.isResolved);
-  const settledExpenses = displayedExpenses.filter((e) => e.isResolved);
+  const { splitBalance, catTotals, totalAmount } = useMemo(() => {
+    // Net balance
+    const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
+    const myPaidUnresolved = unresolvedPaid
+      .filter((e) => e.paidByNickname === myNickname)
+      .reduce((s, e) => s + e.amount, 0);
+    const myShare = unresolvedPaid.reduce((s, e) => {
+      if (e.isFullRepayment) {
+        return s + (e.paidByNickname === myNickname ? 0 : e.amount);
+      }
+      const myPct = splitMethod === 'equal' ? 0.5 : splitMethod === 'income_based' && incomeSplit ? incomeSplit.myPct / 100 : customMyPct / 100;
+      return s + e.amount * myPct;
+    }, 0);
+    const splitBalance = {
+      unresolvedPaidCount: unresolvedPaid.length,
+      balance: myPaidUnresolved - myShare,
+    };
+
+    // Category totals for right-rail breakdown
+    const catTotals = Object.fromEntries(EXPENSE_TYPES.map((t) => [t, 0])) as Record<ExpenseType, number>;
+    let totalAmount = 0;
+    for (const e of expenses) {
+      catTotals[e.category] = (catTotals[e.category] ?? 0) + e.amount;
+      totalAmount += e.amount;
+    }
+
+    return {
+      splitBalance,
+      catTotals,
+      totalAmount,
+    };
+  }, [expenses, myNickname, splitMethod, incomeSplit, customMyPct]);
+
+  const maxCatTotal = Math.max(...Object.values(catTotals), 1);
 
   function toggleExpand(id: string) {
     setExpandedExpenseId((prev) => (prev === id ? null : id));
     setConfirmingDelete(null);
   }
 
+  const headerSubtitle = `${formatMonthLabel(currentMonth)} · ${expenses.length} ${expenses.length === 1 ? 'entry' : 'entries'}${hasNextPage ? '+' : ''}`;
+
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Expenses</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Track and manage shared expenses
-          </p>
+    <div className="min-h-screen bg-bg">
+      {/* DashboardHeader */}
+      <DashboardHeader title="Expenses" subtitle={headerSubtitle} />
+
+      <div className="p-4 sm:p-6 space-y-6">
+        {/* ── Top control row ────────────────────────────────────────── */}
+        <div className="flex items-center flex-wrap gap-3">
+          {/* Month-nav pill */}
+          <div className="flex items-center gap-1 rounded-full border border-line bg-surface-2 px-1 py-1">
+            <button
+              onClick={() => setCurrentMonth((m) => stepMonth(m, 'prev'))}
+              className="rounded-full p-1.5 hover:bg-bg-sub text-ink-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="px-2 text-sm font-medium text-ink min-w-[8rem] text-center">
+              {formatMonthLabel(currentMonth)}
+            </span>
+            <button
+              onClick={() => setCurrentMonth((m) => stepMonth(m, 'next'))}
+              className="rounded-full p-1.5 hover:bg-bg-sub text-ink-2"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Recurring ghost button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setRecurringOpen((o) => !o)}
+            className="gap-1.5"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Recurring
+            {recurringExpenses.length > 0 && (
+              <span className="rounded-full bg-surface-2 border border-line px-1.5 py-0.5 text-[11px] font-medium text-ink-2">
+                {recurringExpenses.length}
+              </span>
+            )}
+          </Button>
+
+          {/* Add expense primary */}
+          <Button size="sm" onClick={() => setAddExpenseOpen(true)} className="ml-auto">
+            + Add expense
+          </Button>
         </div>
-        <Button size="sm" onClick={() => setAddExpenseOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add Expense
-        </Button>
-      </div>
 
-      <Card>
-        {/* Month navigation + filter */}
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-1">
+        {/* ── Recurring sheet (inline collapsible) ──────────────────── */}
+        {recurringOpen && (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <EyebrowLabel>RECURRING TEMPLATES</EyebrowLabel>
               <button
-                onClick={() => setCurrentMonth((m) => stepMonth(m, 'prev'))}
-                className="rounded p-1 hover:bg-muted"
+                onClick={() => setRecurringOpen(false)}
+                className="rounded-full p-1 hover:bg-surface-2 text-ink-3"
               >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <CardTitle className="text-base font-semibold">
-                {formatMonthLabel(currentMonth)}
-              </CardTitle>
-              <button
-                onClick={() => setCurrentMonth((m) => stepMonth(m, 'next'))}
-                className="rounded p-1 hover:bg-muted"
-              >
-                <ChevronRight className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
-          </div>
-
-          {/* Category filter pills */}
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {(['all', ...EXPENSE_TYPES] as const).map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setCategoryFilter(cat as ExpenseType | 'all')}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  categoryFilter === cat
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-transparent hover:bg-muted'
-                }`}
-              >
-                {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
-              </button>
-            ))}
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-3">
-          {/* Split method callout */}
-          {financeMode === 'split' && (
-            <SplitMethodCallout
-              splitMethod={splitMethod}
-              customMyPct={customMyPct}
-              setCustomMyPct={setCustomMyPct}
-              onCustomPctCommit={handleCustomPctCommit}
-              incomeSplit={incomeSplit}
-              myNickname={myNickname}
-              partnerNickname={partnerNickname}
+            <RecurringExpensesSection
+              recurringExpenses={recurringExpenses}
+              recurringLoading={recurringLoading}
+              currency={currency}
+              currentUserId={currentUserId}
               isAdmin={isAdmin}
+              onDeactivate={deactivateRecurringExpense}
             />
-          )}
+          </Card>
+        )}
 
-          {expensesLoading ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : displayedExpenses.length === 0 ? (
-            <EmptyState
-              icon={Receipt}
-              title="No expenses yet"
-              description={`No ${categoryFilter !== 'all' ? categoryFilter + ' ' : ''}expenses for ${formatMonthLabel(currentMonth)}.`}
-              action={categoryFilter === 'all' ? { label: 'Add expense', onClick: () => setAddExpenseOpen(true) } : undefined}
-            />
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground italic">
-                Tap any expense to see details and available actions.
-              </p>
+        {/* ── Filter bar ─────────────────────────────────────────────── */}
+        <ExpenseFilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          members={household.members}
+        />
 
-              {/* Outstanding */}
-              <section>
-                <button
-                  onClick={() => setOutstandingOpen((o) => !o)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 mb-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">Outstanding</span>
-                    <span className="text-xs bg-amber-200 dark:bg-amber-800/60 text-amber-800 dark:text-amber-200 rounded-full px-2 py-0.5 font-medium">
-                      {unsettledExpenses.length}
-                    </span>
+        {/* ── Split method callout ───────────────────────────────────── */}
+        {uiMode === 'couple' && financeMode === 'split' && (
+          <SplitMethodCallout
+            splitMethod={splitMethod}
+            customMyPct={customMyPct}
+            setCustomMyPct={setCustomMyPct}
+            onCustomPctCommit={handleCustomPctCommit}
+            incomeSplit={incomeSplit}
+            myNickname={myNickname}
+            partnerNickname={partnerNickname}
+            isAdmin={isAdmin}
+          />
+        )}
+        {uiMode === 'couple' && financeMode === 'split' && splitMethod === 'income_based' && myParticipatesInFinances && (
+          <IncomeManagementCard
+            household={household}
+            currentUserId={currentUserId}
+            currency={currency}
+          />
+        )}
+
+        {/* ── Two-column layout ──────────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+          {/* ── Left column — main expense list ─────────────────────── */}
+          <div className="space-y-4">
+            {/* Inline alert for claim/resolution/delete conflicts */}
+            {actionError && (
+              <div
+                className="rounded-xl border border-neg/40 bg-neg/[0.08] px-4 py-3 text-sm text-neg"
+                role="alert"
+              >
+                {actionError}
+              </div>
+            )}
+            {expensesLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
+              </div>
+            ) : expenses.length === 0 ? (
+              <EmptyState
+                icon={Receipt}
+                title="No expenses yet"
+                description={
+                  hasActiveFilters(filters)
+                    ? `No expenses match your filters for ${formatMonthLabel(currentMonth)}.`
+                    : `No expenses for ${formatMonthLabel(currentMonth)}.`
+                }
+                action={
+                  hasActiveFilters(filters)
+                    ? undefined
+                    : { label: 'Add expense', onClick: () => setAddExpenseOpen(true) }
+                }
+              />
+            ) : (
+              <>
+                {/* Outstanding section — split-mode + couple-mode only (joint accounts don't track per-user owed amounts; solo has no partner debt) */}
+                {uiMode === 'couple' && financeMode === 'split' && (
+                <section>
+                  <div className="rounded-xl border border-warn/30 bg-warn-bg/40 px-4 py-3 mb-3 flex items-center gap-3">
+                    <EyebrowLabel className="text-warn">OUTSTANDING</EyebrowLabel>
+                    <span className="text-sm text-ink-2">{unsettledExpenses.length} unsettled</span>
+                    <span className="text-xs italic text-ink-3 ml-auto hidden sm:inline">Take your time</span>
+                    <button
+                      onClick={() => setOutstandingOpen((o) => !o)}
+                      className="rounded-full p-1 hover:bg-warn/10 text-ink-2"
+                    >
+                      <ChevronDown className={cn('h-4 w-4 transition-transform', outstandingOpen && 'rotate-180')} />
+                    </button>
                   </div>
-                  {outstandingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
-                {outstandingOpen && (
-                  unsettledExpenses.length === 0 ? (
-                    <p className="text-sm text-muted-foreground italic py-2 px-1">All settled for this month.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {unsettledExpenses.map((expense) => (
-                        <ExpenseRow
-                          key={expense._id}
-                          expense={expense}
-                          isExpanded={expandedExpenseId === expense._id}
-                          isConfirmingDelete={confirmingDelete === expense._id}
-                          onToggle={() => toggleExpand(expense._id)}
-                          onStartDelete={() => setConfirmingDelete(expense._id)}
-                          onCancelDelete={() => setConfirmingDelete(null)}
-                          onConfirmDelete={async () => {
-                            await deleteExpense(expense._id);
-                            setConfirmingDelete(null);
-                            setExpandedExpenseId(null);
-                          }}
-                          onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
-                          onClaim={() => claimExpense(expense._id)}
-                          onResolve={() => resolveExpense(expense._id)}
-                          financeMode={financeMode}
-                          splitMethod={splitMethod}
-                          customMyPct={customMyPct}
-                          incomeSplit={incomeSplit}
-                          currency={currency}
-                          currentUserId={currentUserId}
-                          myNickname={myNickname}
-                          partnerNickname={partnerNickname}
-                          myParticipatesInFinances={myParticipatesInFinances}
-                          hasFinancialPartner={hasFinancialPartner}
-                        />
-                      ))}
-                    </div>
-                  )
-                )}
-              </section>
-
-              {/* Settled */}
-              {settledExpenses.length > 0 && (
-                <section className="mt-4">
-                  <button
-                    onClick={() => setSettledOpen((o) => !o)}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/50 text-green-800 dark:text-green-300 mb-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">Settled</span>
-                      <span className="text-xs bg-green-200 dark:bg-green-800/60 text-green-800 dark:text-green-200 rounded-full px-2 py-0.5 font-medium">
-                        {settledExpenses.length}
-                      </span>
-                    </div>
-                    {settledOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
-                  {settledOpen && (
-                    <div className="space-y-2">
-                      {settledExpenses.map((expense) => (
-                        <ExpenseRow
-                          key={expense._id}
-                          expense={expense}
-                          isExpanded={expandedExpenseId === expense._id}
-                          isConfirmingDelete={confirmingDelete === expense._id}
-                          onToggle={() => toggleExpand(expense._id)}
-                          onStartDelete={() => setConfirmingDelete(expense._id)}
-                          onCancelDelete={() => setConfirmingDelete(null)}
-                          onConfirmDelete={async () => {
-                            await deleteExpense(expense._id);
-                            setConfirmingDelete(null);
-                            setExpandedExpenseId(null);
-                          }}
-                          onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
-                          onClaim={() => claimExpense(expense._id)}
-                          onResolve={() => resolveExpense(expense._id)}
-                          financeMode={financeMode}
-                          splitMethod={splitMethod}
-                          customMyPct={customMyPct}
-                          incomeSplit={incomeSplit}
-                          currency={currency}
-                          currentUserId={currentUserId}
-                          myNickname={myNickname}
-                          partnerNickname={partnerNickname}
-                          myParticipatesInFinances={myParticipatesInFinances}
-                          hasFinancialPartner={hasFinancialPartner}
-                        />
-                      ))}
-                    </div>
+                  {outstandingOpen && (
+                    unsettledExpenses.length === 0 ? (
+                      <p className="text-sm text-ink-3 italic py-2 px-1">All settled for this month.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {unsettledExpenses.map((expense) => (
+                          <ExpenseRow
+                            key={expense._id}
+                            expense={expense}
+                            isExpanded={expandedExpenseId === expense._id}
+                            isConfirmingDelete={confirmingDelete === expense._id}
+                            onToggle={() => toggleExpand(expense._id)}
+                            onStartDelete={() => setConfirmingDelete(expense._id)}
+                            onCancelDelete={() => setConfirmingDelete(null)}
+                            onConfirmDelete={async () => {
+                              await deleteExpense(expense._id);
+                              setConfirmingDelete(null);
+                              setExpandedExpenseId(null);
+                            }}
+                            onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
+                            onClaim={() => claimExpense(expense._id)}
+                            onRequestResolution={() => requestResolution(expense._id)}
+                            onConfirmResolution={() => confirmResolution(expense._id)}
+                            onDisputeResolution={() => disputeResolution(expense._id)}
+                            uiMode={uiMode}
+                            financeMode={financeMode}
+                            splitMethod={splitMethod}
+                            customMyPct={customMyPct}
+                            incomeSplit={incomeSplit}
+                            currency={currency}
+                            currentUserId={currentUserId}
+                            myNickname={myNickname}
+                            partnerNickname={partnerNickname}
+                            myParticipatesInFinances={myParticipatesInFinances}
+                            hasFinancialPartner={hasFinancialPartner}
+                            onActionError={setActionError}
+                          />
+                        ))}
+                      </div>
+                    )
                   )}
                 </section>
-              )}
-
-              {/* Balance summary for split mode */}
-              {financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && (() => {
-                const unresolvedPaid = expenses.filter((e) => e.paidByUserId && !e.isResolved);
-                const myPaidUnresolved = unresolvedPaid.filter((e) => e.paidByNickname === myNickname).reduce((s, e) => s + e.amount, 0);
-                const myShare = unresolvedPaid.reduce((s, e) => {
-                  if (e.isFullRepayment) {
-                    return s + (e.paidByNickname === myNickname ? 0 : e.amount);
-                  }
-                  const myPct = splitMethod === 'equal' ? 0.5 : splitMethod === 'income_based' && incomeSplit ? incomeSplit.myPct / 100 : customMyPct / 100;
-                  return s + e.amount * myPct;
-                }, 0);
-                const balance = myPaidUnresolved - myShare;
-                if (unresolvedPaid.length === 0) return null;
-                return (
-                  <div className="mt-2 border-t border-border pt-3 text-sm">
-                    <span className={balance > 0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
-                      {balance > 0
-                        ? `${partnerNickname} owes you ${fmt(Math.abs(balance))} ${currency}`
-                        : `You owe ${partnerNickname} ${fmt(Math.abs(balance))} ${currency}`}
-                    </span>
-                    <span className="text-muted-foreground"> · based on {getBalanceSplitLabel(splitMethod, customMyPct, incomeSplit)}</span>
-                  </div>
-                );
-              })()}
-            </>
-          )}
-
-          {/* Recurring Templates */}
-          <div className="border-t border-border pt-3">
-            <button
-              onClick={() => setRecurringOpen((o) => !o)}
-              className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-            >
-              <span className="flex items-center gap-1.5">
-                <RefreshCw className="h-3 w-3" />
-                Recurring Templates
-                {recurringExpenses.length > 0 && (
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-normal">
-                    {recurringExpenses.length}
-                  </span>
                 )}
-              </span>
-              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', recurringOpen && 'rotate-180')} />
-            </button>
 
-            {recurringOpen && (
-              <RecurringExpensesSection
-                recurringExpenses={recurringExpenses}
-                recurringLoading={recurringLoading}
-                currency={currency}
-                currentUserId={currentUserId}
-                isAdmin={isAdmin}
-                onDeactivate={deactivateRecurringExpense}
-              />
+                {/* Settled section */}
+                {settledExpenses.length > 0 && (
+                  <section className="mt-2">
+                    <div className="rounded-xl border border-pos/30 bg-pos/10 px-4 py-3 mb-3 flex items-center gap-3">
+                      <EyebrowLabel className="text-pos">SETTLED</EyebrowLabel>
+                      <span className="text-sm text-ink-2">{settledExpenses.length} cleared</span>
+                      <span className="text-xs italic text-ink-3 ml-auto hidden sm:inline">Cleared this month</span>
+                      <button
+                        onClick={() => setSettledOpen((o) => !o)}
+                        className="rounded-full p-1 hover:bg-pos/10 text-ink-2"
+                      >
+                        <ChevronDown className={cn('h-4 w-4 transition-transform', settledOpen && 'rotate-180')} />
+                      </button>
+                    </div>
+                    {settledOpen && (
+                      <div className="space-y-2">
+                        {settledExpenses.map((expense) => (
+                          <ExpenseRow
+                            key={expense._id}
+                            expense={expense}
+                            isExpanded={expandedExpenseId === expense._id}
+                            isConfirmingDelete={confirmingDelete === expense._id}
+                            onToggle={() => toggleExpand(expense._id)}
+                            onStartDelete={() => setConfirmingDelete(expense._id)}
+                            onCancelDelete={() => setConfirmingDelete(null)}
+                            onConfirmDelete={async () => {
+                              await deleteExpense(expense._id);
+                              setConfirmingDelete(null);
+                              setExpandedExpenseId(null);
+                            }}
+                            onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
+                            onClaim={() => claimExpense(expense._id)}
+                            onRequestResolution={() => requestResolution(expense._id)}
+                            onConfirmResolution={() => confirmResolution(expense._id)}
+                            onDisputeResolution={() => disputeResolution(expense._id)}
+                            uiMode={uiMode}
+                            financeMode={financeMode}
+                            splitMethod={splitMethod}
+                            customMyPct={customMyPct}
+                            incomeSplit={incomeSplit}
+                            currency={currency}
+                            currentUserId={currentUserId}
+                            myNickname={myNickname}
+                            partnerNickname={partnerNickname}
+                            myParticipatesInFinances={myParticipatesInFinances}
+                            hasFinancialPartner={hasFinancialPartner}
+                            onActionError={setActionError}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* Balance summary for split mode */}
+                {uiMode === 'couple' && financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && splitBalance.unresolvedPaidCount > 0 && (
+                  <div className="mt-2 border-t border-line pt-3 text-sm">
+                    <span className={splitBalance.balance > 0 ? 'text-pos' : 'text-warn'}>
+                      {splitBalance.balance > 0
+                        ? `${partnerNickname} owes you ${fmt(Math.abs(splitBalance.balance))} ${currency}`
+                        : `You owe ${partnerNickname} ${fmt(Math.abs(splitBalance.balance))} ${currency}`}
+                    </span>
+                    <span className="text-ink-3"> · based on {getBalanceSplitLabel(splitMethod, customMyPct, incomeSplit)}</span>
+                  </div>
+                )}
+
+                {/* Load-more footer */}
+                {hasNextPage && (
+                  <div className="flex justify-center py-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { void fetchNextPage(); }}
+                      disabled={isFetchingNextPage}
+                    >
+                      {isFetchingNextPage ? 'Loading…' : 'Load more'}
+                    </Button>
+                  </div>
+                )}
+                {!hasNextPage && expenses.length > 0 && (
+                  <p className="text-center text-xs text-ink-3 py-2">No more expenses for {formatMonthLabel(currentMonth)}.</p>
+                )}
+              </>
             )}
           </div>
-        </CardContent>
-      </Card>
+
+          {/* ── Right rail ────────────────────────────────────────────── */}
+          <div className="space-y-4">
+            {/* Net Balance card */}
+            {uiMode === 'couple' && financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner && (
+              <Card className="p-5">
+                <EyebrowLabel className="mb-3 block">NET BALANCE</EyebrowLabel>
+                <div className="flex items-end gap-2 mb-1">
+                  <MoneyAmount
+                    amount={Math.abs(splitBalance.balance)}
+                    currency={currency}
+                    size="lg"
+                    tone={splitBalance.balance >= 0 ? 'pos' : 'neg'}
+                  />
+                </div>
+                <p className="text-xs text-ink-3 mt-1">
+                  {splitBalance.balance > 0
+                    ? `${partnerNickname} owes you`
+                    : splitBalance.balance < 0
+                    ? `You owe ${partnerNickname}`
+                    : 'All settled up'}
+                </p>
+                <p className="text-[11px] text-ink-4 mt-1">{getBalanceSplitLabel(splitMethod, customMyPct, incomeSplit)}</p>
+              </Card>
+            )}
+
+            {/* Category breakdown card */}
+            <Card className="p-5">
+              <EyebrowLabel className="mb-4 block">BY CATEGORY</EyebrowLabel>
+              <div className="space-y-2.5">
+                {EXPENSE_TYPES.map((cat) => {
+                  const catTotal = catTotals[cat];
+                  const pct = maxCatTotal > 0 ? (catTotal / maxCatTotal) * 100 : 0;
+                  return (
+                    <div key={cat} className="flex items-center gap-3">
+                      <CategoryChip category={cat} className="w-20 justify-center shrink-0" />
+                      <div className="h-1.5 flex-1 bg-surface-2 rounded-full overflow-hidden">
+                        <div
+                          className={cn('h-full rounded-full', CAT_BAR_CLASS[cat])}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <MoneyAmount amount={catTotal} currency={currency} size="sm" className="shrink-0 w-20 text-right" />
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+
+            {/* Forecast card */}
+            <Card className="p-5">
+              <EyebrowLabel className="mb-3 block">FORECAST</EyebrowLabel>
+              {totalAmount > 0 ? (
+                <>
+                  <p className="text-sm text-ink-2 mb-1">
+                    Based on this month&apos;s pace, you&apos;re tracking approximately
+                  </p>
+                  <MoneyAmount amount={totalAmount * 1.1} currency={currency} size="lg" tone="neutral" />
+                  <p className="text-xs text-ink-3 mt-1">if spending continues at current rate</p>
+                </>
+              ) : (
+                <p className="text-sm text-ink-3 italic">No expenses logged yet this month.</p>
+              )}
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 // ── Expense Row (expand-on-click) ─────────────────────────────────────────
 
-function ExpenseRow({
-  expense,
-  isExpanded,
-  isConfirmingDelete,
-  onToggle,
-  onStartDelete,
-  onCancelDelete,
-  onConfirmDelete,
-  onEdit,
-  onClaim,
-  onResolve,
-  financeMode,
-  splitMethod,
-  customMyPct,
-  incomeSplit,
-  currency,
-  currentUserId,
-  myNickname,
-  myParticipatesInFinances,
-  hasFinancialPartner,
-}: {
+interface ExpenseRowProps {
   expense: ExpenseResponse;
   isExpanded: boolean;
   isConfirmingDelete: boolean;
@@ -359,7 +529,10 @@ function ExpenseRow({
   onConfirmDelete: () => Promise<void>;
   onEdit: () => void;
   onClaim: () => Promise<void>;
-  onResolve: () => Promise<void>;
+  onRequestResolution: () => Promise<void>;
+  onConfirmResolution: () => Promise<void>;
+  onDisputeResolution: () => Promise<void>;
+  uiMode: UIMode;
   financeMode: string;
   splitMethod: string;
   customMyPct: number;
@@ -370,100 +543,223 @@ function ExpenseRow({
   partnerNickname: string;
   myParticipatesInFinances: boolean;
   hasFinancialPartner: boolean;
-}) {
+  onActionError: (msg: string | null) => void;
+}
+
+const ExpenseRow = React.memo(function ExpenseRow({
+  expense,
+  isExpanded,
+  isConfirmingDelete,
+  onToggle,
+  onStartDelete,
+  onCancelDelete,
+  onConfirmDelete,
+  onEdit,
+  onClaim,
+  onRequestResolution,
+  onConfirmResolution,
+  onDisputeResolution,
+  uiMode,
+  financeMode,
+  splitMethod,
+  customMyPct,
+  incomeSplit,
+  currency,
+  currentUserId,
+  myNickname,
+  partnerNickname,
+  myParticipatesInFinances,
+  hasFinancialPartner,
+  onActionError,
+}: ExpenseRowProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const isCreator = expense.createdByUserId === currentUserId;
-  const isUnpaid = !expense.paidByUserId;
-  const isMyExpense = expense.paidByUserId === currentUserId;
-  const canClaim = isUnpaid && myParticipatesInFinances;
-  const canMarkPaid =
-    financeMode === 'split' &&
-    myParticipatesInFinances &&
-    hasFinancialPartner &&
-    expense.paidByUserId &&
-    !isMyExpense &&
-    !expense.isResolved;
-  const canEdit = isCreator && !expense.isResolved;
-  const canDelete = isCreator && !expense.isResolved;
+  const {
+    isUnpaid,
+    isDebtor,
+    canClaim,
+    canRequestResolution,
+    canConfirmOrDispute,
+    isAwaitingConfirmation,
+    isCreditorWaiting,
+    wasRecentlyDisputed,
+    canEdit,
+    canDelete,
+  } = useMemo(() => {
+    const isCreatorLocal = expense.createdByUserId === currentUserId;
+    const isUnpaidLocal = !expense.paidByUserId;
+    const isCreditorLocal = expense.paidByUserId === currentUserId;
+    const isDebtorLocal = !isUnpaidLocal && !isCreditorLocal;
+    const isSplitModeLocal = financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner;
+    // Hint persists while the expense is in the disputed state. The backend clears
+    // `lastDisputedAt` when the debtor re-requests resolution or the creditor
+    // confirms receipt, so its presence is a sufficient marker of "currently disputed".
+    const wasRecentlyDisputedLocal = !!(
+      !expense.isResolved &&
+      !expense.pendingConfirmation &&
+      expense.lastDisputedAt
+    );
+    return {
+      isUnpaid: isUnpaidLocal,
+      isDebtor: isDebtorLocal,
+      // Joint-mode expenses are auto-resolved and the household has no notion
+      // of per-member debt, so the claim flow is meaningless there. Gate
+      // `canClaim` on split-mode in addition to "unpaid + participating".
+      canClaim: financeMode === 'split' && isUnpaidLocal && myParticipatesInFinances,
+      canRequestResolution:
+        isSplitModeLocal && isDebtorLocal && !expense.isResolved && !expense.pendingConfirmation,
+      canConfirmOrDispute:
+        isSplitModeLocal && isCreditorLocal && expense.pendingConfirmation && !expense.isResolved,
+      isAwaitingConfirmation:
+        isSplitModeLocal && isDebtorLocal && expense.pendingConfirmation && !expense.isResolved,
+      isCreditorWaiting:
+        isSplitModeLocal &&
+        isCreditorLocal &&
+        !expense.pendingConfirmation &&
+        !expense.isResolved &&
+        !isUnpaidLocal,
+      wasRecentlyDisputed: wasRecentlyDisputedLocal,
+      canEdit: isCreatorLocal && !expense.isResolved && !expense.pendingConfirmation,
+      canDelete: isCreatorLocal && !expense.isResolved && !expense.pendingConfirmation,
+    };
+  }, [
+    expense.createdByUserId,
+    expense.paidByUserId,
+    expense.isResolved,
+    expense.pendingConfirmation,
+    expense.lastDisputedAt,
+    currentUserId,
+    financeMode,
+    myParticipatesInFinances,
+    hasFinancialPartner,
+  ]);
 
   async function handleAction(action: () => Promise<void>, key: string) {
     setActionLoading(key);
-    try { await action(); } finally { setActionLoading(null); }
+    try {
+      await action();
+      onActionError(null);
+    } catch (err) {
+      onActionError(extractApiError(err, 'Could not complete this action.'));
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   return (
-    <div className={cn('rounded-lg border border-border overflow-hidden', isExpanded && 'ring-1 ring-primary/20')}>
-      {/* Summary row — clickable */}
-      <button
+    <div className={cn('rounded-xl border border-line bg-surface overflow-hidden interactive-surface', isExpanded && 'border-line-2')}>
+      {/* Collapsed summary row */}
+      <div
         onClick={onToggle}
         className={cn(
-          'flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors',
-          'hover:bg-muted/40',
-          isExpanded && 'bg-muted/40'
+          'flex items-center gap-3 px-4 py-3 cursor-pointer',
+          isExpanded && 'bg-surface-2'
         )}
       >
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${CATEGORY_CHIP_CLASSES[expense.category] ?? ''}`}>
-          {expense.category}
-        </span>
+        <CategoryChip category={expense.category} />
         {expense.recurringExpenseId && (
-          <RefreshCw className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Recurring" />
+          <RefreshCw className="h-3.5 w-3.5 text-ink-3 shrink-0" aria-label="Recurring" />
         )}
-        <span className="flex-1 truncate text-sm font-medium">{expense.description}</span>
-        {expense.paidByNickname ? (
-          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {expense.paidByNickname}
-          </span>
-        ) : (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+        <span className="flex-1 min-w-0 truncate text-sm text-ink">{expense.description}</span>
+        {uiMode === 'couple' && !expense.paidByNickname && (
+          <span className="shrink-0 rounded-full bg-warn-bg border border-warn/30 px-2 py-0.5 text-[11px] font-medium text-warn">
             Unpaid
           </span>
         )}
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {new Date(expense.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+        {uiMode === 'couple' && expense.pendingConfirmation && !expense.isResolved && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className="shrink-0 rounded-full bg-warn-bg border border-warn/30 px-2 py-0.5 text-[11px] font-medium text-warn cursor-help"
+              >
+                Pending
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Waiting for the other person to confirm the repayment.
+            </TooltipContent>
+          </Tooltip>
+        )}
+        <span className="text-xs text-ink-3 hidden sm:inline shrink-0">Paid by</span>
+        {expense.paidByNickname && (
+          <Avatar name={expense.paidByNickname} size={24} className="shrink-0" />
+        )}
+        <span className="text-[11px] font-mono text-ink-3 hidden md:inline shrink-0">
+          {formatDate(expense.date)}
         </span>
-        <span className="shrink-0 text-sm font-semibold">{fmt(expense.amount)} {currency}</span>
-        <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', isExpanded && 'rotate-180')} />
-      </button>
+        <MoneyAmount amount={expense.amount} currency={currency} size="sm" className="shrink-0 font-semibold" />
+        <ChevronDown className={cn('h-4 w-4 text-ink-3 transition-transform shrink-0', isExpanded && 'rotate-180')} />
+      </div>
 
       {/* Expanded detail panel */}
       {isExpanded && (
-        <div className="border-t border-border bg-muted/20 px-4 py-4 space-y-4">
+        <div className="border-t border-line bg-surface-2 px-4 py-4 space-y-4">
           {/* Details grid */}
           <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-            <span className="text-muted-foreground">Paid by</span>
-            <span>{expense.paidByNickname ?? 'Not yet claimed'}</span>
+            <span className="text-ink-3">Paid by</span>
+            <span className="text-ink">{expense.paidByNickname ?? 'Not yet claimed'}</span>
             {expense.notes && (
               <>
-                <span className="text-muted-foreground">Notes</span>
-                <span className="text-sm">{expense.notes}</span>
+                <span className="text-ink-3">Notes</span>
+                <span className="text-ink text-sm">{expense.notes}</span>
               </>
             )}
             {expense.isFullRepayment && (
               <>
-                <span className="text-muted-foreground">Split</span>
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 w-fit">Full repayment</span>
+                <span className="text-ink-3">Split</span>
+                <span className="rounded-full bg-warn-bg border border-warn/30 px-2 py-0.5 text-[11px] font-medium text-warn w-fit">Full repayment</span>
               </>
             )}
-            {financeMode === 'split' && myParticipatesInFinances && expense.paidByUserId && (
+            {uiMode === 'couple' && financeMode === 'split' && myParticipatesInFinances && expense.paidByUserId && (
               <>
-                <span className="text-muted-foreground">Your share</span>
-                <span>{getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency, myNickname)}</span>
+                <span className="text-ink-3">Your share</span>
+                <span className="text-ink">{getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency, myNickname)}</span>
               </>
             )}
           </div>
 
           {/* Status hints */}
           {expense.isResolved && (
-            <p className="text-xs text-green-600 dark:text-green-400">✓ Share settled</p>
+            <p className="text-xs text-pos">✓ Share settled</p>
           )}
-          {isUnpaid && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
+          {uiMode === 'couple' && isUnpaid && (
+            <p className="text-xs text-warn">
               No payer assigned yet. Claim this expense if you paid for it.
             </p>
           )}
+          {isAwaitingConfirmation && (
+            <p className="text-xs text-warn">
+              Waiting for {partnerNickname} to confirm they received your payment.
+            </p>
+          )}
+          {isCreditorWaiting && (
+            <p className="text-xs text-ink-3">
+              Waiting for {partnerNickname} to confirm they paid you back.
+            </p>
+          )}
+          {canConfirmOrDispute && (
+            <p className="text-xs text-warn font-medium">
+              {expense.pendingConfirmationByNickname ?? partnerNickname} says they paid you back.
+            </p>
+          )}
+          {isDebtor && wasRecentlyDisputed && !expense.pendingConfirmation && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p
+                  tabIndex={0}
+                  className="text-xs text-warn cursor-help underline decoration-dotted underline-offset-2 w-fit"
+                >
+                  {partnerNickname} disputed your payment claim. Sort it out and try again.
+                </p>
+              </TooltipTrigger>
+              <TooltipContent>
+                Your partner pushed back on the repayment. Settle the disagreement, then request resolution again from this expense.
+              </TooltipContent>
+            </Tooltip>
+          )}
 
-          {/* Action buttons — labelled, not icon-only */}
+          {/* Action buttons */}
           {!isConfirmingDelete ? (
             <div className="flex flex-wrap gap-2">
               {canClaim && (
@@ -476,15 +772,42 @@ function ExpenseRow({
                   {actionLoading === 'claim' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Claim expense'}
                 </Button>
               )}
-              {canMarkPaid && (
+              {canRequestResolution && (
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={actionLoading === 'resolve'}
-                  onClick={() => void handleAction(onResolve, 'resolve')}
+                  disabled={actionLoading === 'request'}
+                  onClick={() => void handleAction(onRequestResolution, 'request')}
                 >
-                  {actionLoading === 'resolve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mark as paid'}
+                  {actionLoading === 'request' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'I paid you back'}
                 </Button>
+              )}
+              {isAwaitingConfirmation && (
+                <Button size="sm" variant="outline" disabled className="opacity-60 cursor-not-allowed">
+                  Awaiting confirmation…
+                </Button>
+              )}
+              {canConfirmOrDispute && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-pos/50 text-pos hover:bg-pos/10 hover:border-pos"
+                    disabled={actionLoading === 'confirm'}
+                    onClick={() => void handleAction(onConfirmResolution, 'confirm')}
+                  >
+                    {actionLoading === 'confirm' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Confirm received'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60"
+                    disabled={actionLoading === 'dispute'}
+                    onClick={() => void handleAction(onDisputeResolution, 'dispute')}
+                  >
+                    {actionLoading === 'dispute' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Dispute'}
+                  </Button>
+                </>
               )}
               {canEdit && (
                 <Button size="sm" variant="outline" onClick={onEdit}>
@@ -504,7 +827,7 @@ function ExpenseRow({
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">Delete this expense?</span>
+              <span className="text-sm text-ink-3">Delete this expense?</span>
               <Button
                 size="sm"
                 variant="destructive"
@@ -522,7 +845,7 @@ function ExpenseRow({
       )}
     </div>
   );
-}
+});
 
 // ── Split Method Callout ──────────────────────────────────────────────────
 
@@ -546,47 +869,67 @@ function SplitMethodCallout({
   isAdmin: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
+    <Card className="p-4">
       {splitMethod === 'equal' && (
-        <p className="text-muted-foreground">Expenses are split <strong>50/50</strong> equally between both partners.</p>
+        <p className="text-sm text-ink-2">
+          Expenses are split <strong className="text-ink">50/50</strong> equally between both partners.
+        </p>
       )}
       {splitMethod === 'income_based' && incomeSplit && (
-        <div className="space-y-1.5">
-          <p className="font-medium">Income-based split</p>
-          <div className="grid grid-cols-2 gap-x-6 text-muted-foreground text-xs">
-            <span>{myNickname} — <strong className="text-foreground">{incomeSplit.myPct}%</strong></span>
-            <span>{partnerNickname} — <strong className="text-foreground">{incomeSplit.partnerPct}%</strong></span>
+        <div className="space-y-3">
+          <p className="text-sm text-ink">Income-based split — feels fairer this way</p>
+          <div>
+            <div className="flex justify-between text-xs text-ink-3 mb-1">
+              <span>{myNickname} {incomeSplit.myPct}%</span>
+              <span>{partnerNickname} {incomeSplit.partnerPct}%</span>
+            </div>
+            <div className="flex h-2 w-full rounded-full overflow-hidden">
+              <div className="bg-accent" style={{ width: `${incomeSplit.myPct}%` }} />
+              <div className="bg-cat-rent" style={{ width: `${incomeSplit.partnerPct}%` }} />
+            </div>
           </div>
         </div>
       )}
       {splitMethod === 'income_based' && !incomeSplit && (
-        <p className="text-muted-foreground">Income data is incomplete — enter income on the Overview page to see the split.</p>
+        <p className="text-sm text-ink-2">
+          Income data is incomplete — enter your income below to see the split.
+        </p>
       )}
       {splitMethod === 'custom' && (
-        <div className="space-y-2">
-          <p className="font-medium">Custom split</p>
+        <div className="space-y-3">
+          <p className="text-sm text-ink">Custom split — set by you</p>
           {isAdmin ? (
-            <div className="flex items-center gap-3">
-              <span className="w-20 text-right text-xs text-muted-foreground">{myNickname} {customMyPct}%</span>
-              <input
-                type="range"
-                min={1}
-                max={99}
-                step={1}
-                value={customMyPct}
-                onChange={(e) => setCustomMyPct(Number(e.target.value))}
-                onMouseUp={(e) => void onCustomPctCommit(Number((e.target as HTMLInputElement).value))}
-                onTouchEnd={(e) => void onCustomPctCommit(Number((e.target as HTMLInputElement).value))}
-                className="flex-1 accent-primary"
-              />
-              <span className="w-20 text-xs text-muted-foreground">{partnerNickname} {100 - customMyPct}%</span>
-            </div>
+            <>
+              <div>
+                <div className="flex justify-between text-xs text-ink-3 mb-1">
+                  <span>{myNickname} {customMyPct}%</span>
+                  <span>{partnerNickname} {100 - customMyPct}%</span>
+                </div>
+                <div className="flex h-2 w-full rounded-full overflow-hidden">
+                  <div className="bg-accent" style={{ width: `${customMyPct}%` }} />
+                  <div className="bg-cat-rent" style={{ width: `${100 - customMyPct}%` }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={1}
+                  max={99}
+                  step={1}
+                  value={customMyPct}
+                  onChange={(e) => setCustomMyPct(Number(e.target.value))}
+                  onMouseUp={(e) => void onCustomPctCommit(Number((e.target as HTMLInputElement).value))}
+                  onTouchEnd={(e) => void onCustomPctCommit(Number((e.target as HTMLInputElement).value))}
+                  className="flex-1 accent-primary"
+                />
+              </div>
+            </>
           ) : (
-            <p className="text-muted-foreground text-xs">{myNickname} {customMyPct}% · {partnerNickname} {100 - customMyPct}% (admin only)</p>
+            <p className="text-ink-3 text-xs">{myNickname} {customMyPct}% · {partnerNickname} {100 - customMyPct}% (admin only)</p>
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -609,38 +952,36 @@ function RecurringExpensesSection({
 }) {
   if (recurringLoading) {
     return (
-      <div className="flex justify-center py-4 mt-2">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      <div className="flex justify-center py-4">
+        <Loader2 className="h-4 w-4 animate-spin text-ink-3" />
       </div>
     );
   }
 
   if (recurringExpenses.length === 0) {
-    return <p className="mt-2 text-xs text-muted-foreground">No active recurring templates.</p>;
+    return <p className="text-xs text-ink-3">No active recurring templates.</p>;
   }
 
   return (
-    <div className="mt-2 space-y-2">
+    <div className="space-y-2">
       {recurringExpenses.map((t) => (
-        <div key={t._id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${CATEGORY_CHIP_CLASSES[t.category] ?? ''}`}>
-            {t.category}
-          </span>
-          <span className="flex-1 truncate text-sm">{t.description}</span>
-          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground capitalize">
+        <div key={t._id} className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2.5">
+          <CategoryChip category={t.category} />
+          <span className="flex-1 truncate text-sm text-ink">{t.description}</span>
+          <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-xs text-ink-3 capitalize">
             {t.interval}
           </span>
-          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+          <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-xs text-ink-3">
             {t.payerMode === 'fixed' ? (t.fixedPayerNickname ?? 'Fixed') : 'Open'}
           </span>
-          <span className="shrink-0 text-sm font-semibold">{fmt(t.amount)} {currency}</span>
+          <MoneyAmount amount={t.amount} currency={currency} size="sm" className="shrink-0 font-semibold" />
           {(t.createdByUserId === currentUserId || isAdmin) && (
             <button
               onClick={() => void onDeactivate(t._id)}
-              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+              className="shrink-0 rounded-full p-1.5 text-ink-3 hover:bg-surface hover:text-neg transition-colors"
               title="Deactivate"
             >
-              <ChevronDown className="h-3.5 w-3.5 rotate-180" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>

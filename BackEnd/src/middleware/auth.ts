@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { LRUCache } from 'lru-cache';
 import { IJwtPayload } from '../types/user.types';
 import { ForbiddenError, UnauthorizedError } from '../utils/error';
 import { User } from '../models/user.model';
@@ -9,6 +10,15 @@ import { User } from '../models/user.model';
 export interface AuthRequest extends Request {
   user?: IJwtPayload;
 }
+
+// ── Email-verified status cache ───────────────────────────────────────
+// Short-TTL cache to avoid hitting the DB on every authenticated request.
+// Entries auto-expire after 5 minutes; no explicit invalidation on verify
+// is needed at this TTL (users see at most a 5-minute stale block).
+const verifiedCache = new LRUCache<string, boolean>({
+  max: 500,
+  ttl: 5 * 60 * 1000, // 5 minutes
+});
 
 // ── Auth middleware ───────────────────────────────────────────────────
 export const authMiddleware = (
@@ -67,12 +77,28 @@ export const emailVerifiedMiddleware = async (
       throw UnauthorizedError('Access token is required');
     }
 
-    const user = await User.findById(req.user.userId).select('isEmailVerified');
+    const userId = req.user.userId;
+
+    // Fast path: cache hit
+    const cached = verifiedCache.get(userId);
+    if (cached === true) {
+      next();
+      return;
+    }
+    if (cached === false) {
+      throw ForbiddenError('Please verify your email address before accessing this resource');
+    }
+
+    // Cache miss: hit the DB and cache the result
+    const user = await User.findById(userId).select('isEmailVerified').lean();
     if (!user) {
       throw UnauthorizedError('User not found');
     }
 
-    if (!user.isEmailVerified) {
+    const isVerified = Boolean(user.isEmailVerified);
+    verifiedCache.set(userId, isVerified);
+
+    if (!isVerified) {
       throw ForbiddenError('Please verify your email address before accessing this resource');
     }
 

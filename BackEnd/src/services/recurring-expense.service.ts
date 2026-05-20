@@ -9,6 +9,8 @@ import {
   RecurrenceInterval,
 } from '../types/recurring-expense.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
+import { logger } from '../utils/logger';
+import { getHouseholdForMember } from '../utils/household.helpers';
 
 class RecurringExpenseService {
   private formatResponse(
@@ -39,11 +41,7 @@ class RecurringExpenseService {
     userId: string,
     input: ICreateRecurringExpenseInput
   ): Promise<IRecurringExpenseResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const member = household.members.find((m) => m.userId?.toString() === userId);
-    if (!member) throw ForbiddenError('You are not a member of this household');
+    const { household, member } = await getHouseholdForMember(householdId, userId);
     if (!member.participatesInFinances) {
       throw ForbiddenError('You do not participate in household finances');
     }
@@ -89,11 +87,7 @@ class RecurringExpenseService {
     householdId: string,
     userId: string
   ): Promise<IRecurringExpenseResponse[]> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const { household } = await getHouseholdForMember(householdId, userId);
 
     const nicknameMap = new Map<string, string>();
     for (const member of household.members) {
@@ -103,7 +97,8 @@ class RecurringExpenseService {
     }
 
     const templates = await RecurringExpense.find({ householdId: household._id, isActive: true })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     return templates.map((t) =>
       this.formatResponse(
@@ -119,11 +114,7 @@ class RecurringExpenseService {
     recurringId: string,
     input: IUpdateRecurringExpenseInput
   ): Promise<IRecurringExpenseResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
     const template = await RecurringExpense.findOne({ _id: recurringId, householdId: household._id });
     if (!template) throw NotFoundError('Recurring expense not found');
@@ -190,11 +181,7 @@ class RecurringExpenseService {
     userId: string,
     recurringId: string
   ): Promise<void> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
     const template = await RecurringExpense.findOne({ _id: recurringId, householdId: household._id });
     if (!template) throw NotFoundError('Recurring expense not found');
@@ -239,14 +226,17 @@ class RecurringExpenseService {
       existingExpenses.map((e) => e.recurringExpenseId!.toString())
     );
 
-    for (const template of templates) {
+    // Process templates in parallel batches to avoid overwhelming the DB
+    // connection pool (maxPoolSize = 10 in config/database.ts).
+    const BATCH_SIZE = 10;
+    const processOne = async (template: typeof templates[number]): Promise<void> => {
       try {
         // Idempotency check via pre-fetched set
-        if (existingSet.has(template._id.toString())) continue;
+        if (existingSet.has(template._id.toString())) return;
 
         // Household lookup via pre-fetched map
         const household = householdMap.get(template.householdId.toString());
-        if (!household) continue;
+        if (!household) return;
 
         const creator = household.members.find(
           (m) => m.userId?.toString() === template.createdByUserId.toString()
@@ -254,7 +244,7 @@ class RecurringExpenseService {
         if (!creator || !creator.participatesInFinances) {
           template.isActive = false;
           await template.save();
-          continue;
+          return;
         }
 
         // Create expense instance
@@ -273,8 +263,16 @@ class RecurringExpenseService {
           isFullRepayment: template.isFullRepayment,
         });
       } catch (err) {
-        console.error(`Failed to generate instance for recurring expense ${template._id.toString()}:`, err);
+        logger.error(
+          { err, templateId: template._id.toString() },
+          'Failed to generate instance for recurring expense'
+        );
       }
+    };
+
+    for (let i = 0; i < templates.length; i += BATCH_SIZE) {
+      const batch = templates.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(processOne));
     }
   }
 }

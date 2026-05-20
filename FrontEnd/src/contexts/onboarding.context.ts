@@ -16,6 +16,14 @@ export interface OnboardingSurveyState {
   step4: StepTaskPreferences;
 }
 
+// ── Build-payload result ──────────────────────────────────────────────
+
+/** Result of `buildSubmitPayload`. `missing` carries enough information for
+ *  the caller to highlight the offending step and field. */
+export type BuildPayloadResult =
+  | { kind: 'ok'; payload: OnboardingSurveyData }
+  | { kind: 'missing'; stepIndex: number; fieldName: string };
+
 // ── Context value exposed to consumers ────────────────────────────────
 
 export interface OnboardingContextValue {
@@ -24,6 +32,11 @@ export interface OnboardingContextValue {
 
   /** Total number of steps (always 5) */
   totalSteps: number;
+
+  /** Effective number of steps for the active arrangement.
+   *  Centralized here so future arrangements that skip a step adjust this
+   *  value without changing consumers. Today all flows answer 5 steps. */
+  effectiveTotalSteps: number;
 
   /** Per-step data */
   surveyState: OnboardingSurveyState;
@@ -43,8 +56,11 @@ export interface OnboardingContextValue {
   /** Jump to a specific step (used by Review "Edit" buttons) */
   goToStep: (step: number) => void;
 
-  /** Assemble the final payload from all steps. Returns null if data is incomplete. */
-  buildSubmitPayload: () => OnboardingSurveyData | null;
+  /** Assemble the final payload from all steps. Returns a discriminated
+   *  union — `{ kind: 'ok', payload }` on success, or
+   *  `{ kind: 'missing', stepIndex, fieldName }` when a required field is
+   *  blank. Callers should branch on `kind` and surface the missing field. */
+  buildSubmitPayload: () => BuildPayloadResult;
 
   /** Clear all survey data and reset to Step 1 */
   resetSurvey: () => void;

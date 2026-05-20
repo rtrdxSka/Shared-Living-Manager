@@ -4,6 +4,7 @@ export {
   useUpdateIncome,
   useRecordSettlement,
   useRegenerateInviteCode,
+  useSendInviteEmail,
 } from './useHouseholdQueries';
 
 export {
@@ -12,7 +13,9 @@ export {
   useUpdateExpense,
   useDeleteExpense,
   useClaimExpense,
-  useResolveExpense,
+  useRequestResolution,
+  useConfirmResolution,
+  useDisputeResolution,
 } from './useExpenseQueries';
 
 export {
@@ -51,3 +54,24 @@ export {
   useDeleteJointTransaction,
   useUpdateJointAccountConfig,
 } from './useJointAccountQueries';
+
+export {
+  useShoppingList,
+  useBoughtShoppingItems,
+  useAddShoppingItem,
+  useUpdateShoppingItem,
+  useToggleShoppingItemBought,
+  useArchiveShoppingItem,
+  useRestoreShoppingItem,
+  useDeleteShoppingItem,
+  useArchiveBoughtShoppingItems,
+  useArchivedHistory,
+} from './useShoppingListQueries';
+
+export {
+  useRecurringRules,
+  useCreateRecurringRule,
+  useUpdateRecurringRule,
+  useDeleteRecurringRule,
+  usePreviewRecurringMatches,
+} from './useRecurringShoppingItemQueries';

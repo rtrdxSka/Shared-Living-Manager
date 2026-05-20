@@ -1,16 +1,35 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { householdController } from '../controllers/household.controller';
-import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation, regenerateInviteCodeValidation } from '../validators/household.validator';
+import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation, regenerateInviteCodeValidation, sendInviteEmailValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
 import recurringExpenseRouter from './recurring-expense.routes';
 import taskRouter from './task.routes';
+import shoppingListRouter from './shopping-list.routes';
 import recurringTaskRouter from './recurring-task.routes';
 import goalRouter from './goal.routes';
 import jointAccountRouter from './joint-account.routes';
+import budgetRouter from './budget.routes';
 
 const router = Router();
+
+// Dedicated rate limiter for household join attempts (5 req / min per IP).
+// Prevents brute-force enumeration of valid invite codes.
+// In `NODE_ENV=test` (E2E + integration) the limit is effectively disabled —
+// e2e tests legitimately spin up many households in series and would otherwise
+// trip the limiter after the 5th run.
+const joinLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: process.env.NODE_ENV === 'test' ? 100_000 : 5,
+  message: {
+    status: 'error',
+    message: 'Too many join attempts, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // POST /api/households — Create household from onboarding survey
 router.post(
@@ -27,6 +46,7 @@ router.post(
   '/join',
   authMiddleware,
   emailVerifiedMiddleware,
+  joinLimiter,
   joinHouseholdValidation,
   handleValidationErrors,
   householdController.join.bind(householdController)
@@ -82,11 +102,23 @@ router.patch(
   householdController.regenerateInviteCode.bind(householdController)
 );
 
+// POST /api/households/:id/invite/email — Send invitation email (admin/owner only)
+router.post(
+  '/:id/invite/email',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  sendInviteEmailValidation,
+  handleValidationErrors,
+  householdController.sendInviteEmail.bind(householdController)
+);
+
 router.use('/:id/expenses', expenseRouter);
 router.use('/:id/recurring-expenses', recurringExpenseRouter);
 router.use('/:id/tasks', taskRouter);
+router.use('/:id/shopping-list', shoppingListRouter);
 router.use('/:id/recurring-tasks', recurringTaskRouter);
 router.use('/:id/goals', goalRouter);
 router.use('/:id/joint-account', jointAccountRouter);
+router.use('/:id/budget', budgetRouter);
 
 export default router;

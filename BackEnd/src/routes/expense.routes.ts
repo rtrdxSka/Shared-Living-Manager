@@ -56,14 +56,34 @@ router.post(
   expenseController.claimExpense.bind(expenseController)
 );
 
-// POST /api/households/:id/expenses/:expenseId/resolve
+// POST /api/households/:id/expenses/:expenseId/request-resolution
 router.post(
-  '/:expenseId/resolve',
+  '/:expenseId/request-resolution',
   authMiddleware,
   emailVerifiedMiddleware,
   expenseIdValidation,
   handleValidationErrors,
-  expenseController.resolveExpense.bind(expenseController)
+  expenseController.requestResolution.bind(expenseController)
+);
+
+// POST /api/households/:id/expenses/:expenseId/confirm-resolution
+router.post(
+  '/:expenseId/confirm-resolution',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  expenseIdValidation,
+  handleValidationErrors,
+  expenseController.confirmResolution.bind(expenseController)
+);
+
+// POST /api/households/:id/expenses/:expenseId/dispute-resolution
+router.post(
+  '/:expenseId/dispute-resolution',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  expenseIdValidation,
+  handleValidationErrors,
+  expenseController.disputeResolution.bind(expenseController)
 );
 
 export default router;

@@ -34,7 +34,7 @@ class TaskController {
 
       const householdId = req.params.id as string;
       const input: IListTasksInput = {
-        page: req.query.page as unknown as number | undefined,
+        cursor: req.query.cursor as string | undefined,
         limit: req.query.limit as unknown as number | undefined,
       };
       const result = await taskService.listTasks(householdId, req.user.userId, input);

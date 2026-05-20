@@ -57,8 +57,8 @@ services:
   # ── Express backend ──────────────────────────────────────────────────────
   backend:
     build:
-      context: ./BackEnd
-      dockerfile: Dockerfile.prod
+      context: .
+      dockerfile: BackEnd/Dockerfile.prod
     restart: unless-stopped
     environment:
       NODE_ENV: production

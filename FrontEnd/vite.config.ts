@@ -2,10 +2,13 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
+import viteCompression from "vite-plugin-compression"
 
 export default defineConfig({
   plugins: [
     react(),
+    viteCompression({ algorithm: "brotliCompress", ext: ".br" }),
+    viteCompression({ algorithm: "gzip", ext: ".gz" }),
     VitePWA({
       registerType: "prompt",
       includeAssets: [
@@ -45,6 +48,24 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-query": ["@tanstack/react-query"],
+          "vendor-ui": [
+            "@radix-ui/react-checkbox",
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-label",
+            "@radix-ui/react-select",
+            "@radix-ui/react-slot",
+            "@radix-ui/react-switch",
+          ],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     host: "0.0.0.0",
@@ -55,7 +76,7 @@ export default defineConfig({
       },
     },
     watch: {
-      usePolling: true,
+      usePolling: process.env.DOCKER === 'true',
     },
   },
 })

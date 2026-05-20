@@ -38,5 +38,7 @@ const goalSchema = new Schema<IGoal>(
 
 goalSchema.index({ householdId: 1, status: 1 });
 goalSchema.index({ householdId: 1, createdAt: -1 });
+// Supports findOne({ _id, householdId }) household-scoping on writes/reads
+goalSchema.index({ _id: 1, householdId: 1 });
 
 export const Goal = model<IGoal>('Goal', goalSchema);

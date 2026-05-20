@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Loader2, LayoutDashboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useHousehold } from '@/hooks/queries';
 import type { HouseholdResponse } from '@/types/household.types';
-import { DashboardProvider } from '@/contexts/DashboardContext';
-import AppLayout from '@/components/layout/AppLayout';
+import CoupleDashboardShell from '@/components/dashboard/couple/CoupleDashboardShell';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -70,8 +69,8 @@ export default function DashboardPage() {
     );
   }
 
-  // For non-couple modes (future expansion), show a minimal placeholder
-  if (resolved.uiMode !== 'couple' || !user) {
+  // For non-couple/solo modes (future expansion), show a minimal placeholder
+  if ((resolved.uiMode !== 'couple' && resolved.uiMode !== 'solo') || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <p className="text-sm text-muted-foreground">
@@ -81,11 +80,5 @@ export default function DashboardPage() {
     );
   }
 
-  return (
-    <DashboardProvider household={resolved} currentUserId={user._id}>
-      <AppLayout>
-        <Outlet />
-      </AppLayout>
-    </DashboardProvider>
-  );
+  return <CoupleDashboardShell household={resolved} currentUserId={user._id} />;
 }

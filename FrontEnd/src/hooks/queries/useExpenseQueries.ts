@@ -1,14 +1,43 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { expenseApi } from '@/api/expense.api';
-import type { AddExpenseInput, UpdateExpenseInput } from '@/types/expense.types';
+import { expenseApi, type ExpenseListResult } from '@/api/expense.api';
+import type {
+  AddExpenseInput,
+  ExpenseFilters,
+  UpdateExpenseInput,
+} from '@/types/expense.types';
 
-export function useExpenses(householdId: string, month: string) {
-  return useQuery({
-    queryKey: queryKeys.expenses.list(householdId, month),
-    queryFn: () => expenseApi.listExpenses(householdId, month),
+const PAGE_SIZE = 20;
+
+export function useExpenses(householdId: string, month: string, filters?: ExpenseFilters) {
+  const apiFilters = filters
+    ? {
+        search: filters.search.trim() || undefined,
+        categories: filters.categories.length > 0 ? filters.categories : undefined,
+        paidBy: filters.paidBy.length > 0 ? filters.paidBy : undefined,
+        status: filters.status ?? undefined,
+      }
+    : undefined;
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.expenses.list(householdId, month, {
+      search: apiFilters?.search,
+      categories: apiFilters?.categories,
+      paidBy: apiFilters?.paidBy,
+      status: apiFilters?.status ?? null,
+    }),
+    queryFn: ({ pageParam }) =>
+      expenseApi.listExpenses(householdId, {
+        month,
+        ...apiFilters,
+        cursor: pageParam as string | undefined,
+        limit: PAGE_SIZE,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: ExpenseListResult) => lastPage.nextCursor ?? undefined,
+    enabled: Boolean(householdId),
     staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
@@ -21,10 +50,15 @@ export function useAddExpense(householdId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
       });
-      // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
+        refetchType: 'active',
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+        refetchType: 'active',
       });
     },
   });
@@ -44,10 +78,15 @@ export function useUpdateExpense(householdId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
       });
-      // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
+        refetchType: 'active',
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+        refetchType: 'active',
       });
     },
   });
@@ -62,12 +101,53 @@ export function useDeleteExpense(householdId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
       });
-      // Expenses affect joint account balance
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
+        refetchType: 'active',
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+        refetchType: 'active',
       });
     },
+    onError: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.expenses.all(householdId),
+        refetchType: 'active',
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+        refetchType: 'active',
+      });
+    },
+  });
+}
+
+// Cancel in-flight expense list queries so a rapid second click doesn't race
+// the first mutation's refetch.
+async function cancelExpenseListQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  householdId: string
+) {
+  await queryClient.cancelQueries({ queryKey: queryKeys.expenses.all(householdId) });
+}
+
+// Refetch the expense list whether the mutation succeeded or hit a stale-state
+// conflict (e.g. another member already claimed / resolved / disputed the same
+// expense). Without onError the row would keep the stale state after a 4xx.
+function invalidateExpensesActive(
+  queryClient: ReturnType<typeof useQueryClient>,
+  householdId: string,
+) {
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.expenses.all(householdId),
+    refetchType: 'active',
+  });
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.budget.all(householdId),
+    refetchType: 'active',
   });
 }
 
@@ -77,24 +157,38 @@ export function useClaimExpense(householdId: string) {
   return useMutation({
     mutationFn: (expenseId: string) =>
       expenseApi.claimExpense(householdId, expenseId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(householdId),
-      });
-    },
+    onMutate: () => cancelExpenseListQueries(queryClient, householdId),
+    onSuccess: () => invalidateExpensesActive(queryClient, householdId),
+    onError: () => invalidateExpensesActive(queryClient, householdId),
   });
 }
 
-export function useResolveExpense(householdId: string) {
+export function useRequestResolution(householdId: string) {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: (expenseId: string) =>
-      expenseApi.resolveExpense(householdId, expenseId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(householdId),
-      });
-    },
+    mutationFn: (expenseId: string) => expenseApi.requestResolution(householdId, expenseId),
+    onMutate: () => cancelExpenseListQueries(queryClient, householdId),
+    onSuccess: () => invalidateExpensesActive(queryClient, householdId),
+    onError: () => invalidateExpensesActive(queryClient, householdId),
+  });
+}
+
+export function useConfirmResolution(householdId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (expenseId: string) => expenseApi.confirmResolution(householdId, expenseId),
+    onMutate: () => cancelExpenseListQueries(queryClient, householdId),
+    onSuccess: () => invalidateExpensesActive(queryClient, householdId),
+    onError: () => invalidateExpensesActive(queryClient, householdId),
+  });
+}
+
+export function useDisputeResolution(householdId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (expenseId: string) => expenseApi.disputeResolution(householdId, expenseId),
+    onMutate: () => cancelExpenseListQueries(queryClient, householdId),
+    onSuccess: () => invalidateExpensesActive(queryClient, householdId),
+    onError: () => invalidateExpensesActive(queryClient, householdId),
   });
 }

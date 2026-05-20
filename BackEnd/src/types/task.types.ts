@@ -1,5 +1,4 @@
 import { Document, Types } from 'mongoose';
-import { IPaginationInput } from './pagination.types';
 
 export interface ITask extends Document {
   _id: Types.ObjectId;
@@ -43,7 +42,16 @@ export interface ITaskResponse {
   updatedAt: string;
 }
 
-export interface IListTasksInput extends IPaginationInput {}
+export interface IListTasksInput {
+  cursor?: string;
+  limit?: number;
+}
+
+export interface IListTasksResult {
+  items: ITaskResponse[];
+  nextCursor: string | null;
+  rotation?: IRotationStatus;
+}
 
 export interface IAssignTaskInput {
   assignedToMemberId: string | null;  // null = unassign

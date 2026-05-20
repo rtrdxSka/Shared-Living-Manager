@@ -21,6 +21,10 @@ const expenseSchema = new Schema<IExpense>(
     isFullRepayment: { type: Boolean, required: true, default: false },
     resolvedAt: { type: Date, default: undefined },
     resolvedByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
+    pendingConfirmation: { type: Boolean, default: false },
+    pendingConfirmationAt: { type: Date, default: undefined },
+    pendingConfirmationByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
+    lastDisputedAt: { type: Date, default: undefined },
   },
   {
     timestamps: true,
@@ -42,5 +46,7 @@ expenseSchema.index(
   { recurringExpenseId: 1, date: 1 },
   { unique: true, partialFilterExpression: { recurringExpenseId: { $exists: true } } }
 );
+// Supports findOne({ _id, householdId }) household-scoping on writes/reads
+expenseSchema.index({ _id: 1, householdId: 1 });
 
 export const Expense = model<IExpense>('Expense', expenseSchema);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   Sheet,
@@ -43,7 +43,9 @@ export default function AddRecurringTaskForm({
 
   const showAssigneeSelect = distributionMethod === 'fixed' && taskMembers.length > 0;
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) {
       setTitle('');
       setNotes('');
@@ -51,7 +53,7 @@ export default function AddRecurringTaskForm({
       setAssignedToMemberId('');
       setError(null);
     }
-  }, [open]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,7 +82,9 @@ export default function AddRecurringTaskForm({
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Title</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              TITLE
+            </label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -92,7 +96,9 @@ export default function AddRecurringTaskForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Notes <span className="text-muted-foreground">(optional)</span></label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              NOTES <span className="normal-case tracking-normal font-sans text-ink-3">(optional)</span>
+            </label>
             <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -103,7 +109,9 @@ export default function AddRecurringTaskForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Repeats</label>
+            <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+              REPEATS
+            </label>
             <Select
               value={interval}
               onValueChange={(v) => setInterval(v as RecurrenceInterval)}
@@ -124,7 +132,9 @@ export default function AddRecurringTaskForm({
 
           {showAssigneeSelect && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Assign to <span className="text-muted-foreground">(optional)</span></label>
+              <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                ASSIGN TO <span className="normal-case tracking-normal font-sans text-ink-3">(optional)</span>
+              </label>
               <Select
                 value={assignedToMemberId || '__none__'}
                 onValueChange={(v) => setAssignedToMemberId(v === '__none__' ? '' : v)}
@@ -143,7 +153,7 @@ export default function AddRecurringTaskForm({
             </div>
           )}
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-neg mt-1">{error}</p>}
 
           <Button type="submit" disabled={!canSubmit} className="mt-2">
             {createRecurringTaskMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Recurring Task'}

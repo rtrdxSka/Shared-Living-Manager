@@ -356,6 +356,25 @@ export const regenerateInviteCodeValidation: ValidationChain[] = [
   param('id').isMongoId().withMessage('Invalid household ID'),
 ];
 
+// ── Send Invite Email Validation ─────────────────────────────────────
+
+export const sendInviteEmailValidation: ValidationChain[] = [
+  param('id').isMongoId().withMessage('Invalid household ID'),
+  body('recipientEmail')
+    .trim()
+    .toLowerCase()
+    .isEmail()
+    .withMessage('A valid recipient email is required')
+    .isLength({ max: 254 })
+    .withMessage('Email cannot exceed 254 characters'),
+  body('personalNote')
+    .optional()
+    .isString()
+    .withMessage('Personal note must be a string')
+    .isLength({ max: 200 })
+    .withMessage('Personal note cannot exceed 200 characters'),
+];
+
 // ── Record Settlement Validation ──────────────────────────────────────
 
 export const recordSettlementValidation: ValidationChain[] = [

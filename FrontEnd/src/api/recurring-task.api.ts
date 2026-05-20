@@ -19,10 +19,10 @@ export const recurringTaskApi = {
   },
 
   async list(householdId: string): Promise<RecurringTaskResponse[]> {
-    const { data } = await api.get<ApiSuccessResponse<{ recurringTasks: RecurringTaskResponse[] }>>(
+    const { data } = await api.get<ApiSuccessResponse<{ items: RecurringTaskResponse[] }>>(
       `/households/${householdId}/recurring-tasks`
     );
-    return data.data.recurringTasks;
+    return data.data.items;
   },
 
   async update(

@@ -10,6 +10,8 @@ import {
   RecurrenceInterval,
 } from '../types/recurring-task.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
+import { logger } from '../utils/logger';
+import { getHouseholdForMember } from '../utils/household.helpers';
 
 class RecurringTaskService {
   private formatResponse(
@@ -36,11 +38,7 @@ class RecurringTaskService {
     userId: string,
     input: ICreateRecurringTaskInput
   ): Promise<IRecurringTaskResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }
@@ -71,11 +69,7 @@ class RecurringTaskService {
     householdId: string,
     userId: string
   ): Promise<IRecurringTaskResponse[]> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const { household } = await getHouseholdForMember(householdId, userId);
 
     const memberMap = new Map<string, string>();
     for (const m of household.members) {
@@ -83,7 +77,8 @@ class RecurringTaskService {
     }
 
     const templates = await RecurringTask.find({ householdId: household._id, isActive: true })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     return templates.map((t) =>
       this.formatResponse(
@@ -99,16 +94,13 @@ class RecurringTaskService {
     recurringTaskId: string,
     input: IUpdateRecurringTaskInput
   ): Promise<IRecurringTaskResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member } = await getHouseholdForMember(householdId, userId);
 
     const template = await RecurringTask.findOne({ _id: recurringTaskId, householdId: household._id });
     if (!template) throw NotFoundError('Recurring task not found');
 
-    if (template.createdByUserId.toString() !== userId) {
+    const isAdmin = member.role === 'owner' || member.role === 'admin';
+    if (template.createdByUserId.toString() !== userId && !isAdmin) {
       throw ForbiddenError('You can only edit recurring tasks you created');
     }
 
@@ -148,11 +140,7 @@ class RecurringTaskService {
     userId: string,
     recurringTaskId: string
   ): Promise<void> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
     const template = await RecurringTask.findOne({ _id: recurringTaskId, householdId: household._id });
     if (!template) throw NotFoundError('Recurring task not found');
@@ -199,14 +187,17 @@ class RecurringTaskService {
       existingTasks.map((t) => t.recurringTaskId!.toString())
     );
 
-    for (const template of templates) {
+    // Process templates in parallel batches to avoid overwhelming the DB
+    // connection pool (maxPoolSize = 10 in config/database.ts).
+    const BATCH_SIZE = 10;
+    const processOne = async (template: typeof templates[number]): Promise<void> => {
       try {
         // Idempotency check via pre-fetched set
-        if (existingSet.has(template._id.toString())) continue;
+        if (existingSet.has(template._id.toString())) return;
 
         // Household lookup via pre-fetched map
         const household = householdMap.get(template.householdId.toString());
-        if (!household) continue;
+        if (!household) return;
 
         // Verify creator is still a participating member
         const creator = household.members.find(
@@ -215,7 +206,7 @@ class RecurringTaskService {
         if (!creator || !creator.participatesInTasks) {
           template.isActive = false;
           await template.save();
-          continue;
+          return;
         }
 
         const method = household.settings.taskDistributionMethod;
@@ -243,8 +234,16 @@ class RecurringTaskService {
           ...(assignedToMemberId && { assignedToMemberId }),
         });
       } catch (err) {
-        console.error(`Failed to generate instance for recurring task ${template._id.toString()}:`, err);
+        logger.error(
+          { err, templateId: template._id.toString() },
+          'Failed to generate instance for recurring task'
+        );
       }
+    };
+
+    for (let i = 0; i < templates.length; i += BATCH_SIZE) {
+      const batch = templates.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(processOne));
     }
   }
 }

@@ -6,6 +6,7 @@ import {
   Receipt,
   CheckSquare,
   Target,
+  ShoppingCart,
   Wallet,
   UserPlus,
   User,
@@ -18,7 +19,9 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { Avatar, AvatarGroup } from '@/components/ui/avatar';
+import { EyebrowLabel } from '@/components/ui/eyebrow-label';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -33,11 +36,30 @@ interface NavItem {
 }
 
 function useNavItems(): NavItem[] {
-  const { financeMode, taskLevel, overdueCount } = useDashboard();
+  const { uiMode, financeMode, taskLevel, overdueCount } = useDashboard();
+
+  if (uiMode === 'solo') {
+    const items: NavItem[] = [
+      { id: 'overview', label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
+      { id: 'expenses', label: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
+      { id: 'budget', label: 'Budget', href: '/dashboard/budget', icon: Wallet },
+      {
+        id: 'tasks',
+        label: 'Tasks',
+        href: '/dashboard/tasks',
+        icon: CheckSquare,
+        badge: overdueCount > 0 ? overdueCount : undefined,
+      },
+      { id: 'goals', label: 'Goals', href: '/dashboard/goals', icon: Target },
+      { id: 'shopping-list', label: 'Shopping', href: '/dashboard/shopping-list', icon: ShoppingCart },
+    ];
+    return items;
+  }
 
   const items: NavItem[] = [
     { id: 'overview', label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
     { id: 'expenses', label: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
+    { id: 'budget', label: 'Budget', href: '/dashboard/budget', icon: Wallet },
   ];
 
   if (taskLevel !== 'disabled') {
@@ -47,6 +69,15 @@ function useNavItems(): NavItem[] {
       href: '/dashboard/tasks',
       icon: CheckSquare,
       badge: overdueCount > 0 ? overdueCount : undefined,
+    });
+  }
+
+  if (uiMode === 'couple') {
+    items.push({
+      id: 'shopping-list',
+      label: 'Shopping',
+      href: '/dashboard/shopping-list',
+      icon: ShoppingCart,
     });
   }
 
@@ -64,23 +95,36 @@ const PRIMARY_NAV_IDS = ['overview', 'expenses', 'tasks', 'goals'] as const;
 
 // ── Sidebar nav item ──────────────────────────────────────────────────────
 
-function SidebarItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
+function SidebarItem({
+  item,
+  isActive,
+}: {
+  item: NavItem;
+  isActive: boolean;
+}) {
   return (
     <Link
       to={item.href}
+      aria-current={isActive ? 'page' : undefined}
       className={cn(
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
         isActive
-          ? 'bg-accent text-accent-foreground'
-          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+          ? 'bg-accent text-accent-ink shadow-accent-glow'
+          : 'text-ink-3 hover:bg-surface-2 hover:text-ink'
       )}
     >
       <item.icon className="h-4 w-4 shrink-0" />
       <span className="flex-1">{item.label}</span>
       {item.badge != null && (
-        <Badge variant="destructive" className="h-5 min-w-[1.25rem] justify-center px-1 text-[10px]">
-          {item.badge}
-        </Badge>
+        isActive ? (
+          <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-accent-ink/15 px-1 text-[10px] font-semibold text-accent-ink">
+            {item.badge}
+          </span>
+        ) : (
+          <Badge variant="destructive" className="h-5 min-w-[1.25rem] justify-center px-1 text-[10px]">
+            {item.badge}
+          </Badge>
+        )
       )}
     </Link>
   );
@@ -89,7 +133,7 @@ function SidebarItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
 // ── Sidebar ───────────────────────────────────────────────────────────────
 
 function Sidebar() {
-  const { household, myNickname, partnerNickname } = useDashboard();
+  const { household, myNickname, partnerNickname, uiMode } = useDashboard();
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -98,32 +142,46 @@ function Sidebar() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/', { replace: true });
+    // bypassBlocker: skip the shopping-list useBlocker prompt on logout.
+    navigate('/', { replace: true, state: { bypassBlocker: true } });
   };
 
-  // Member initials display
-  const membersLabel = `${myNickname} & ${partnerNickname}`;
-
   return (
-    <aside className="hidden md:flex w-[220px] shrink-0 flex-col border-r border-border bg-background">
-      {/* Brand */}
-      <div className="flex h-16 items-center gap-2 border-b border-border px-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
-          <span className="text-xs font-bold text-primary-foreground">H</span>
+    <aside className="hidden md:flex w-[248px] shrink-0 flex-col border-r border-line bg-bg-sub">
+      {/* Brand block */}
+      <div className="flex items-center gap-3 px-4 py-4 border-b border-line">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
+          <span className="font-mono font-semibold text-sm text-accent-ink">H</span>
         </div>
-        <span className="text-sm font-bold tracking-tight">HouseMate</span>
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold text-ink leading-tight">HouseMate</span>
+          <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-3 leading-tight mt-0.5">
+            for two
+          </span>
+        </div>
       </div>
 
-      {/* Household header */}
-      <div className="px-4 py-3">
-        <p className="text-xs font-semibold text-foreground leading-tight">{household.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{membersLabel}</p>
+      {/* Household card */}
+      <div className="px-3 py-3 border-b border-line">
+        <div className="rounded-xl bg-surface-2 p-3">
+          <EyebrowLabel as="div" className="mb-1.5">HOUSEHOLD</EyebrowLabel>
+          <p className="text-sm font-semibold text-ink leading-tight truncate">{household.name}</p>
+          <div className="flex items-center gap-2 mt-2">
+            <AvatarGroup ringColor="surface-2">
+              <Avatar name={myNickname} size={24} variant="filled" />
+              {uiMode === 'couple' && (
+                <Avatar name={partnerNickname} size={24} variant="filled" />
+              )}
+            </AvatarGroup>
+            <span className="text-xs text-ink-3">
+              {uiMode === 'couple' ? `${myNickname} & ${partnerNickname}` : myNickname}
+            </span>
+          </div>
+        </div>
       </div>
-
-      <Separator />
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
+      <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => (
           <SidebarItem
             key={item.id}
@@ -133,28 +191,26 @@ function Sidebar() {
         ))}
       </nav>
 
-      <Separator />
-
-      {/* Bottom actions */}
-      <div className="space-y-1 px-2 py-3">
+      {/* Footer nav */}
+      <div className="border-t border-line px-2 py-3 space-y-1">
         <Link
           to="/profile"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
         >
           <User className="h-4 w-4 shrink-0" />
           Profile
         </Link>
         <button
           onClick={toggleTheme}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          className="relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
         >
           <Sun className="h-4 w-4 shrink-0 rotate-0 scale-100 transition-transform dark:rotate-90 dark:scale-0" />
-          <Moon className="absolute h-4 w-4 shrink-0 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
+          <Moon className="absolute left-3 h-4 w-4 shrink-0 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
           <span>Theme</span>
         </button>
         <button
           onClick={() => void handleLogout()}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-destructive"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-neg"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           Logout
@@ -173,7 +229,7 @@ interface MoreSheetProps {
 }
 
 function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
-  const { household, myNickname, partnerNickname } = useDashboard();
+  const { household, myNickname, partnerNickname, uiMode } = useDashboard();
   const { logout } = useAuth();
   const { toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -186,7 +242,8 @@ function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
   const handleLogout = async () => {
     onOpenChange(false);
     await logout();
-    navigate('/', { replace: true });
+    // bypassBlocker: skip the shopping-list useBlocker prompt on logout.
+    navigate('/', { replace: true, state: { bypassBlocker: true } });
   };
 
   return (
@@ -194,15 +251,28 @@ function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
       <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[85vh] overflow-y-auto">
         <SheetTitle className="sr-only">More options</SheetTitle>
 
-        {/* Handle bar */}
+        {/* Drag handle bar */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
+          <div className="h-1 w-10 rounded-full bg-line-2" />
         </div>
 
         {/* Household context */}
-        <div className="px-4 pb-3 pt-2">
-          <p className="text-sm font-semibold text-foreground">{household.name}</p>
-          <p className="text-xs text-muted-foreground">{myNickname} &amp; {partnerNickname}</p>
+        <div className="px-3 py-3">
+          <div className="rounded-xl bg-surface-2 p-3">
+            <EyebrowLabel as="div" className="mb-1.5">HOUSEHOLD</EyebrowLabel>
+            <p className="text-sm font-semibold text-ink leading-tight truncate">{household.name}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <AvatarGroup ringColor="surface-2">
+                <Avatar name={myNickname} size={24} variant="filled" />
+                {uiMode === 'couple' && (
+                  <Avatar name={partnerNickname} size={24} variant="filled" />
+                )}
+              </AvatarGroup>
+              <span className="text-xs text-ink-3">
+                {uiMode === 'couple' ? `${myNickname} & ${partnerNickname}` : myNickname}
+              </span>
+            </div>
+          </div>
         </div>
 
         <Separator />
@@ -211,21 +281,25 @@ function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
         {overflowItems.length > 0 && (
           <>
             <nav className="space-y-1 px-2 py-2">
-              {overflowItems.map((item) => (
-                <Link
-                  key={item.id}
-                  to={item.href}
-                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-                >
-                  <item.icon className="h-5 w-5 shrink-0" />
-                  <span className="flex-1">{item.label}</span>
-                  {item.badge != null && (
-                    <Badge variant="destructive" className="h-5 min-w-[1.25rem] justify-center px-1 text-[10px]">
-                      {item.badge}
-                    </Badge>
-                  )}
-                </Link>
-              ))}
+              {overflowItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.id}
+                    to={item.href}
+                    aria-current={isActive ? 'page' : undefined}
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                  >
+                    <item.icon className="h-5 w-5 shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge != null && (
+                      <Badge variant="destructive" className="h-5 min-w-[1.25rem] justify-center px-1 text-[10px]">
+                        {item.badge}
+                      </Badge>
+                    )}
+                  </Link>
+                );
+              })}
             </nav>
             <Separator />
           </>
@@ -235,14 +309,14 @@ function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
         <div className="space-y-1 px-2 py-2">
           <Link
             to="/profile"
-            className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+            className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
           >
             <User className="h-5 w-5 shrink-0" />
             Profile
           </Link>
           <button
             onClick={toggleTheme}
-            className="relative flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+            className="relative flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
           >
             <Sun className="h-5 w-5 shrink-0 rotate-0 scale-100 transition-transform dark:rotate-90 dark:scale-0" />
             <Moon className="absolute left-3 h-5 w-5 shrink-0 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
@@ -250,7 +324,7 @@ function MoreSheet({ open, onOpenChange, overflowItems }: MoreSheetProps) {
           </button>
           <button
             onClick={() => void handleLogout()}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-destructive"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-neg"
           >
             <LogOut className="h-5 w-5 shrink-0" />
             Logout
@@ -280,20 +354,21 @@ function MobileBottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center border-t border-border bg-background md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center border-t border-line bg-bg md:hidden">
         {primaryItems.map((item) => {
           const isActive = location.pathname === item.href;
           return (
             <Link
               key={item.id}
               to={item.href}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors',
-                isActive ? 'text-primary' : 'text-muted-foreground'
+                isActive ? 'text-accent' : 'text-ink-3'
               )}
             >
               <div className="relative">
-                <item.icon className={cn('h-5 w-5', isActive && 'text-primary')} />
+                <item.icon className="h-5 w-5" />
                 {item.badge != null && (
                   <span className="absolute -right-2 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-destructive px-0.5 text-[9px] font-bold text-destructive-foreground">
                     {item.badge}
@@ -301,6 +376,9 @@ function MobileBottomNav() {
                 )}
               </div>
               <span>{item.label}</span>
+              {isActive && (
+                <span className="absolute bottom-1.5 h-1 w-6 rounded-full bg-accent" />
+              )}
             </Link>
           );
         })}
@@ -308,9 +386,10 @@ function MobileBottomNav() {
         {/* More tab */}
         <button
           onClick={() => setMoreOpen(true)}
+          aria-label="More"
           className={cn(
             'relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors',
-            moreOpen ? 'text-primary' : 'text-muted-foreground'
+            moreOpen ? 'text-accent' : 'text-ink-3'
           )}
         >
           <div className="relative">
@@ -320,6 +399,9 @@ function MobileBottomNav() {
             )}
           </div>
           <span>More</span>
+          {moreOpen && (
+            <span className="absolute bottom-1.5 h-1 w-6 rounded-full bg-accent" />
+          )}
         </button>
       </nav>
 
@@ -336,7 +418,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-bg">
       <Sidebar />
 
       {/* Main content — pb-20 on mobile to clear bottom nav */}

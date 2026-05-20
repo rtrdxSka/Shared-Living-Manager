@@ -56,4 +56,15 @@ export const householdApi = {
     );
     return data.data.household;
   },
+
+  async sendInviteEmail(
+    householdId: string,
+    payload: { recipientEmail: string; personalNote?: string }
+  ): Promise<{ ok: true }> {
+    const { data } = await api.post<ApiSuccessResponse<{ ok: true }>>(
+      `/households/${householdId}/invite/email`,
+      payload
+    );
+    return data.data;
+  },
 };

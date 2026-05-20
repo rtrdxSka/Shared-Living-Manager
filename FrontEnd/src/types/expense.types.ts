@@ -1,5 +1,21 @@
 import type { ExpenseType } from './onboarding.types';
 
+export type ExpenseStatusFilter = 'unresolved' | 'pending' | 'resolved';
+
+export interface ExpenseFilters {
+  search: string;
+  categories: ExpenseType[];
+  paidBy: string[];
+  status: ExpenseStatusFilter | null;
+}
+
+export const EMPTY_EXPENSE_FILTERS: ExpenseFilters = {
+  search: '',
+  categories: [],
+  paidBy: [],
+  status: null,
+};
+
 export interface ExpenseResponse {
   _id: string;
   householdId: string;
@@ -16,6 +32,11 @@ export interface ExpenseResponse {
   isFullRepayment: boolean;
   resolvedAt?: string;
   resolvedByUserId?: string;
+  pendingConfirmation: boolean;
+  pendingConfirmationAt?: string;
+  pendingConfirmationByUserId?: string;
+  pendingConfirmationByNickname?: string;
+  lastDisputedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

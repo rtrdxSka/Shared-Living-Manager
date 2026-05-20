@@ -1,6 +1,6 @@
 # Household Expense Manager
 
-A web platform for managing shared household expenses and tasks among roommates, featuring AI-powered expense splitting using Shapley Value algorithm and intelligent task assignment.
+A web platform for managing shared household expenses and tasks among roommates.
 
 ## 🎓 Academic Project
 Master's Thesis Project - 16-week development timeline
@@ -18,11 +18,6 @@ Master's Thesis Project - 16-week development timeline
 - MongoDB with Mongoose
 - JWT Authentication
 
-### AI Features
-- Shapley Value algorithm for fair expense splitting
-- Time series forecasting for bill prediction
-- Intelligent task assignment optimization
-
 ## 📁 Project Structure
 ```
 /frontend  - React application
@@ -32,7 +27,28 @@ Master's Thesis Project - 16-week development timeline
 
 ## 🚀 Getting Started
 
-Documentation for setup will be added as components are developed.
+Node 20+ required. From the repo root:
+
+```bash
+corepack enable
+pnpm install
+```
+
+Common commands:
+
+```bash
+pnpm dev:back     # backend dev server (http://localhost:5000)
+pnpm dev:front    # frontend dev server (http://localhost:5173)
+pnpm test         # backend test suite (Vitest)
+pnpm build        # build both packages
+pnpm audit        # check for vulnerable dependencies
+```
+
+Or run the full stack via Docker:
+
+```bash
+docker compose up -d
+```
 
 ## 🔒 Security
 

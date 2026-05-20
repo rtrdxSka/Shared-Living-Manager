@@ -33,7 +33,6 @@ export interface IUser extends Document {
   emailVerificationExpires?: Date;
   passwordResetToken?: string;
   passwordResetExpires?: Date;
-  refreshToken?: string;
   createdAt: Date;
   updatedAt: Date;
 

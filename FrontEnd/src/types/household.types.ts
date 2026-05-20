@@ -75,6 +75,8 @@ export interface HouseholdResponse {
   settings: HouseholdSettings;
   createdBy: string;
   inviteCode: string;
+  /** ISO timestamp at which the current invite code stops working. */
+  inviteCodeExpiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }

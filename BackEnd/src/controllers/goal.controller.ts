@@ -43,7 +43,7 @@ class GoalController {
       res.status(200).json({
         status: 'success',
         data: {
-          goals: result.items,
+          items: result.items,
           total: result.total,
           page: result.page,
           totalPages: result.totalPages,

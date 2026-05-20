@@ -58,8 +58,9 @@ export function useUpdateJointAccountConfig(householdId: string) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.jointAccount.all(householdId),
       });
+      // Target only THIS household, not every cached household entry.
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.household.all,
+        queryKey: queryKeys.household.detail(householdId),
       });
     },
   });

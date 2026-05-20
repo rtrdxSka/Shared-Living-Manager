@@ -56,12 +56,54 @@ export default {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			bg: 'hsl(var(--bg))',
+  			'bg-sub': 'hsl(var(--bg-sub))',
+  			surface: 'hsl(var(--surface))',
+  			'surface-2': 'hsl(var(--surface-2))',
+  			line: 'hsl(var(--line))',
+  			'line-2': 'hsl(var(--line-2))',
+  			ink: {
+  				DEFAULT: 'hsl(var(--ink))',
+  				2: 'hsl(var(--ink-2))',
+  				3: 'hsl(var(--ink-3))',
+  				4: 'hsl(var(--ink-4))'
+  			},
+  			'accent-ink': 'hsl(var(--accent-ink))',
+  			pos: 'hsl(var(--pos))',
+  			neg: {
+  				DEFAULT: 'hsl(var(--neg))',
+  				bg: 'hsl(var(--neg-bg))'
+  			},
+  			warn: {
+  				DEFAULT: 'hsl(var(--warn))',
+  				bg: 'hsl(var(--warn-bg))'
+  			},
+  			cat: {
+  				rent: 'hsl(var(--cat-rent))',
+  				utilities: 'hsl(var(--cat-utilities))',
+  				groceries: 'hsl(var(--cat-groceries))',
+  				internet: 'hsl(var(--cat-internet))',
+  				cleaning: 'hsl(var(--cat-cleaning))',
+  				subscriptions: 'hsl(var(--cat-subscriptions))',
+  				other: 'hsl(var(--cat-other))'
   			}
+  		},
+  		fontFamily: {
+  			sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+  			serif: ['"Instrument Serif"', 'ui-serif', 'Georgia', 'serif'],
+  			mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace']
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			sm: 'calc(var(--radius) - 4px)',
+  			xl: '18px',
+  			'2xl': '22px'
+  		},
+  		boxShadow: {
+  			hero: '0 30px 80px -20px rgba(0,0,0,0.5)',
+  			'accent-glow': '0 6px 16px -4px rgba(163,230,53,0.5)'
   		},
   		keyframes: {
   			'accordion-down': {

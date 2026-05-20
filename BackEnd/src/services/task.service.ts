@@ -1,10 +1,19 @@
 import { Types } from 'mongoose';
 import { Household } from '../models/household.model';
 import { Task } from '../models/task.model';
-import { ITask, IAddTaskInput, ITaskResponse, IRotationStatus, IAssignTaskInput, IListTasksInput } from '../types/task.types';
-import { parsePaginationParams } from '../utils/pagination';
+import {
+  ITask,
+  IAddTaskInput,
+  ITaskResponse,
+  IRotationStatus,
+  IAssignTaskInput,
+  IListTasksInput,
+  IListTasksResult,
+} from '../types/task.types';
+import { clampLimit, encodeDateIdCursor, parseDateIdCursor } from '../utils/pagination';
 import { IHouseholdMember, ITaskRotationConfig, ISetRotationInput } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
+import { getHouseholdForMember } from '../utils/household.helpers';
 
 class TaskService {
   // ── Any member ────────────────────────────────────────────────────────
@@ -14,11 +23,7 @@ class TaskService {
     userId: string,
     input: IAddTaskInput
   ): Promise<ITaskResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }
@@ -76,28 +81,35 @@ class TaskService {
     householdId: string,
     userId: string,
     input: IListTasksInput = {}
-  ): Promise<{ tasks: ITaskResponse[]; total: number; page: number; totalPages: number; rotation?: IRotationStatus }> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
+  ): Promise<IListTasksResult> {
+    const { household } = await getHouseholdForMember(householdId, userId);
 
-    const isMember = household.members.some((m) => m.userId?.toString() === userId);
-    if (!isMember) throw ForbiddenError('You are not a member of this household');
+    const limit = clampLimit(input.limit);
 
-    const { page, limit, skip } = parsePaginationParams(input);
-    const filter = { householdId: household._id };
-    const [tasks, total] = await Promise.all([
-      Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      Task.countDocuments(filter),
-    ]);
+    const query: Record<string, unknown> = { householdId: household._id };
 
-    // Build member ID → nickname map for completedByMemberId lookups
+    if (input.cursor) {
+      const c = parseDateIdCursor(input.cursor);
+      query.$or = [
+        { createdAt: { $lt: c.date } },
+        { createdAt: c.date, _id: { $lt: new Types.ObjectId(c.id) } },
+      ];
+    }
+
+    const tasks = await Task.find(query)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .lean();
+
+    const hasMore = tasks.length > limit;
+    const pageItems = tasks.slice(0, limit);
+
     const memberMap = new Map<string, string>();
     for (const m of household.members) {
       memberMap.set(m._id.toString(), m.nickname);
     }
 
     let rotation: IRotationStatus | undefined;
-
     const method = household.settings.taskDistributionMethod;
     const isRotation =
       method === 'rotation' && household.settings.taskRotationConfig != null;
@@ -112,7 +124,7 @@ class TaskService {
       }
     }
 
-    const taskResponses = tasks.map((task) => {
+    const taskResponses = pageItems.map((task) => {
       let assignedToMemberId: string | undefined;
       let assignedToNickname: string | undefined;
 
@@ -131,7 +143,13 @@ class TaskService {
       );
     });
 
-    return { tasks: taskResponses, total, page, totalPages: Math.ceil(total / limit) || 1, ...(rotation && { rotation }) };
+    let nextCursor: string | null = null;
+    if (hasMore && pageItems.length > 0) {
+      const last = pageItems[pageItems.length - 1];
+      nextCursor = encodeDateIdCursor(last.createdAt, last._id);
+    }
+
+    return { items: taskResponses, nextCursor, ...(rotation && { rotation }) };
   }
 
   async toggleComplete(
@@ -139,11 +157,7 @@ class TaskService {
     userId: string,
     taskId: string
   ): Promise<ITaskResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }
@@ -157,11 +171,10 @@ class TaskService {
       if (pastOneDay) {
         throw ForbiddenError('This task can no longer be marked incomplete');
       }
-      const isAdmin = requesterMember.role === 'owner' || requesterMember.role === 'admin';
       const isCompleter = task.completedByMemberId?.toString() === requesterMember._id.toString();
-      if (!isAdmin && !isCompleter) {
+      if (!isCompleter) {
         throw ForbiddenError(
-          'Only the admin or the person who completed this task can undo it within 24 hours'
+          'Only the person who completed this task can undo it within 24 hours'
         );
       }
     }
@@ -198,11 +211,7 @@ class TaskService {
     userId: string,
     taskId: string
   ): Promise<void> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }
@@ -228,11 +237,7 @@ class TaskService {
     taskId: string,
     input: IAssignTaskInput
   ): Promise<ITaskResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find((m) => m.userId?.toString() === userId);
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInTasks) {
       throw ForbiddenError('You do not participate in household tasks');
     }
@@ -240,19 +245,21 @@ class TaskService {
     const task = await Task.findOne({ _id: taskId, householdId: household._id });
     if (!task) throw NotFoundError('Task not found');
 
-    const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
+    const isCreator = task.createdByUserId.toString() === userId;
+    const isFixedMode = household.settings.taskDistributionMethod === 'fixed';
 
-    if (household.settings.taskDistributionMethod === 'fixed') {
-      const isCreator = task.createdByUserId.toString() === userId;
-      if (!isAdminOrOwner && !isCreator) {
-        throw ForbiddenError('Only the task creator or an admin can reassign tasks');
-      }
-    }
+    let updatedTask: typeof task | null;
 
     if (input.assignedToMemberId !== null) {
-      // Regular members can only assign tasks to themselves
-      if (!isAdminOrOwner && input.assignedToMemberId !== requesterMember._id.toString()) {
-        throw ForbiddenError('You can only assign tasks to yourself');
+      const isSelfAssign = input.assignedToMemberId === requesterMember._id.toString();
+
+      if (!isSelfAssign) {
+        if (!isFixedMode) {
+          throw ForbiddenError('You can only assign tasks to yourself');
+        }
+        if (!isCreator) {
+          throw ForbiddenError('Only the task creator can assign this task to another member');
+        }
       }
 
       const assignee = household.members.find(
@@ -262,33 +269,58 @@ class TaskService {
       if (!assignee.participatesInTasks) {
         throw BadRequestError('That member does not participate in tasks');
       }
-      task.assignedToMemberId = new Types.ObjectId(input.assignedToMemberId);
+
+      const newAssigneeId = new Types.ObjectId(input.assignedToMemberId);
+
+      if (isCreator && isFixedMode && !isSelfAssign) {
+        // Creator reassigning their own task in fixed mode — overwrite without precondition.
+        task.assignedToMemberId = newAssigneeId;
+        await task.save();
+        updatedTask = task;
+      } else {
+        // Self-assigning an unassigned task — first-claim-wins via atomic update.
+        updatedTask = await Task.findOneAndUpdate(
+          {
+            _id: task._id,
+            householdId: household._id,
+            $or: [{ assignedToMemberId: { $exists: false } }, { assignedToMemberId: null }],
+          },
+          { $set: { assignedToMemberId: newAssigneeId } },
+          { new: true },
+        );
+
+        if (!updatedTask) {
+          throw BadRequestError('This task has already been claimed');
+        }
+      }
     } else {
-      // Regular members can only unassign tasks currently assigned to themselves
-      if (!isAdminOrOwner && task.assignedToMemberId?.toString() !== requesterMember._id.toString()) {
+      const isCurrentAssignee =
+        task.assignedToMemberId?.toString() === requesterMember._id.toString();
+      const canUnassign = isCurrentAssignee || (isFixedMode && isCreator);
+      if (!canUnassign) {
         throw ForbiddenError('You can only unassign tasks assigned to yourself');
       }
       task.assignedToMemberId = undefined;
+      await task.save();
+      updatedTask = task;
     }
-
-    await task.save();
 
     const memberMap = new Map<string, string>();
     for (const m of household.members) {
       memberMap.set(m._id.toString(), m.nickname);
     }
 
-    const assignedToNickname = task.assignedToMemberId
-      ? memberMap.get(task.assignedToMemberId.toString())
+    const assignedToNickname = updatedTask.assignedToMemberId
+      ? memberMap.get(updatedTask.assignedToMemberId.toString())
       : undefined;
 
-    const completedByNickname = task.completedByMemberId
-      ? (memberMap.get(task.completedByMemberId.toString()) ?? 'Unknown')
+    const completedByNickname = updatedTask.completedByMemberId
+      ? (memberMap.get(updatedTask.completedByMemberId.toString()) ?? 'Unknown')
       : undefined;
 
     return this.formatTaskResponse(
-      task,
-      task.assignedToMemberId?.toString(),
+      updatedTask,
+      updatedTask.assignedToMemberId?.toString(),
       assignedToNickname,
       completedByNickname
     );

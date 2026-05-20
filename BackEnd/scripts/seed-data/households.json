@@ -1,0 +1,359 @@
+[
+  {
+    "key": "couple-1",
+    "name": "Alice & Bob",
+    "livingArrangement": "couple",
+    "totalMembers": 2,
+    "uiMode": "couple",
+    "createdByUserKey": "alice",
+    "inviteCode": "seed-couple-1-invite",
+    "inviteCodeExpiresAt": null,
+    "members": [
+      {
+        "memberKey": "alice-m",
+        "userKey": "alice",
+        "nickname": "Alice",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-04-01T10:00:00.000Z",
+        "monthlyIncome": 4000
+      },
+      {
+        "memberKey": "bob-m",
+        "userKey": "bob",
+        "nickname": "Bob",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": false,
+        "joinedAt": "2026-04-01T10:05:00.000Z",
+        "monthlyIncome": 2500
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "joint",
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "EUR",
+      "taskManagementEnabled": "full",
+      "taskDistributionMethod": "rotation",
+      "jointAccountConfig": {
+        "monthlyTarget": 1500,
+        "targetMode": "proportional"
+      }
+    }
+  },
+  {
+    "key": "couple-2",
+    "name": "Carol & Dan",
+    "livingArrangement": "couple",
+    "totalMembers": 2,
+    "uiMode": "couple",
+    "createdByUserKey": "carol",
+    "inviteCode": "seed-couple-2-invite",
+    "inviteCodeExpiresAt": null,
+    "members": [
+      {
+        "memberKey": "carol-m",
+        "userKey": "carol",
+        "nickname": "Carol",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-04-01T10:00:00.000Z"
+      },
+      {
+        "memberKey": "dan-m",
+        "userKey": "dan",
+        "nickname": "Dan",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": false,
+        "joinedAt": "2026-04-01T10:05:00.000Z"
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "split",
+      "expenseSplitMethod": "equal",
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "EUR",
+      "taskManagementEnabled": "full",
+      "taskDistributionMethod": "fixed"
+    }
+  },
+  {
+    "key": "couple-3",
+    "name": "Erin & Frank",
+    "livingArrangement": "couple",
+    "totalMembers": 2,
+    "uiMode": "couple",
+    "createdByUserKey": "erin",
+    "inviteCode": "seed-couple-3-invite",
+    "inviteCodeExpiresAt": null,
+    "members": [
+      {
+        "memberKey": "erin-m",
+        "userKey": "erin",
+        "nickname": "Erin",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-04-01T10:00:00.000Z",
+        "monthlyIncome": 5000
+      },
+      {
+        "memberKey": "frank-m",
+        "userKey": "frank",
+        "nickname": "Frank",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": false,
+        "joinedAt": "2026-04-01T10:05:00.000Z",
+        "monthlyIncome": 3000
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "split",
+      "expenseSplitMethod": "income_based",
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "EUR",
+      "taskManagementEnabled": "full",
+      "taskDistributionMethod": "voluntary"
+    }
+  },
+  {
+    "key": "couple-4",
+    "name": "Grace & Henry",
+    "livingArrangement": "couple",
+    "totalMembers": 2,
+    "uiMode": "couple",
+    "createdByUserKey": "grace",
+    "inviteCode": "seed-couple-4-invite",
+    "inviteCodeExpiresAt": null,
+    "members": [
+      {
+        "memberKey": "grace-m",
+        "userKey": "grace",
+        "nickname": "Grace",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-04-01T10:00:00.000Z"
+      },
+      {
+        "memberKey": "henry-m",
+        "userKey": "henry",
+        "nickname": "Henry",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": false,
+        "joinedAt": "2026-04-01T10:05:00.000Z"
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "split",
+      "expenseSplitMethod": "usage_based",
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "EUR",
+      "taskManagementEnabled": "basic",
+      "taskDistributionMethod": "rotation"
+    }
+  },
+  {
+    "key": "couple-5",
+    "name": "Iris & Jack",
+    "livingArrangement": "couple",
+    "totalMembers": 2,
+    "uiMode": "couple",
+    "createdByUserKey": "iris",
+    "inviteCode": "seed-couple-5-invite",
+    "inviteCodeExpiresAt": null,
+    "members": [
+      {
+        "memberKey": "iris-m",
+        "userKey": "iris",
+        "nickname": "Iris",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-04-01T10:00:00.000Z"
+      },
+      {
+        "memberKey": "jack-m",
+        "userKey": "jack",
+        "nickname": "Jack",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": false,
+        "joinedAt": "2026-04-01T10:05:00.000Z"
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "split",
+      "expenseSplitMethod": "custom",
+      "customSplitPercentage": 60,
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "EUR",
+      "taskManagementEnabled": "basic",
+      "taskDistributionMethod": "fixed"
+    }
+  },
+  {
+    "key": "couple-6",
+    "name": "Kate & Liam",
+    "livingArrangement": "couple",
+    "totalMembers": 2,
+    "uiMode": "couple",
+    "createdByUserKey": "kate",
+    "inviteCode": "seed-couple-6-invite",
+    "inviteCodeExpiresAt": null,
+    "members": [
+      {
+        "memberKey": "kate-m",
+        "userKey": "kate",
+        "nickname": "Kate",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-04-01T10:00:00.000Z"
+      },
+      {
+        "memberKey": "liam-m",
+        "userKey": "liam",
+        "nickname": "Liam",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": false,
+        "joinedAt": "2026-04-01T10:05:00.000Z"
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "joint",
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "EUR",
+      "taskManagementEnabled": "basic",
+      "taskDistributionMethod": "voluntary",
+      "jointAccountConfig": {
+        "monthlyTarget": 800,
+        "targetMode": "proportional"
+      }
+    }
+  },
+  {
+    "key": "couple-7",
+    "name": "Maya & Noah",
+    "livingArrangement": "couple",
+    "totalMembers": 2,
+    "uiMode": "couple",
+    "createdByUserKey": "maya",
+    "inviteCode": "seed-couple-7-invite",
+    "inviteCodeExpiresAt": "2026-05-01T00:00:00.000Z",
+    "members": [
+      {
+        "memberKey": "maya-m",
+        "userKey": "maya",
+        "nickname": "Maya",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": false,
+        "isCreator": true,
+        "joinedAt": "2026-04-01T10:00:00.000Z"
+      },
+      {
+        "memberKey": "noah-m",
+        "userKey": "noah",
+        "nickname": "Noah",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "member",
+        "participatesInFinances": true,
+        "participatesInTasks": false,
+        "isCreator": false,
+        "joinedAt": "2026-04-01T10:05:00.000Z"
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "split",
+      "expenseSplitMethod": "equal",
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "EUR",
+      "taskManagementEnabled": "disabled"
+    }
+  },
+  {
+    "key": "invite-only",
+    "name": "Invite Sandbox",
+    "livingArrangement": "couple",
+    "totalMembers": 1,
+    "uiMode": "couple",
+    "createdByUserKey": "alice",
+    "inviteCode": "seed-invite-only-invite",
+    "inviteCodeExpiresAt": null,
+    "members": [
+      {
+        "memberKey": "alice-invite-host",
+        "userKey": "alice",
+        "nickname": "Alice",
+        "relationship": "partner",
+        "ageGroup": "adult",
+        "role": "owner",
+        "participatesInFinances": true,
+        "participatesInTasks": true,
+        "isCreator": true,
+        "joinedAt": "2026-04-01T10:00:00.000Z"
+      }
+    ],
+    "settlements": [],
+    "settings": {
+      "financeMode": "joint",
+      "trackedExpenseTypes": ["rent", "utilities", "groceries", "other"],
+      "currency": "EUR",
+      "taskManagementEnabled": "full",
+      "taskDistributionMethod": "rotation"
+    }
+  }
+]

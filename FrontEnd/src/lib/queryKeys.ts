@@ -5,8 +5,16 @@ export const queryKeys = {
   },
   expenses: {
     all: (householdId: string) => ['expenses', householdId] as const,
-    list: (householdId: string, month: string) =>
-      ['expenses', householdId, 'list', month] as const,
+    list: (
+      householdId: string,
+      month: string,
+      filters?: {
+        search?: string;
+        categories?: string[];
+        paidBy?: string[];
+        status?: string | null;
+      }
+    ) => ['expenses', householdId, 'list', month, filters ?? {}] as const,
   },
   recurringExpenses: {
     all: (householdId: string) => ['recurringExpenses', householdId] as const,
@@ -22,6 +30,19 @@ export const queryKeys = {
     list: (householdId: string) =>
       ['recurringTasks', householdId, 'list'] as const,
   },
+  shoppingList: {
+    all: (householdId: string) => ['shoppingList', householdId] as const,
+    list: (
+      householdId: string,
+      filter?: { search?: string; categories?: string[]; boughtState?: string }
+    ) => ['shoppingList', householdId, 'list', filter ?? {}] as const,
+    history: (
+      householdId: string,
+      filter?: { search?: string; categories?: string[] }
+    ) => ['shoppingList', householdId, 'history', filter ?? {}] as const,
+    recurring: (householdId: string) => ['shoppingList', householdId, 'recurring'] as const,
+    bought: (householdId: string) => ['shoppingList', householdId, 'bought'] as const,
+  },
   goals: {
     all: (householdId: string) => ['goals', householdId] as const,
     list: (householdId: string) => ['goals', householdId, 'list'] as const,
@@ -32,5 +53,13 @@ export const queryKeys = {
     all: (householdId: string) => ['jointAccount', householdId] as const,
     summary: (householdId: string, month: string) =>
       ['jointAccount', householdId, 'summary', month] as const,
+  },
+  budget: {
+    all: (householdId: string) => ['budget', householdId] as const,
+    current: (householdId: string) => ['budget', householdId, 'current'] as const,
+    insights: (householdId: string, month: string) =>
+      ['budget', householdId, 'insights', month] as const,
+    snapshot: (householdId: string, month: string) =>
+      ['budget', householdId, 'snapshot', month] as const,
   },
 } as const;

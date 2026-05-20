@@ -25,12 +25,12 @@ export function SurveyNavigation({
   isFinalStep = false,
 }: SurveyNavigationProps) {
   return (
-    <div className="mt-8 flex items-center justify-between">
+    <div className="flex items-center justify-between pt-2">
       {showBack ? (
         <Button
           type="button"
           variant="ghost"
-          className="h-11 gap-2 rounded-xl"
+          className="h-11 gap-2 rounded-xl text-ink-3 hover:text-ink"
           onClick={onBack}
           disabled={isSubmitting}
         >

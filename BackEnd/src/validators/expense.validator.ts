@@ -1,6 +1,6 @@
 import { body, param, query, ValidationChain } from 'express-validator';
 import { EXPENSE_TYPES } from '../types/household.types';
-import { paginationValidation } from './pagination.validator';
+import { cursorPaginationValidation } from './pagination.validator';
 
 export const addExpenseValidation: ValidationChain[] = [
   param('id')
@@ -99,10 +99,36 @@ export const listExpensesValidation: ValidationChain[] = [
     .matches(/^(\d{4}-(0[1-9]|1[0-2])|all)$/)
     .withMessage('month must be in YYYY-MM format or "all"'),
 
-  query('category')
+  query('search')
+    .optional()
+    .isString()
+    .isLength({ max: 120 })
+    .withMessage('search must be a string up to 120 characters'),
+
+  query('categories')
+    .optional()
+    .toArray()
+    .isArray()
+    .withMessage('categories must be an array'),
+  query('categories.*')
     .optional()
     .isIn([...EXPENSE_TYPES])
     .withMessage('Invalid expense category'),
 
-  ...paginationValidation,
+  query('paidBy')
+    .optional()
+    .toArray()
+    .isArray()
+    .withMessage('paidBy must be an array'),
+  query('paidBy.*')
+    .optional()
+    .isMongoId()
+    .withMessage('Each paidBy entry must be a valid user ID'),
+
+  query('status')
+    .optional()
+    .isIn(['unresolved', 'pending', 'resolved'])
+    .withMessage('status must be one of: unresolved, pending, resolved'),
+
+  ...cursorPaginationValidation,
 ];

@@ -1,0 +1,246 @@
+[
+  {
+    "key": "shop-1-milk",
+    "householdKey": "couple-1",
+    "name": "Milk",
+    "quantity": "2 L",
+    "category": "groceries",
+    "addedByUserKey": "alice",
+    "isBought": false
+  },
+  {
+    "key": "shop-1-bread",
+    "householdKey": "couple-1",
+    "name": "Bread",
+    "quantity": "1 loaf",
+    "category": "groceries",
+    "addedByUserKey": "bob",
+    "isBought": false
+  },
+  {
+    "key": "shop-1-eggs",
+    "householdKey": "couple-1",
+    "name": "Eggs",
+    "quantity": "12",
+    "category": "groceries",
+    "addedByUserKey": "alice",
+    "isBought": false
+  },
+  {
+    "key": "shop-1-soap",
+    "householdKey": "couple-1",
+    "name": "Dish soap",
+    "quantity": "1",
+    "category": "cleaning",
+    "addedByUserKey": "bob",
+    "isBought": true,
+    "boughtAt": "2026-05-08T18:00:00.000Z",
+    "boughtByMemberKey": "bob-m"
+  },
+  {
+    "key": "shop-1-paper",
+    "householdKey": "couple-1",
+    "name": "Paper towels",
+    "quantity": "4 rolls",
+    "category": "cleaning",
+    "addedByUserKey": "alice",
+    "isBought": true,
+    "boughtAt": "2026-05-07T17:00:00.000Z",
+    "boughtByMemberKey": "alice-m"
+  },
+  {
+    "key": "shop-2-pasta",
+    "householdKey": "couple-2",
+    "name": "Pasta",
+    "quantity": "3 packs",
+    "category": "groceries",
+    "addedByUserKey": "carol",
+    "isBought": false
+  },
+  {
+    "key": "shop-2-sauce",
+    "householdKey": "couple-2",
+    "name": "Tomato sauce",
+    "quantity": "2 jars",
+    "category": "groceries",
+    "addedByUserKey": "dan",
+    "isBought": false
+  },
+  {
+    "key": "shop-2-yogurt",
+    "householdKey": "couple-2",
+    "name": "Yogurt",
+    "quantity": "500g",
+    "category": "groceries",
+    "addedByUserKey": "carol",
+    "isBought": false
+  },
+  {
+    "key": "shop-2-shampoo",
+    "householdKey": "couple-2",
+    "name": "Shampoo",
+    "quantity": "1",
+    "category": "other",
+    "addedByUserKey": "dan",
+    "isBought": false
+  },
+  {
+    "key": "shop-3-butter",
+    "householdKey": "couple-3",
+    "name": "Butter",
+    "quantity": "250g",
+    "category": "groceries",
+    "addedByUserKey": "erin",
+    "isBought": false
+  },
+  {
+    "key": "shop-3-cheese",
+    "householdKey": "couple-3",
+    "name": "Cheese",
+    "quantity": "200g",
+    "category": "groceries",
+    "addedByUserKey": "frank",
+    "isBought": false
+  },
+  {
+    "key": "shop-3-juice",
+    "householdKey": "couple-3",
+    "name": "Orange juice",
+    "quantity": "1 L",
+    "category": "groceries",
+    "addedByUserKey": "erin",
+    "isBought": false
+  },
+  {
+    "key": "shop-3-toothpaste",
+    "householdKey": "couple-3",
+    "name": "Toothpaste",
+    "quantity": "2",
+    "category": "other",
+    "addedByUserKey": "frank",
+    "isBought": false
+  },
+  {
+    "key": "shop-3-coffee",
+    "householdKey": "couple-3",
+    "name": "Coffee",
+    "quantity": "250g",
+    "category": "groceries",
+    "addedByUserKey": "erin",
+    "isBought": true,
+    "boughtAt": "2026-05-09T16:00:00.000Z",
+    "boughtByMemberKey": "erin-m"
+  },
+  {
+    "key": "shop-3-cleaning-spray",
+    "householdKey": "couple-3",
+    "name": "All-purpose spray",
+    "quantity": "1",
+    "category": "cleaning",
+    "addedByUserKey": "frank",
+    "isBought": true,
+    "boughtAt": "2026-05-08T17:00:00.000Z",
+    "boughtByMemberKey": "frank-m"
+  },
+  {
+    "key": "shop-3-apples",
+    "householdKey": "couple-3",
+    "name": "Apples",
+    "quantity": "1 kg",
+    "category": "groceries",
+    "addedByUserKey": "erin",
+    "isBought": true,
+    "boughtAt": "2026-05-09T16:30:00.000Z",
+    "boughtByMemberKey": "erin-m"
+  },
+  {
+    "key": "shop-4-rice",
+    "householdKey": "couple-4",
+    "name": "Rice",
+    "quantity": "1 kg",
+    "category": "groceries",
+    "addedByUserKey": "grace",
+    "isBought": false
+  },
+  {
+    "key": "shop-4-vegetables",
+    "householdKey": "couple-4",
+    "name": "Mixed vegetables",
+    "quantity": "500g",
+    "category": "groceries",
+    "addedByUserKey": "henry",
+    "isBought": false
+  },
+  {
+    "key": "shop-4-detergent",
+    "householdKey": "couple-4",
+    "name": "Laundry detergent",
+    "quantity": "1",
+    "category": "cleaning",
+    "addedByUserKey": "grace",
+    "isBought": false
+  },
+  {
+    "key": "shop-5-milk",
+    "householdKey": "couple-5",
+    "name": "Whole milk",
+    "quantity": "2 L",
+    "category": "groceries",
+    "addedByUserKey": "iris",
+    "isBought": false
+  },
+  {
+    "key": "shop-5-cereal",
+    "householdKey": "couple-5",
+    "name": "Cereal",
+    "quantity": "2 boxes",
+    "category": "groceries",
+    "addedByUserKey": "jack",
+    "isBought": false
+  },
+  {
+    "key": "shop-5-bananas",
+    "householdKey": "couple-5",
+    "name": "Bananas",
+    "quantity": "1 bunch",
+    "category": "groceries",
+    "addedByUserKey": "iris",
+    "isBought": false
+  },
+  {
+    "key": "shop-6-tea",
+    "householdKey": "couple-6",
+    "name": "Herbal tea",
+    "quantity": "1 box",
+    "category": "groceries",
+    "addedByUserKey": "kate",
+    "isBought": false
+  },
+  {
+    "key": "shop-6-sponges",
+    "householdKey": "couple-6",
+    "name": "Kitchen sponges",
+    "quantity": "4 pack",
+    "category": "cleaning",
+    "addedByUserKey": "liam",
+    "isBought": false
+  },
+  {
+    "key": "shop-7-potatoes",
+    "householdKey": "couple-7",
+    "name": "Potatoes",
+    "quantity": "2 kg",
+    "category": "groceries",
+    "addedByUserKey": "maya",
+    "isBought": false
+  },
+  {
+    "key": "shop-7-olive-oil",
+    "householdKey": "couple-7",
+    "name": "Olive oil",
+    "quantity": "500 ml",
+    "category": "groceries",
+    "addedByUserKey": "noah",
+    "isBought": false
+  }
+]

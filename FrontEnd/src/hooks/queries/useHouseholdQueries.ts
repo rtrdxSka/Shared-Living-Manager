@@ -33,6 +33,9 @@ export function useUpdateIncome(householdId: string) {
       householdApi.updateMyIncome(householdId, monthlyIncome),
     onSuccess: (updated: HouseholdResponse) => {
       queryClient.setQueryData(queryKeys.household.detail(householdId), updated);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.budget.all(householdId),
+      });
     },
   });
 }
@@ -57,5 +60,11 @@ export function useRegenerateInviteCode(householdId: string) {
     onSuccess: (updated: HouseholdResponse) => {
       queryClient.setQueryData(queryKeys.household.detail(householdId), updated);
     },
+  });
+}
+
+export function useSendInviteEmail(householdId: string) {
+  return useMutation<{ ok: true }, Error, { recipientEmail: string; personalNote?: string }>({
+    mutationFn: (payload) => householdApi.sendInviteEmail(householdId, payload),
   });
 }

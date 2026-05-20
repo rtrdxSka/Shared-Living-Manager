@@ -8,8 +8,10 @@ export function useRecurringTasks(householdId: string, enabled = true) {
     queryKey: queryKeys.recurringTasks.list(householdId),
     queryFn: () => recurringTaskApi.list(householdId),
     enabled,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    // Recurring templates change infrequently; mutations invalidate the
+    // cache immediately, so a longer stale window is safe.
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 }
 

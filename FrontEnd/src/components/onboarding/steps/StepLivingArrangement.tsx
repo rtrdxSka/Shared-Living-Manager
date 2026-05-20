@@ -220,25 +220,27 @@ function RadioCard({ label, selected, onClick }: RadioCardProps) {
   return (
     <button
       type="button"
+      role="radio"
+      aria-checked={selected}
       onClick={onClick}
       className={cn(
-        'flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors',
+        'w-full text-left rounded-xl border p-4 transition-colors',
         selected
-          ? 'border-primary bg-primary/5 text-foreground'
-          : 'border-border/60 text-muted-foreground hover:border-border hover:bg-muted/30'
+          ? 'border-accent bg-accent/[0.06] ring-1 ring-accent/30'
+          : 'border-line bg-surface hover:border-line-2 hover:bg-surface-2'
       )}
     >
-      <span
-        className={cn(
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-          selected ? 'border-primary' : 'border-muted-foreground/40'
-        )}
-      >
-        {selected && (
-          <span className="h-2 w-2 rounded-full bg-primary" />
-        )}
-      </span>
-      {label}
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            'h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center',
+            selected ? 'border-accent' : 'border-line'
+          )}
+        >
+          {selected && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
+        </span>
+        <p className="text-sm font-medium text-ink">{label}</p>
+      </div>
     </button>
   );
 }

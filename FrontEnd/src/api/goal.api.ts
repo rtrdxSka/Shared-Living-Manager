@@ -10,7 +10,7 @@ import type {
 import type { PaginationMeta } from '@/types/pagination.types';
 
 export interface GoalListResult extends PaginationMeta {
-  goals: GoalResponse[];
+  items: GoalResponse[];
 }
 
 export const goalApi = {

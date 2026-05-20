@@ -14,6 +14,7 @@ import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { householdService } from './household.service';
 import { IPaginationInput } from '../types/pagination.types';
 import { parsePaginationParams } from '../utils/pagination';
+import { getHouseholdForMember } from '../utils/household.helpers';
 
 class JointAccountService {
   // ── Get Summary ──────────────────────────────────────────────────────
@@ -24,79 +25,88 @@ class JointAccountService {
     month?: string,
     paginationInput: IPaginationInput = {}
   ): Promise<IJointAccountSummaryResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find(
-      (m) => m.userId?.toString() === userId
-    );
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household } = await getHouseholdForMember(householdId, userId);
 
     const { start, end } = this.buildMonthRange(month);
     const householdObjId = household._id as Types.ObjectId;
 
-    // 1. Aggregate all-time transaction totals (deposits & withdrawals)
-    const allTimeTxTotals = await JointAccountTransaction.aggregate<{
-      _id: string;
-      total: number;
-    }>([
-      { $match: { householdId: householdObjId } },
-      { $group: { _id: '$type', total: { $sum: '$amount' } } },
+    // Combine all JointAccountTransaction + Expense aggregations into two
+    // $facet pipelines so we cut 5 sequential round-trips down to 2 (and run
+    // them in parallel with the transaction find+count).
+    const txFilter = { householdId: householdObjId, createdAt: { $gte: start, $lt: end } };
+    const { page: txPage, limit: txLimit, skip: txSkip } = parsePaginationParams(paginationInput);
+
+    type TxFacet = {
+      allTimeByType: Array<{ _id: string; total: number }>;
+      monthlyByType: Array<{ _id: string; total: number }>;
+      monthlyByMember: Array<{ _id: { memberId: Types.ObjectId; type: string }; total: number }>;
+    };
+    type ExpFacet = {
+      allTime: Array<{ _id: null; total: number }>;
+      monthly: Array<{ _id: null; total: number }>;
+    };
+
+    const [txFacetResult, expFacetResult, transactions, transactionTotal] = await Promise.all([
+      JointAccountTransaction.aggregate<TxFacet>([
+        { $match: { householdId: householdObjId } },
+        {
+          $facet: {
+            allTimeByType: [{ $group: { _id: '$type', total: { $sum: '$amount' } } }],
+            monthlyByType: [
+              { $match: { createdAt: { $gte: start, $lt: end } } },
+              { $group: { _id: '$type', total: { $sum: '$amount' } } },
+            ],
+            monthlyByMember: [
+              { $match: { createdAt: { $gte: start, $lt: end } } },
+              { $group: { _id: { memberId: '$memberId', type: '$type' }, total: { $sum: '$amount' } } },
+            ],
+          },
+        },
+      ]),
+      Expense.aggregate<ExpFacet>([
+        { $match: { householdId: householdObjId } },
+        {
+          $facet: {
+            allTime: [{ $group: { _id: null, total: { $sum: '$amount' } } }],
+            monthly: [
+              { $match: { date: { $gte: start, $lt: end } } },
+              { $group: { _id: null, total: { $sum: '$amount' } } },
+            ],
+          },
+        },
+      ]),
+      JointAccountTransaction.find(txFilter)
+        .sort({ createdAt: -1 })
+        .skip(txSkip)
+        .limit(txLimit)
+        .lean(),
+      JointAccountTransaction.countDocuments(txFilter),
     ]);
+
+    const txFacet = txFacetResult[0] ?? {
+      allTimeByType: [],
+      monthlyByType: [],
+      monthlyByMember: [],
+    };
+    const expFacet = expFacetResult[0] ?? { allTime: [], monthly: [] };
 
     const allTimeDeposits =
-      allTimeTxTotals.find((t) => t._id === 'deposit')?.total ?? 0;
+      txFacet.allTimeByType.find((t) => t._id === 'deposit')?.total ?? 0;
     const allTimeWithdrawals =
-      allTimeTxTotals.find((t) => t._id === 'withdrawal')?.total ?? 0;
+      txFacet.allTimeByType.find((t) => t._id === 'withdrawal')?.total ?? 0;
+    const allTimeExpenses = expFacet.allTime[0]?.total ?? 0;
 
-    // 2. Aggregate all-time expenses total
-    const allTimeExpenseAgg = await Expense.aggregate<{
-      _id: null;
-      total: number;
-    }>([
-      { $match: { householdId: householdObjId } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]);
-
-    const allTimeExpenses = allTimeExpenseAgg[0]?.total ?? 0;
-
-    // 3. Balance = deposits - withdrawals - expenses
+    // Balance = deposits - withdrawals - expenses
     const balance = allTimeDeposits - allTimeWithdrawals - allTimeExpenses;
 
-    // 4. Monthly transaction totals (grouped by type)
-    const monthlyTxTotals = await JointAccountTransaction.aggregate<{
-      _id: string;
-      total: number;
-    }>([
-      { $match: { householdId: householdObjId, createdAt: { $gte: start, $lt: end } } },
-      { $group: { _id: '$type', total: { $sum: '$amount' } } },
-    ]);
-
     const monthlyDeposits =
-      monthlyTxTotals.find((t) => t._id === 'deposit')?.total ?? 0;
+      txFacet.monthlyByType.find((t) => t._id === 'deposit')?.total ?? 0;
     const monthlyWithdrawals =
-      monthlyTxTotals.find((t) => t._id === 'withdrawal')?.total ?? 0;
-
-    // 5. Monthly expenses total
-    const monthlyExpenseAgg = await Expense.aggregate<{
-      _id: null;
-      total: number;
-    }>([
-      { $match: { householdId: householdObjId, date: { $gte: start, $lt: end } } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]);
-
-    const monthlyExpenses = monthlyExpenseAgg[0]?.total ?? 0;
+      txFacet.monthlyByType.find((t) => t._id === 'withdrawal')?.total ?? 0;
+    const monthlyExpenses = expFacet.monthly[0]?.total ?? 0;
     const monthlyNet = monthlyDeposits - monthlyWithdrawals - monthlyExpenses;
 
-    // 6. Per-member monthly breakdown (deposits & withdrawals only)
-    const memberMonthlyAgg = await JointAccountTransaction.aggregate<{
-      _id: { memberId: Types.ObjectId; type: string };
-      total: number;
-    }>([
-      { $match: { householdId: householdObjId, createdAt: { $gte: start, $lt: end } } },
-      { $group: { _id: { memberId: '$memberId', type: '$type' }, total: { $sum: '$amount' } } },
-    ]);
+    const memberMonthlyAgg = txFacet.monthlyByMember;
 
     // Build member nickname map (by member._id)
     const memberMap = new Map<string, IHouseholdMember>();
@@ -127,14 +137,6 @@ class JointAccountService {
       };
     });
 
-    // 7. Fetch transactions for the month (paginated)
-    const txFilter = { householdId: householdObjId, createdAt: { $gte: start, $lt: end } };
-    const { page: txPage, limit: txLimit, skip: txSkip } = parsePaginationParams(paginationInput);
-    const [transactions, transactionTotal] = await Promise.all([
-      JointAccountTransaction.find(txFilter).sort({ createdAt: -1 }).skip(txSkip).limit(txLimit),
-      JointAccountTransaction.countDocuments(txFilter),
-    ]);
-
     const formattedTransactions: IJointAccountTransactionResponse[] = transactions.map(
       (tx) => this.formatTransactionResponse(tx, memberMap)
     );
@@ -162,13 +164,7 @@ class JointAccountService {
     userId: string,
     input: IAddTransactionInput
   ): Promise<IJointAccountTransactionResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find(
-      (m) => m.userId?.toString() === userId
-    );
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInFinances) {
       throw ForbiddenError('You do not participate in household finances');
     }
@@ -205,13 +201,7 @@ class JointAccountService {
     userId: string,
     transactionId: string
   ): Promise<void> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
-
-    const requesterMember = household.members.find(
-      (m) => m.userId?.toString() === userId
-    );
-    if (!requesterMember) throw ForbiddenError('You are not a member of this household');
+    const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
     if (!requesterMember.participatesInFinances) {
       throw ForbiddenError('You do not participate in household finances');
     }

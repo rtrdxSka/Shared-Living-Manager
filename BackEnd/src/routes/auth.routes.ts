@@ -1,6 +1,15 @@
-import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import { Router, type RequestHandler } from 'express';
+import rateLimit, { type Options as RateLimitOptions } from 'express-rate-limit';
 import { authController } from '../controllers/auth.controller';
+
+// In NODE_ENV=test the strict auth rate-limiters (3/hour, 10/minute) cause
+// E2E flakiness: a single test that makes a handful of refresh calls can
+// exhaust the budget and break every later test in the run. Skip the limiter
+// entirely in test mode — production behaviour is unaffected.
+const limiter = (config: Partial<RateLimitOptions>): RequestHandler =>
+  process.env.NODE_ENV === 'test'
+    ? (_req, _res, next) => next()
+    : rateLimit(config);
 import {
   loginValidation,
   refreshTokenValidation,
@@ -15,7 +24,7 @@ import { authMiddleware } from '../middleware/auth';
 const router = Router();
 
 // Dedicated rate limiter for forgot password (3 req / 15 min)
-const forgotPasswordLimiter = rateLimit({
+const forgotPasswordLimiter = limiter({
   windowMs: 15 * 60 * 1000,
   max: 3,
   message: {
@@ -27,12 +36,25 @@ const forgotPasswordLimiter = rateLimit({
 });
 
 // Dedicated rate limiter for resend verification (3 req / 60 min)
-const resendVerificationLimiter = rateLimit({
+const resendVerificationLimiter = limiter({
   windowMs: 60 * 60 * 1000,
   max: 3,
   message: {
     status: 'error',
     message: 'Too many verification email requests, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Dedicated rate limiter for refresh token rotation (10 req / min per IP).
+// Prevents brute-force enumeration of valid refresh tokens.
+const refreshLimiter = limiter({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: {
+    status: 'error',
+    message: 'Too many refresh attempts, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -55,6 +77,7 @@ router.post(
 
 router.post(
   '/refresh',
+  refreshLimiter,
   refreshTokenValidation,
   handleValidationErrors,
   authController.refresh.bind(authController)

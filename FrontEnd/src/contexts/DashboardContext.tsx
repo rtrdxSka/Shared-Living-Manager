@@ -1,21 +1,27 @@
-import { createContext, useContext, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+
+import { DashboardContext } from './useDashboard';
 
 import type { HouseholdResponse, HouseholdMemberResponse } from '@/types/household.types';
 import type { ExpenseResponse } from '@/types/expense.types';
 import type { GoalResponse } from '@/types/goal.types';
 import type { TaskResponse, RotationStatus } from '@/types/task.types';
+import type { TransactionType } from '@/types/joint-account.types';
 import type {
   FinanceMode,
   ExpenseSplitMethod,
   TaskManagementLevel,
   TaskDistributionMethod,
+  UIMode,
 } from '@/types/onboarding.types';
 
 import {
   useDeleteExpense,
   useClaimExpense,
-  useResolveExpense,
+  useRequestResolution,
+  useConfirmResolution,
+  useDisputeResolution,
   useDeactivateRecurringExpense,
   useToggleTaskComplete,
   useDeleteTask,
@@ -27,12 +33,12 @@ import {
   useDeleteGoal,
   useRemoveContribution,
   useUpdateSettings,
-  useRecordSettlement,
   useDeleteJointTransaction,
+  useJointAccountSummary,
   useTasks,
 } from '@/hooks/queries';
 
-import { deriveIncomeSplit, getDueDateStatus } from '@/utils/dashboardHelpers';
+import { deriveIncomeSplit, getDueDateStatus, currentMonthString } from '@/utils/dashboardHelpers';
 
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
@@ -42,12 +48,18 @@ import AddRecurringTaskForm from '@/components/dashboard/shared/AddRecurringTask
 import AddTransactionForm from '@/components/dashboard/shared/AddTransactionForm';
 import SetRotationDialog from '@/components/dashboard/shared/SetRotationDialog';
 
+// Module-level stable empty arrays so fallback identity doesn't churn each
+// render when the query data is undefined — critical for useMemo stability.
+const EMPTY_TASKS: TaskResponse[] = [];
+const EMPTY_GOALS: GoalResponse[] = [];
+
 // ── Context Value ─────────────────────────────────────────────────────────
 
 export interface DashboardContextValue {
   // Core data
   household: HouseholdResponse;
   currentUserId: string;
+  uiMode: UIMode;
 
   // Derived member data
   myMember: HouseholdMemberResponse | undefined;
@@ -98,11 +110,14 @@ export interface DashboardContextValue {
 
   addTransactionOpen: boolean;
   setAddTransactionOpen: (o: boolean) => void;
+  openTransactionForm: (type: TransactionType) => void;
 
   // Mutation functions
   deleteExpense: (id: string) => Promise<void>;
   claimExpense: (id: string) => Promise<void>;
-  resolveExpense: (id: string) => Promise<void>;
+  requestResolution: (id: string) => Promise<void>;
+  confirmResolution: (id: string) => Promise<void>;
+  disputeResolution: (id: string) => Promise<void>;
   deactivateRecurringExpense: (id: string) => Promise<void>;
   toggleTaskComplete: (id: string) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
@@ -112,21 +127,10 @@ export interface DashboardContextValue {
   updateGoal: (goalId: string, input: { status: 'completed' | 'abandoned' }) => Promise<void>;
   deleteGoal: (goalId: string) => Promise<void>;
   removeContribution: (goalId: string, contributionId: string) => Promise<void>;
-  handleSettleUp: (month: string, amount: number) => Promise<void>;
   deleteJointTransaction: (txId: string) => Promise<void>;
   handleFinanceModeChange: (v: FinanceMode) => Promise<void>;
   handleSplitMethodChange: (v: ExpenseSplitMethod) => Promise<void>;
   handleCustomPctCommit: (v: number) => Promise<void>;
-}
-
-// ── Context ───────────────────────────────────────────────────────────────
-
-const DashboardContext = createContext<DashboardContextValue | null>(null);
-
-export function useDashboard(): DashboardContextValue {
-  const ctx = useContext(DashboardContext);
-  if (!ctx) throw new Error('useDashboard must be used within DashboardProvider');
-  return ctx;
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────
@@ -147,22 +151,48 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const [addGoalOpen, setAddGoalOpen] = useState(false);
   const [contributionTarget, setContributionTarget] = useState<GoalResponse | null>(null);
   const [addTransactionOpen, setAddTransactionOpen] = useState(false);
+  const [transactionFormDefaultType, setTransactionFormDefaultType] = useState<TransactionType | null>(null);
+
+  const openTransactionForm = useCallback((type: TransactionType) => {
+    setTransactionFormDefaultType(type);
+    setAddTransactionOpen(true);
+  }, []);
+
   const [customMyPct, setCustomMyPct] = useState(
     household.settings.customSplitPercentage ?? 50
   );
 
   // ── Hoisted queries ───────────────────────────────────────────────────
   const { data: tasksData, isLoading: tasksLoading } = useTasks(household._id);
-  const tasks = tasksData?.tasks ?? [];
-  const rotationStatus = tasksData?.rotation ?? null;
+  // tasksData is InfiniteData<TaskListResult>; flatten pages for downstream
+  // consumers that don't paginate (counts, summaries). The TasksPage drives
+  // fetchNextPage on its own copy of the same query (shared cache by key).
+  const tasks = useMemo(
+    () => tasksData?.pages.flatMap((p) => p.items) ?? EMPTY_TASKS,
+    [tasksData]
+  );
+  const rotationStatus = tasksData?.pages[0]?.rotation ?? null;
 
   const { data: goalsData, isLoading: goalsLoading } = useGoals(household._id);
-  const goals = goalsData?.goals ?? [];
+  const goals = goalsData?.items ?? EMPTY_GOALS;
+
+  // Joint-account summary — fetched only in joint mode so the AddTransactionForm
+  // can warn on overdraws. Cache-keyed by month so the AccountPage/OverviewPage
+  // share the same in-flight request.
+  const isJointMode = (household.settings.financeMode as FinanceMode) === 'joint';
+  const { data: jointSummaryForBalance } = useJointAccountSummary(
+    household._id,
+    currentMonthString(),
+    isJointMode
+  );
+  const currentJointBalance = jointSummaryForBalance?.balance;
 
   // ── Mutations ─────────────────────────────────────────────────────────
   const deleteExpenseMutation = useDeleteExpense(household._id);
   const claimExpenseMutation = useClaimExpense(household._id);
-  const resolveExpenseMutation = useResolveExpense(household._id);
+  const requestResolutionMutation = useRequestResolution(household._id);
+  const confirmResolutionMutation = useConfirmResolution(household._id);
+  const disputeResolutionMutation = useDisputeResolution(household._id);
   const deactivateRecurringExpenseMutation = useDeactivateRecurringExpense(household._id);
   const toggleCompleteMutation = useToggleTaskComplete(household._id);
   const deleteTaskMutation = useDeleteTask(household._id);
@@ -173,7 +203,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const deleteGoalMutation = useDeleteGoal(household._id);
   const removeContributionMutation = useRemoveContribution(household._id);
   const updateSettingsMutation = useUpdateSettings(household._id);
-  const settleMutation = useRecordSettlement(household._id);
   const deleteJointTxMutation = useDeleteJointTransaction(household._id);
 
   // ── Derived member data ───────────────────────────────────────────────
@@ -183,7 +212,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   );
   const myNickname = myMember?.nickname ?? 'You';
   const partnerNickname = partnerMember?.nickname ?? 'Partner';
-  const currency = household.settings.currency ?? 'BGN';
+  const currency = household.settings.currency ?? 'EUR';
   const myMemberId = myMember?._id ?? '';
   const isAdmin = myMember?.role === 'owner' || myMember?.role === 'admin';
   const myParticipatesInFinances = myMember?.participatesInFinances ?? false;
@@ -208,72 +237,127 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   ).length;
 
   // ── Settings handlers ─────────────────────────────────────────────────
-  const handleFinanceModeChange = async (v: FinanceMode) => {
+  // React Query guarantees `mutateAsync` identity is stable across renders,
+  // so keying each useCallback on that reference keeps the wrapper stable.
+  const updateSettingsAsync = updateSettingsMutation.mutateAsync;
+
+  const handleFinanceModeChange = useCallback(async (v: FinanceMode) => {
     if (!isAdmin) return;
     try {
-      await updateSettingsMutation.mutateAsync({ financeMode: v });
+      await updateSettingsAsync({ financeMode: v });
     } catch {
       /* ignore — household query will revert on refetch */
     }
-  };
+  }, [isAdmin, updateSettingsAsync]);
 
-  const handleSplitMethodChange = async (v: ExpenseSplitMethod) => {
+  const handleSplitMethodChange = useCallback(async (v: ExpenseSplitMethod) => {
     if (!isAdmin) return;
     try {
-      await updateSettingsMutation.mutateAsync({ expenseSplitMethod: v });
+      await updateSettingsAsync({ expenseSplitMethod: v });
     } catch {
       /* ignore */
     }
-  };
+  }, [isAdmin, updateSettingsAsync]);
 
-  const handleCustomPctCommit = async (v: number) => {
+  const handleCustomPctCommit = useCallback(async (v: number) => {
     if (!isAdmin) return;
     try {
-      await updateSettingsMutation.mutateAsync({ customSplitPercentage: v });
+      await updateSettingsAsync({ customSplitPercentage: v });
     } catch {
       /* ignore */
     }
-  };
+  }, [isAdmin, updateSettingsAsync]);
 
   // ── Mutation wrappers ─────────────────────────────────────────────────
-  const deleteExpense = async (id: string) => { await deleteExpenseMutation.mutateAsync(id); };
-  const claimExpense = async (id: string) => { await claimExpenseMutation.mutateAsync(id); };
-  const resolveExpense = async (id: string) => { await resolveExpenseMutation.mutateAsync(id); };
-  const deactivateRecurringExpense = async (id: string) => {
-    await deactivateRecurringExpenseMutation.mutateAsync(id);
-  };
-  const toggleTaskComplete = async (id: string) => {
-    await toggleCompleteMutation.mutateAsync(id);
-  };
-  const deleteTask = async (id: string) => { await deleteTaskMutation.mutateAsync(id); };
-  const assignTask = async (taskId: string, memberId: string | null) => {
-    await assignTaskMutation.mutateAsync({ taskId, input: { assignedToMemberId: memberId } });
-  };
-  const setRotation = async (startMemberId: string) => {
-    await setRotationMutation.mutateAsync(startMemberId);
-  };
-  const deactivateRecurringTask = async (id: string) => {
-    await deactivateRecurringTaskMutation.mutateAsync(id);
-  };
-  const updateGoal = async (goalId: string, input: { status: 'completed' | 'abandoned' }) => {
-    await updateGoalMutation.mutateAsync({ goalId, input });
-  };
-  const deleteGoal = async (goalId: string) => {
-    await deleteGoalMutation.mutateAsync(goalId);
-  };
-  const removeContribution = async (goalId: string, contributionId: string) => {
-    await removeContributionMutation.mutateAsync({ goalId, contributionId });
-  };
-  const handleSettleUp = async (month: string, amount: number) => {
-    await settleMutation.mutateAsync({ month, amount });
-  };
-  const deleteJointTransaction = async (txId: string) => {
-    await deleteJointTxMutation.mutateAsync(txId);
-  };
+  const deleteExpenseAsync = deleteExpenseMutation.mutateAsync;
+  const claimExpenseAsync = claimExpenseMutation.mutateAsync;
+  const requestResolutionAsync = requestResolutionMutation.mutateAsync;
+  const confirmResolutionAsync = confirmResolutionMutation.mutateAsync;
+  const disputeResolutionAsync = disputeResolutionMutation.mutateAsync;
+  const deactivateRecurringExpenseAsync = deactivateRecurringExpenseMutation.mutateAsync;
+  const toggleCompleteAsync = toggleCompleteMutation.mutateAsync;
+  const deleteTaskAsync = deleteTaskMutation.mutateAsync;
+  const assignTaskAsync = assignTaskMutation.mutateAsync;
+  const setRotationAsync = setRotationMutation.mutateAsync;
+  const deactivateRecurringTaskAsync = deactivateRecurringTaskMutation.mutateAsync;
+  const updateGoalAsync = updateGoalMutation.mutateAsync;
+  const deleteGoalAsync = deleteGoalMutation.mutateAsync;
+  const removeContributionAsync = removeContributionMutation.mutateAsync;
+  const deleteJointTxAsync = deleteJointTxMutation.mutateAsync;
 
-  const value: DashboardContextValue = {
+  const deleteExpense = useCallback(
+    async (id: string) => { await deleteExpenseAsync(id); },
+    [deleteExpenseAsync]
+  );
+  const claimExpense = useCallback(
+    async (id: string) => { await claimExpenseAsync(id); },
+    [claimExpenseAsync]
+  );
+  const requestResolution = useCallback(
+    async (id: string) => { await requestResolutionAsync(id); },
+    [requestResolutionAsync]
+  );
+  const confirmResolution = useCallback(
+    async (id: string) => { await confirmResolutionAsync(id); },
+    [confirmResolutionAsync]
+  );
+  const disputeResolution = useCallback(
+    async (id: string) => { await disputeResolutionAsync(id); },
+    [disputeResolutionAsync]
+  );
+  const deactivateRecurringExpense = useCallback(
+    async (id: string) => { await deactivateRecurringExpenseAsync(id); },
+    [deactivateRecurringExpenseAsync]
+  );
+  const toggleTaskComplete = useCallback(
+    async (id: string) => { await toggleCompleteAsync(id); },
+    [toggleCompleteAsync]
+  );
+  const deleteTask = useCallback(
+    async (id: string) => { await deleteTaskAsync(id); },
+    [deleteTaskAsync]
+  );
+  const assignTask = useCallback(
+    async (taskId: string, memberId: string | null) => {
+      await assignTaskAsync({ taskId, input: { assignedToMemberId: memberId } });
+    },
+    [assignTaskAsync]
+  );
+  const setRotation = useCallback(
+    async (startMemberId: string) => { await setRotationAsync(startMemberId); },
+    [setRotationAsync]
+  );
+  const deactivateRecurringTask = useCallback(
+    async (id: string) => { await deactivateRecurringTaskAsync(id); },
+    [deactivateRecurringTaskAsync]
+  );
+  const updateGoal = useCallback(
+    async (goalId: string, input: { status: 'completed' | 'abandoned' }) => {
+      await updateGoalAsync({ goalId, input });
+    },
+    [updateGoalAsync]
+  );
+  const deleteGoal = useCallback(
+    async (goalId: string) => { await deleteGoalAsync(goalId); },
+    [deleteGoalAsync]
+  );
+  const removeContribution = useCallback(
+    async (goalId: string, contributionId: string) => {
+      await removeContributionAsync({ goalId, contributionId });
+    },
+    [removeContributionAsync]
+  );
+  const deleteJointTransaction = useCallback(
+    async (txId: string) => { await deleteJointTxAsync(txId); },
+    [deleteJointTxAsync]
+  );
+
+  const uiMode: UIMode = household.uiMode;
+
+  const value = useMemo<DashboardContextValue>(() => ({
     household,
     currentUserId,
+    uiMode,
     myMember,
     partnerMember,
     myNickname,
@@ -313,9 +397,12 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     setContributionTarget,
     addTransactionOpen,
     setAddTransactionOpen,
+    openTransactionForm,
     deleteExpense,
     claimExpense,
-    resolveExpense,
+    requestResolution,
+    confirmResolution,
+    disputeResolution,
     deactivateRecurringExpense,
     toggleTaskComplete,
     deleteTask,
@@ -325,12 +412,64 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     updateGoal,
     deleteGoal,
     removeContribution,
-    handleSettleUp,
     deleteJointTransaction,
     handleFinanceModeChange,
     handleSplitMethodChange,
     handleCustomPctCommit,
-  };
+  }), [
+    household,
+    currentUserId,
+    uiMode,
+    myMember,
+    partnerMember,
+    myNickname,
+    partnerNickname,
+    currency,
+    myMemberId,
+    isAdmin,
+    myParticipatesInFinances,
+    hasFinancialPartner,
+    taskMembers,
+    financeMode,
+    splitMethod,
+    taskLevel,
+    distribution,
+    customMyPct,
+    incomeSplit,
+    tasks,
+    rotationStatus,
+    tasksLoading,
+    goals,
+    goalsLoading,
+    overdueCount,
+    addExpenseOpen,
+    editingExpense,
+    addTaskOpen,
+    addRecurringTaskOpen,
+    rotationConfigOpen,
+    addGoalOpen,
+    contributionTarget,
+    addTransactionOpen,
+    openTransactionForm,
+    deleteExpense,
+    claimExpense,
+    requestResolution,
+    confirmResolution,
+    disputeResolution,
+    deactivateRecurringExpense,
+    toggleTaskComplete,
+    deleteTask,
+    assignTask,
+    setRotation,
+    deactivateRecurringTask,
+    updateGoal,
+    deleteGoal,
+    removeContribution,
+    deleteJointTransaction,
+    handleFinanceModeChange,
+    handleSplitMethodChange,
+    handleCustomPctCommit,
+  ]);
 
   return (
     <DashboardContext.Provider value={value}>
@@ -344,8 +483,6 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
         }}
         household={household}
         expense={editingExpense ?? undefined}
-        isAdmin={isAdmin}
-        currentUserId={currentUserId}
       />
 
       <AddTaskForm
@@ -364,12 +501,14 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
         taskMembers={taskMembers}
       />
 
-      <SetRotationDialog
-        open={rotationConfigOpen}
-        onOpenChange={setRotationConfigOpen}
-        taskMembers={taskMembers}
-        onConfirm={setRotation}
-      />
+      {uiMode === 'couple' && (
+        <SetRotationDialog
+          open={rotationConfigOpen}
+          onOpenChange={setRotationConfigOpen}
+          taskMembers={taskMembers}
+          onConfirm={setRotation}
+        />
+      )}
 
       <AddGoalForm
         householdId={household._id}
@@ -390,8 +529,13 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
       <AddTransactionForm
         householdId={household._id}
         open={addTransactionOpen}
-        onOpenChange={setAddTransactionOpen}
+        onOpenChange={(o) => {
+          setAddTransactionOpen(o);
+          if (!o) setTransactionFormDefaultType(null);
+        }}
         currency={currency}
+        currentBalance={currentJointBalance}
+        defaultType={transactionFormDefaultType ?? undefined}
       />
     </DashboardContext.Provider>
   );

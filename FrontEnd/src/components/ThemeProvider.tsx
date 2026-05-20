@@ -1,15 +1,5 @@
-import { createContext, useEffect, useState, type ReactNode } from "react";
-
-type Theme = "dark" | "light" | "system";
-
-interface ThemeProviderContextValue {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
-}
-
-export const ThemeProviderContext = createContext<
-  ThemeProviderContextValue | undefined
->(undefined);
+import { useEffect, useState, type ReactNode } from "react";
+import { ThemeProviderContext, type Theme } from "@/contexts/ThemeProviderContext";
 
 const STORAGE_KEY = "housemate-theme";
 

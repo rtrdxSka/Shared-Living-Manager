@@ -27,7 +27,7 @@ class RecurringTaskController {
       }
       const householdId = req.params.id as string;
       const templates = await recurringTaskService.list(householdId, req.user.userId);
-      res.status(200).json({ status: 'success', data: { recurringTasks: templates } });
+      res.status(200).json({ status: 'success', data: { items: templates } });
     } catch (error) {
       next(error);
     }
@@ -58,7 +58,7 @@ class RecurringTaskController {
       const householdId = req.params.id as string;
       const recurringTaskId = req.params.recurringTaskId as string;
       await recurringTaskService.deactivate(householdId, req.user.userId, recurringTaskId);
-      res.status(200).json({ status: 'success', data: null });
+      res.status(204).send();
     } catch (error) {
       next(error);
     }
