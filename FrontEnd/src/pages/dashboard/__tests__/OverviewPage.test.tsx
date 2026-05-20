@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import OverviewPage from '@/pages/dashboard/OverviewPage';
 import { renderWithProviders } from '@/test/utils/renderWithProviders';
@@ -15,6 +15,7 @@ vi.mock('@/contexts/DashboardContext', async () => {
     useDashboard: () => ({
       household: mockHousehold,
       currentUserId: 'user-alice-001',
+      uiMode: 'couple',
       myMember: mockHousehold.members[0],
       partnerMember: mockHousehold.members[1],
       myNickname: 'Alice',
@@ -79,6 +80,28 @@ vi.mock('@/contexts/DashboardContext', async () => {
   };
 });
 
+// Default insights payload with NO over-budget categories. Individual tests
+// can override the handler with `server.use(...)` before rendering to flip
+// the over-budget state on.
+const buildInsightsPayload = (overBudgetCategories: string[] = []) => ({
+  status: 'success',
+  data: {
+    month: '2026-05',
+    budget: { groceries: 200 },
+    budgetSource: 'live',
+    spendByCategory: overBudgetCategories.length > 0
+      ? { groceries: 350 }
+      : { groceries: 50 },
+    totalSpent: overBudgetCategories.length > 0 ? 350 : 50,
+    totalBudgeted: 200,
+    monthlyTrend: [],
+    savingsRate: null,
+    monthlyIncome: null,
+    overBudgetCategories,
+    byMember: [],
+  },
+});
+
 // Stub all GET endpoints the page fires on render
 beforeEach(() => {
   server.use(
@@ -104,6 +127,10 @@ beforeEach(() => {
         data: { members: [] },
       }),
     ),
+    // Budget insights — default to NO over-budget categories. Override in tests.
+    http.get('http://localhost:3000/api/households/:id/budget/insights', () =>
+      HttpResponse.json(buildInsightsPayload([])),
+    ),
   );
 });
 
@@ -118,5 +145,27 @@ describe('<OverviewPage />', () => {
     const thisMonthBtn = screen.queryByRole('button', { name: /this month/i });
     const allTimeBtn = screen.queryByRole('button', { name: /all time/i });
     expect(thisMonthBtn ?? allTimeBtn).toBeTruthy();
+  });
+
+  it('renders OverBudgetBanner when insights.overBudgetCategories.length > 0', async () => {
+    server.use(
+      http.get('http://localhost:3000/api/households/:id/budget/insights', () =>
+        HttpResponse.json(buildInsightsPayload(['groceries'])),
+      ),
+    );
+    renderWithProviders(<OverviewPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('over-budget-banner')).toBeInTheDocument();
+    });
+  });
+
+  it('hides OverBudgetBanner when insights has no over-budget categories', async () => {
+    renderWithProviders(<OverviewPage />);
+    // Wait for the page to settle (insights query resolves).
+    await screen.findByRole('heading', { name: /overview/i });
+    // Give React Query a tick to populate; the banner must remain absent.
+    await waitFor(() => {
+      expect(screen.queryByTestId('over-budget-banner')).not.toBeInTheDocument();
+    });
   });
 });

@@ -69,6 +69,22 @@ beforeEach(() => {
         data: { items: [] },
       }),
     ),
+    http.get('http://localhost:3000/api/households/:id/budget/insights', () =>
+      HttpResponse.json({
+        status: 'success',
+        data: {
+          monthString: '2026-05',
+          categories: {},
+          spendByCategory: {},
+          totalSpent: 0,
+          totalBudgeted: 0,
+          savingsRate: 0,
+          overBudgetCategories: [],
+          monthlyTrend: [],
+          byMember: [],
+        },
+      }),
+    ),
   );
 });
 
