@@ -8,7 +8,6 @@ import {
   Target,
   ShoppingCart,
   Wallet,
-  PiggyBank,
   UserPlus,
   User,
   LogOut,
@@ -43,6 +42,7 @@ function useNavItems(): NavItem[] {
     const items: NavItem[] = [
       { id: 'overview', label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
       { id: 'expenses', label: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
+      { id: 'budget', label: 'Budget', href: '/dashboard/budget', icon: Wallet },
       {
         id: 'tasks',
         label: 'Tasks',
@@ -52,7 +52,6 @@ function useNavItems(): NavItem[] {
       },
       { id: 'goals', label: 'Goals', href: '/dashboard/goals', icon: Target },
       { id: 'shopping-list', label: 'Shopping', href: '/dashboard/shopping-list', icon: ShoppingCart },
-      { id: 'budget', label: 'Budget', href: '/dashboard/budget', icon: PiggyBank },
     ];
     return items;
   }
@@ -60,6 +59,7 @@ function useNavItems(): NavItem[] {
   const items: NavItem[] = [
     { id: 'overview', label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
     { id: 'expenses', label: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
+    { id: 'budget', label: 'Budget', href: '/dashboard/budget', icon: Wallet },
   ];
 
   if (taskLevel !== 'disabled') {
