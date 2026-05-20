@@ -17,5 +17,7 @@ COPY FrontEnd ./FrontEnd
 WORKDIR /app/FrontEnd
 EXPOSE 5173
 
-# Start Vite dev server with host flag for Docker networking
-CMD ["pnpm", "dev", "--", "--host", "0.0.0.0"]
+# Start Vite dev server with host flag for Docker networking.
+# Re-runs pnpm install on container start so newly-added deps land in the
+# named node_modules volume without needing a volume rebuild.
+CMD ["sh", "-c", "pnpm install --frozen-lockfile --filter frontend... && pnpm dev -- --host 0.0.0.0"]
