@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import SpendingBreakdownCard from '@/components/dashboard/solo/SpendingBreakdownCard';
 import type { BudgetInsights } from '@/types/budget.types';
 
@@ -77,5 +77,53 @@ describe('<SpendingBreakdownCard />', () => {
     );
     expect(screen.getByText(/no spending this month/i)).toBeInTheDocument();
     expect(screen.queryByTestId('top-callout')).not.toBeInTheDocument();
+  });
+
+  it('highlights the matching donut segment when a legend row is hovered', () => {
+    const { container } = render(<SpendingBreakdownCard data={makeData()} currency="EUR" />);
+    const groceriesRow = screen.getByTestId('legend-row-groceries');
+
+    fireEvent.mouseEnter(groceriesRow);
+
+    const dimmedRent = container.querySelector('circle[data-segment-id="rent"]') as SVGCircleElement;
+    const activeGroceries = container.querySelector('circle[data-segment-id="groceries"]') as SVGCircleElement;
+    expect(dimmedRent.style.opacity).toBe('0.3');
+    expect(activeGroceries.style.opacity).toBe('1');
+  });
+
+  it('highlights the matching legend row when a donut segment is hovered', () => {
+    const { container } = render(<SpendingBreakdownCard data={makeData()} currency="EUR" />);
+    const utilitiesSeg = container.querySelector('circle[data-segment-id="utilities"]') as SVGCircleElement;
+
+    fireEvent.mouseEnter(utilitiesSeg);
+
+    const utilitiesRow = screen.getByTestId('legend-row-utilities');
+    expect(utilitiesRow.className).toMatch(/bg-surface-2/);
+  });
+
+  it('clears the active state when the pointer leaves the legend row', () => {
+    const { container } = render(<SpendingBreakdownCard data={makeData()} currency="EUR" />);
+    const groceriesRow = screen.getByTestId('legend-row-groceries');
+
+    fireEvent.mouseEnter(groceriesRow);
+    fireEvent.mouseLeave(groceriesRow);
+
+    const rentSeg = container.querySelector('circle[data-segment-id="rent"]') as SVGCircleElement;
+    expect(rentSeg.style.opacity).toBe('1');
+  });
+
+  it('mirrors mouse hover on focus for keyboard users', () => {
+    const { container } = render(<SpendingBreakdownCard data={makeData()} currency="EUR" />);
+    const rentRow = screen.getByTestId('legend-row-rent') as HTMLButtonElement;
+
+    // The row is now a <button>
+    expect(rentRow.tagName).toBe('BUTTON');
+
+    fireEvent.focus(rentRow);
+    const groceriesSeg = container.querySelector('circle[data-segment-id="groceries"]') as SVGCircleElement;
+    expect(groceriesSeg.style.opacity).toBe('0.3');
+
+    fireEvent.blur(rentRow);
+    expect(groceriesSeg.style.opacity).toBe('1');
   });
 });

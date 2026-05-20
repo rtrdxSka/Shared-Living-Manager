@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent } from '@testing-library/react';
 import MonthlyTrendCard from '@/components/dashboard/solo/MonthlyTrendCard';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import type { BudgetInsights } from '@/types/budget.types';
+
+// MonthlyTrendCard now contains a Radix Tooltip — wrap every render in a TooltipProvider.
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(<TooltipProvider delayDuration={0}>{ui}</TooltipProvider>);
+}
 
 function makeData(trend: Array<[string, number]>, overrides: Partial<BudgetInsights> = {}): BudgetInsights {
   return {
@@ -121,5 +127,58 @@ describe('<MonthlyTrendCard />', () => {
 
     expect(screen.getByText(/no trend data yet/i)).toBeInTheDocument();
     expect(screen.queryByTestId('mom-delta')).not.toBeInTheDocument();
+  });
+
+  it('highlights the matching bar when a month label is hovered', () => {
+    const data = makeData([
+      ['2025-12', 1000],
+      ['2026-01', 1100],
+      ['2026-02', 1200],
+      ['2026-03', 1300],
+      ['2026-04', 1400],
+      ['2026-05', 1568],
+    ]);
+    const { container } = render(<MonthlyTrendCard data={data} currency="EUR" />);
+    const febLabel = screen.getByTestId('month-label-2');
+
+    fireEvent.mouseEnter(febLabel);
+
+    const activeBar = container.querySelector<HTMLElement>('[data-bar-index="2"]')!;
+    expect(activeBar.style.transform).toBe('scaleY(1.15)');
+  });
+
+  it('shows the value of the active bar in the value label overlay', () => {
+    const data = makeData([
+      ['2025-12', 1000],
+      ['2026-01', 1100],
+      ['2026-02', 1200],
+      ['2026-03', 1300],
+      ['2026-04', 1400],
+      ['2026-05', 1568],
+    ]);
+    const { container } = render(<MonthlyTrendCard data={data} currency="EUR" />);
+
+    fireEvent.mouseEnter(container.querySelector('[data-bar-index="3"]')!);
+
+    expect(screen.getByTestId('trend-active-label')).toHaveTextContent('1300');
+  });
+
+  it('clears the active state when the pointer leaves the month label', () => {
+    const data = makeData([
+      ['2025-12', 1000],
+      ['2026-01', 1100],
+      ['2026-02', 1200],
+      ['2026-03', 1300],
+      ['2026-04', 1400],
+      ['2026-05', 1568],
+    ]);
+    const { container } = render(<MonthlyTrendCard data={data} currency="EUR" />);
+    const aprLabel = screen.getByTestId('month-label-4');
+
+    fireEvent.mouseEnter(aprLabel);
+    fireEvent.mouseLeave(aprLabel);
+
+    const bar = container.querySelector<HTMLElement>('[data-bar-index="4"]')!;
+    expect(bar.style.transform).toBe('');
   });
 });
