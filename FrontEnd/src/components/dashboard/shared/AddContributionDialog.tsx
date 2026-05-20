@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   Sheet,
@@ -33,13 +33,15 @@ export default function AddContributionDialog({
 
   const addContributionMutation = useAddContribution(householdId);
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) {
       setAmount('');
       setNote('');
       setError(null);
     }
-  }, [open]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

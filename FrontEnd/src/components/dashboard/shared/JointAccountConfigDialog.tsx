@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { extractApiError } from '@/utils/extractApiError';
 import {
@@ -35,13 +35,23 @@ export default function JointAccountConfigDialog({
 
   const updateConfigMutation = useUpdateJointAccountConfig(householdId);
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevCurrentTarget, setPrevCurrentTarget] = useState(currentTarget);
+  const [prevCurrentMode, setPrevCurrentMode] = useState(currentMode);
+  if (
+    prevOpen !== open ||
+    prevCurrentTarget !== currentTarget ||
+    prevCurrentMode !== currentMode
+  ) {
+    setPrevOpen(open);
+    setPrevCurrentTarget(currentTarget);
+    setPrevCurrentMode(currentMode);
     if (open) {
       setMonthlyTarget(currentTarget?.toString() ?? '');
       setTargetMode(currentMode ?? 'equal');
       setError(null);
     }
-  }, [open, currentTarget, currentMode]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

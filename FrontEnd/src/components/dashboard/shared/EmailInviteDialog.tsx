@@ -28,14 +28,16 @@ export default function EmailInviteDialog({
   const submitting = sendMutation.isPending;
 
   // Reset all transient state whenever the dialog opens.
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
       setRecipientEmail('');
       setPersonalNote('');
       setError(null);
       setSuccess(false);
     }
-  }, [open]);
+  }
 
   // ESC closes when not in flight.
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { extractApiError } from '@/utils/extractApiError';
 import {
@@ -45,24 +45,27 @@ export default function AddShoppingItemForm({
   const updateMutation = useUpdateShoppingItem(householdId);
   const submitting = addMutation.isPending || updateMutation.isPending;
 
-  // Hydrate from `item` when it changes (parent switches edit targets) or reset when sheet closes in add mode
-  useEffect(() => {
+  // Hydrate from `item` when it changes (parent switches edit targets) or reset when sheet closes in add mode.
+  // Uses the "previous value during render" pattern to avoid setState-in-effect.
+  const [prevItem, setPrevItem] = useState(item);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevItem !== item || prevOpen !== open) {
+    setPrevItem(item);
+    setPrevOpen(open);
     if (item) {
       setName(item.name);
       setQuantity(item.quantity ?? '');
       setNotes(item.notes ?? '');
       setCategory(item.category);
       setError(null);
-      return;
-    }
-    if (!open) {
+    } else if (!open) {
       setName('');
       setQuantity('');
       setNotes('');
       setCategory('groceries');
       setError(null);
     }
-  }, [item, open]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

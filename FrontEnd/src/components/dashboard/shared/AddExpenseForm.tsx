@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { useAddExpense, useUpdateExpense, useCreateRecurringExpense } from '@/hooks/queries';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { EXPENSE_TYPES } from '@/types/onboarding.types';
 import { RECURRENCE_INTERVALS, PAYER_MODES } from '@/types/recurring-expense.types';
 import type { HouseholdResponse } from '@/types/household.types';

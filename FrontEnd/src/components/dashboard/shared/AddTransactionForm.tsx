@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { extractApiError } from '@/utils/extractApiError';
 import {
@@ -47,7 +47,11 @@ export default function AddTransactionForm({
 
   const addMutation = useAddJointTransaction(householdId);
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevDefaultType, setPrevDefaultType] = useState(defaultType);
+  if (prevOpen !== open || prevDefaultType !== defaultType) {
+    setPrevOpen(open);
+    setPrevDefaultType(defaultType);
     if (open) {
       setType(defaultType ?? 'deposit');
     } else {
@@ -58,7 +62,7 @@ export default function AddTransactionForm({
       setOverdrawConfirmOpen(false);
       setPendingPayload(null);
     }
-  }, [open, defaultType]);
+  }
 
   async function runMutation(payload: PendingPayload) {
     setError(null);
