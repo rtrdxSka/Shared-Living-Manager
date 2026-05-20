@@ -2,7 +2,12 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/** Pixels added to the active segment's strokeWidth in controlled mode. */
+const ACTIVE_STROKE_BOOST = 3
+
 export interface DonutSegment {
+  /** Required when `activeId` is used; ignored otherwise. */
+  id?: string
   value: number
   color: string
 }
@@ -14,6 +19,9 @@ export interface DonutProps {
   centerLabel?: React.ReactNode
   centerSubLabel?: React.ReactNode
   className?: string
+  /** When provided (even as null), enables controlled cross-link mode. */
+  activeId?: string | null
+  onActiveChange?: (id: string | null) => void
 }
 
 interface ArcEntry {
@@ -45,11 +53,14 @@ function Donut({
   centerLabel,
   centerSubLabel,
   className,
+  activeId,
+  onActiveChange,
 }: DonutProps) {
   const center = size / 2
   const radius = center - thickness / 2
   const circumference = 2 * Math.PI * radius
   const arcs = buildArcs(segments, circumference)
+  const isControlled = activeId !== undefined
 
   return (
     <div
@@ -74,20 +85,46 @@ function Donut({
         />
 
         {/* Segments */}
-        {arcs.map(({ seg, dashLength, dashOffset }, i) => (
-          <circle
-            key={i}
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="none"
-            stroke={seg.color}
-            strokeWidth={thickness}
-            strokeDasharray={`${dashLength} ${circumference - dashLength}`}
-            strokeDashoffset={dashOffset}
-            strokeLinecap="butt"
-          />
-        ))}
+        {arcs.map(({ seg, dashLength, dashOffset }, i) => {
+          const isActive = isControlled && seg.id != null && seg.id === activeId
+          const isDimmed = isControlled && activeId != null && !isActive
+
+          return (
+            <circle
+              key={isControlled ? (seg.id ?? i) : i}
+              data-segment-id={isControlled ? seg.id : undefined}
+              cx={center}
+              cy={center}
+              r={radius}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={isActive ? thickness + ACTIVE_STROKE_BOOST : thickness}
+              strokeDasharray={`${dashLength} ${circumference - dashLength}`}
+              strokeDashoffset={dashOffset}
+              strokeLinecap="butt"
+              style={
+                isControlled
+                  ? {
+                      opacity: isDimmed ? 0.3 : 1,
+                      transition: "opacity 150ms, stroke-width 150ms",
+                      cursor: onActiveChange ? "pointer" : undefined,
+                      pointerEvents: "visibleStroke",
+                    }
+                  : undefined
+              }
+              onMouseEnter={
+                isControlled && onActiveChange && seg.id != null
+                  ? () => onActiveChange(seg.id ?? null)
+                  : undefined
+              }
+              onMouseLeave={
+                isControlled && onActiveChange
+                  ? () => onActiveChange(null)
+                  : undefined
+              }
+            />
+          )
+        })}
       </svg>
 
       {/* Center labels — HTML overlay */}
