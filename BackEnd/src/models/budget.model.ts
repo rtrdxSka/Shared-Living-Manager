@@ -16,6 +16,7 @@ const budgetSchema = new Schema<IBudget>(
   },
   {
     timestamps: true,
+    minimize: false,
     toJSON: {
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.__v;

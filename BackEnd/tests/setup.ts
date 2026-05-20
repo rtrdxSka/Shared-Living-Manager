@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, vi } from 'vitest';
 import './mocks/email.mock';
 import './mocks/logger.mock';
+import './mocks/sentry.mock';
 import { connectTestMongo, dropDatabase, disconnectMongoose } from './helpers/db';
 import { seedDatabase } from './seed/seed';
 import { setFixtures } from './seed/fixtures';
