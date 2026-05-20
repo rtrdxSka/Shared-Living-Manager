@@ -12,6 +12,7 @@ import { queryClient } from '@/lib/queryClient';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ProtectedRoute, GuestRoute } from '@/components/ProtectedRoute';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import Navbar from '@/components/layout/Navbar';
 
 // Eager — lightweight public entry points
@@ -120,10 +121,12 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ThemeProvider defaultTheme="system">
-          <PWAUpdatePrompt />
-          <Suspense fallback={<PageFallback />}>
-            <RouterProvider router={router} />
-          </Suspense>
+          <TooltipProvider delayDuration={150} skipDelayDuration={300}>
+            <PWAUpdatePrompt />
+            <Suspense fallback={<PageFallback />}>
+              <RouterProvider router={router} />
+            </Suspense>
+          </TooltipProvider>
         </ThemeProvider>
       </AuthProvider>
       {import.meta.env.DEV && (

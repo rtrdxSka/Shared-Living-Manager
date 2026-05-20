@@ -197,4 +197,30 @@
     font-weight: 500;
     color: hsl(var(--ink-3));
   }
+
+  .interactive-surface {
+    @apply transition-colors duration-200;
+  }
+  @media (hover: hover) {
+    .interactive-surface:hover {
+      border-color: hsl(var(--line-2));
+      background-color: hsl(var(--surface-2) / 0.6);
+    }
+  }
+
+  .interactive-strong {
+    @apply transition-all duration-200;
+  }
+  @media (hover: hover) {
+    .interactive-strong:hover {
+      border-color: hsl(var(--line-2));
+      background-color: hsl(var(--surface-2) / 0.6);
+    }
+  }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .interactive-strong:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 0 1px hsl(var(--accent) / 0.2), 0 8px 24px -8px hsl(var(--accent) / 0.3);
+    }
+  }
 }
