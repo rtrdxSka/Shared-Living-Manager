@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
@@ -176,7 +176,7 @@ function ProfileForm({
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<ProfileFormData>({
     resolver: zodResolver(schema),
@@ -188,7 +188,7 @@ function ProfileForm({
     },
   });
 
-  const watchedEmail = watch('email');
+  const watchedEmail = useWatch({ control, name: 'email' });
   const isEmailChanging = watchedEmail !== user.email;
 
   const onSubmit = async (data: ProfileFormData) => {

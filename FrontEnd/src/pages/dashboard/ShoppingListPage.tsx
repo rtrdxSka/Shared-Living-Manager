@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useShoppingList, useArchiveBoughtShoppingItems, useBoughtShoppingItems } from '@/hooks/queries';
 import { useBeforeUnload } from '@/hooks/useBeforeUnload';
 import { computeDominantCategory } from '@/utils/computeDominantCategory';

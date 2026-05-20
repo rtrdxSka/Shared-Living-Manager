@@ -4,7 +4,7 @@ import { Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useExpenses, useJointAccountSummary } from '@/hooks/queries';
 import { useBudgetInsights } from '@/hooks/queries/useBudgetQueries';
 import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useBudgetInsights, useUpdateBudget } from '@/hooks/queries/useBudgetQueries';
 import {
   currentMonthString,

@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useJointAccountSummary } from '@/hooks/queries';
 import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
 import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';

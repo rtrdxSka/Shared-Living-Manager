@@ -3,7 +3,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, Receipt, X 
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useExpenses, useRecurringExpenses } from '@/hooks/queries';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
 import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';

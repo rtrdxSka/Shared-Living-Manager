@@ -5,7 +5,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { BlobBack } from '@/components/ui/blob-back';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import DashboardHeader from '@/components/layout/DashboardHeader';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useRegenerateInviteCode } from '@/hooks/queries';
 import EmailInviteDialog from '@/components/dashboard/shared/EmailInviteDialog';
 

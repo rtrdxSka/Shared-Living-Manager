@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';

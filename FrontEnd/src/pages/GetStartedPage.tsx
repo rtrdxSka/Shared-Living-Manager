@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -27,11 +27,13 @@ export default function GetStartedPage() {
 
   // If the user arrives later via a magic link (e.g. after login round-trip
   // adds the `?invite=…` query param), flip into the Join view automatically.
-  useEffect(() => {
+  const [prevInviteFromUrl, setPrevInviteFromUrl] = useState(inviteFromUrl);
+  if (prevInviteFromUrl !== inviteFromUrl) {
+    setPrevInviteFromUrl(inviteFromUrl);
     if (inviteFromUrl) {
       setView('join');
     }
-  }, [inviteFromUrl]);
+  }
 
   return (
     <>

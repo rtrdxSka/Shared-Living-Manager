@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useDashboard } from '@/contexts/DashboardContext';
+import { useDashboard } from '@/contexts/useDashboard';
 import { useRecurringTasks, useTasks } from '@/hooks/queries';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
 import DashboardHeader from '@/components/layout/DashboardHeader';
