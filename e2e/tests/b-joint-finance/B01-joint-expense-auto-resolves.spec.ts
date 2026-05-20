@@ -14,6 +14,13 @@
  *   - Appear under the "Settled" section in both admin and partner contexts
  *     (the partner reads the same household, so the auto-resolved flag is
  *     symmetrical).
+ *
+ * Joint-mode form requirement: `AddExpenseForm.tsx:181` makes the "Paid by"
+ * field mandatory in joint mode (`paidByRequired = ... || financeMode ===
+ * 'joint'`). The submit button stays disabled until a payer is chosen, so
+ * the test selects the admin via the PAID BY combobox before submitting.
+ * The backend doesn't actually need `paidByUserId` for joint mode — this
+ * is a deliberate UX choice on the frontend.
  */
 import { test, expect } from '@playwright/test';
 
@@ -46,6 +53,17 @@ test('B01 — joint-mode expense auto-resolves; appears only in Settled', async 
     // ("rent"), which is in the household's `trackedExpenseTypes`.
     await adminPage.getByPlaceholder('e.g. Monthly rent').fill('B01 joint rent');
     await adminPage.getByPlaceholder('0.00').fill('120');
+    // Joint mode requires a payer (AddExpenseForm.tsx:181). Pick the admin
+    // via the PAID BY combobox — without this, the submit button stays
+    // disabled and the test times out waiting for it to become actionable.
+    // The label has no htmlFor, so scope to the label's parent div (the
+    // wrapper holding both the <label> and the Radix Select trigger).
+    await adminPage
+      .locator('label:has-text("PAID BY")')
+      .locator('..')
+      .getByRole('combobox')
+      .click();
+    await adminPage.getByRole('option', { name: 'Admin' }).click();
     // Submit button text is "Add Expense" in create-non-recurring mode.
     await adminPage.getByRole('button', { name: /add expense/i }).last().click();
 

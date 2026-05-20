@@ -22,7 +22,7 @@ test.beforeEach(async () => {
  *
  * Drives the full happy-path for a single-person household:
  *   register UI → verify-email UI → (log out + log in UI) → onboarding (solo)
- *   → /dashboard placeholder for non-couple uiMode.
+ *   → /dashboard rendering the shared dashboard shell.
  *
  * Real-codebase deviations from the plan's snippet, surfaced while writing
  * this test (so future readers don't repeat the investigation):
@@ -37,12 +37,14 @@ test.beforeEach(async () => {
  *    `/api/auth/verify-email`. On success it shows a heading containing the
  *    word "verified" — that's what `uiVerifyEmail` asserts on.
  *
- *  • There is no dedicated `SoloDashboard` component. DashboardPage hits the
- *    "Dashboard for this household type is coming soon." placeholder for any
- *    `household.uiMode !== 'couple'`, which is what solo (uiMode='solo')
- *    produces. That placeholder is therefore the success signal for this
- *    spec; the plan's "level-1 heading" assertion would never match because
- *    the placeholder is a `<p>`, not an `<h1>`.
+ *  • Solo dashboard: there is still no dedicated `SoloDashboard` component,
+ *    but `DashboardPage.tsx:73` now routes both `uiMode === 'couple'` AND
+ *    `uiMode === 'solo'` through `<CoupleDashboardShell>` (which despite its
+ *    name is the shared shell — see `2026-05-19-solo-dashboard-budget`
+ *    work). The "Dashboard for this household type is coming soon."
+ *    placeholder only fires for the remaining uiModes (family, roommates,
+ *    etc.). For solo, the success signal is now the OverviewPage's
+ *    DashboardHeader: `title="Overview"` + `subtitle=household.name`.
  *
  *  • Step 1's living-arrangement option for solo is labelled
  *    "I live alone" (see LIVING_ARRANGEMENT_OPTIONS).
@@ -131,15 +133,17 @@ test('A01 — Solo user completes full register → verify → onboarding → da
     .getByRole('button', { name: /create household/i })
     .click();
 
-  // ── 10. Land on the dashboard ───────────────────────────────────────
-  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
-
-  // Solo households have uiMode='solo'; DashboardPage renders the
-  // "coming soon" placeholder for any uiMode !== 'couple'. That copy is the
-  // distinguishing element for this spec. Once a dedicated SoloDashboard
-  // component lands, replace this assertion with that component's root
-  // heading.
+  // ── 10. Land on the solo dashboard ──────────────────────────────────
+  // /dashboard redirects to /dashboard/overview (App.tsx). The shared
+  // shell renders for solo households too (DashboardPage.tsx:73), so the
+  // success signal is OverviewPage's DashboardHeader — title "Overview"
+  // plus the household name as subtitle confirms route + data load.
+  await page.waitForURL(/\/dashboard(\/overview)?$/, { timeout: 10_000 });
   await expect(
-    page.getByText(/Dashboard for this household type is coming soon/i),
+    page.getByRole('heading', { name: 'Overview' }),
   ).toBeVisible({ timeout: 10_000 });
+  // The household name also appears in the sidebar branding, so scope to
+  // <main> to assert specifically on the OverviewPage's DashboardHeader
+  // subtitle (proves the right household's data loaded into the page body).
+  await expect(page.getByRole('main').getByText('Solo Pad')).toBeVisible();
 });
