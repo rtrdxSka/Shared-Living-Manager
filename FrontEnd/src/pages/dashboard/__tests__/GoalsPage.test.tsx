@@ -26,9 +26,9 @@ const mockGoals: GoalResponse[] = [
 // Mutable reference so individual tests can swap the goals list
 const dashboardOverride: { goals: GoalResponse[] } = { goals: [] };
 
-vi.mock('@/contexts/DashboardContext', async () => {
-  const actual = await vi.importActual<typeof import('@/contexts/DashboardContext')>(
-    '@/contexts/DashboardContext',
+vi.mock('@/contexts/useDashboard', async () => {
+  const actual = await vi.importActual<typeof import('@/contexts/useDashboard')>(
+    '@/contexts/useDashboard',
   );
   return {
     ...actual,

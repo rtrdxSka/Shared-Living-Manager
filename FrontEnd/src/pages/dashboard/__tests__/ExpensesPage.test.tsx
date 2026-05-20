@@ -9,9 +9,9 @@ import { mockHousehold, mockHouseholdJoint } from '@/test/mocks/data/households'
 // Mutable reference so individual tests can swap the household variant
 const dashboardOverride: { household: typeof mockHousehold } = { household: mockHousehold };
 
-vi.mock('@/contexts/DashboardContext', async () => {
-  const actual = await vi.importActual<typeof import('@/contexts/DashboardContext')>(
-    '@/contexts/DashboardContext',
+vi.mock('@/contexts/useDashboard', async () => {
+  const actual = await vi.importActual<typeof import('@/contexts/useDashboard')>(
+    '@/contexts/useDashboard',
   );
   return {
     ...actual,

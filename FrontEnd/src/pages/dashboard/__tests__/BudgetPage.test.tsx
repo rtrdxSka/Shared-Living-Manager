@@ -16,9 +16,9 @@ const mockState: { uiMode: UIMode; financeMode: FinanceMode } = {
 
 // Mock the DashboardContext hook — the existing pattern across dashboard
 // page tests (see OverviewPage / AccountPage tests).
-vi.mock('@/contexts/DashboardContext', async () => {
-  const actual = await vi.importActual<typeof import('@/contexts/DashboardContext')>(
-    '@/contexts/DashboardContext',
+vi.mock('@/contexts/useDashboard', async () => {
+  const actual = await vi.importActual<typeof import('@/contexts/useDashboard')>(
+    '@/contexts/useDashboard',
   );
   return {
     ...actual,
