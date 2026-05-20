@@ -10,7 +10,7 @@ import type { ExpenseResponse } from '@/types/expense.types';
 
 const dashboardMock = { uiMode: 'couple' as 'couple' | 'solo', financeMode: 'split' as 'split' | 'joint' };
 
-vi.mock('@/contexts/DashboardContext', () => ({
+vi.mock('@/contexts/useDashboard', () => ({
   useDashboard: () => dashboardMock,
 }));
 
