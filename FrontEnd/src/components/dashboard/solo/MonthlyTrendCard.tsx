@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SparkBars } from '@/components/ui/spark-bars';
 import { MoneyAmount } from '@/components/ui/money-amount';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatMonthLabel } from '@/utils/dashboardHelpers';
 import type { BudgetInsights } from '@/types/budget.types';
 
@@ -40,6 +42,8 @@ function computeDelta(current: number, prior: number, priorLabel: string): Delta
 }
 
 export default function MonthlyTrendCard({ data, currency }: MonthlyTrendCardProps) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
   const trend = data.monthlyTrend;
   const trendValues = trend.map((p) => p.totalSpent);
   const hasAnySpend = trendValues.some((v) => v > 0);
@@ -66,7 +70,7 @@ export default function MonthlyTrendCard({ data, currency }: MonthlyTrendCardPro
     delta?.tone === 'neg' ? 'text-neg' : delta?.tone === 'pos' ? 'text-pos' : 'text-ink-3';
 
   return (
-    <Card>
+    <Card className="interactive-strong">
       <CardHeader className="flex flex-row items-baseline justify-between gap-3 space-y-0">
         <CardTitle>Last 6 Months</CardTitle>
         <div className="flex items-baseline gap-2 text-xs">
@@ -75,29 +79,55 @@ export default function MonthlyTrendCard({ data, currency }: MonthlyTrendCardPro
           {delta && (
             <>
               <span className="text-ink-3">•</span>
-              <span className={toneClass} data-testid="mom-delta">{delta.text}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={toneClass} data-testid="mom-delta" tabIndex={0}>
+                    {delta.text}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Change vs. the previous month. Negative means you spent less.
+                </TooltipContent>
+              </Tooltip>
             </>
           )}
         </div>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2">
+      <CardContent
+        className="flex flex-col gap-2"
+        onMouseLeave={() => setActiveIndex(null)}
+      >
         <SparkBars
           values={trendValues}
           highlightLast
           height={48}
           barWidth={BAR_WIDTH}
           gap={BAR_GAP}
+          activeIndex={activeIndex}
+          onActiveChange={setActiveIndex}
+          valueLabel={(_, value) => (
+            <span
+              data-testid="trend-active-label"
+              className="rounded-md bg-surface-2 border border-line px-1.5 py-0.5 text-[10px] font-mono text-ink num"
+            >
+              {value.toFixed(0)}
+            </span>
+          )}
         />
         <div className="inline-flex" style={{ gap: BAR_GAP }}>
           {trend.map((p, i) => (
-            <div
+            <button
+              type="button"
               key={`${p.monthString}-${i}`}
               style={{ width: BAR_WIDTH }}
-              className="text-[10px] font-mono text-ink-3 text-center uppercase tracking-[0.1em]"
+              className="text-[10px] font-mono text-ink-3 text-center uppercase tracking-[0.1em] rounded transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
               data-testid={`month-label-${i}`}
+              onMouseEnter={() => setActiveIndex(i)}
+              onFocus={() => setActiveIndex(i)}
+              onBlur={() => setActiveIndex(null)}
             >
               {shortMonth(p.monthString)}
-            </div>
+            </button>
           ))}
         </div>
         <p className="text-xs text-ink-3 pt-2 border-t border-line mt-1" data-testid="current-month-footer">

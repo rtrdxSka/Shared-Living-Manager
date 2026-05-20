@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Donut } from '@/components/ui/donut';
 import { MoneyAmount } from '@/components/ui/money-amount';
@@ -18,6 +20,8 @@ interface LegendEntry {
 }
 
 export default function SpendingBreakdownCard({ data, currency }: SpendingBreakdownCardProps) {
+  const [activeId, setActiveId] = useState<ExpenseType | null>(null);
+
   const entries: LegendEntry[] = BUDGET_CATEGORIES
     .map((cat) => ({ cat, value: data.spendByCategory[cat] ?? 0 }))
     .filter((e) => e.value > 0)
@@ -41,6 +45,7 @@ export default function SpendingBreakdownCard({ data, currency }: SpendingBreakd
   }
 
   const segments = entries.map((e) => ({
+    id: e.cat,
     value: e.value,
     color: CATEGORY_COLORS[e.cat],
   }));
@@ -48,7 +53,7 @@ export default function SpendingBreakdownCard({ data, currency }: SpendingBreakd
   const overBudget = data.overBudgetCategories;
 
   return (
-    <Card>
+    <Card className="interactive-strong">
       <CardHeader>
         <CardTitle>Spending Breakdown</CardTitle>
       </CardHeader>
@@ -57,30 +62,48 @@ export default function SpendingBreakdownCard({ data, currency }: SpendingBreakd
           <Donut
             size={140}
             segments={segments}
+            activeId={activeId}
+            onActiveChange={(id) => setActiveId(id as ExpenseType | null)}
             centerLabel={data.totalSpent.toFixed(0)}
             centerSubLabel={<span className="uppercase tracking-[0.14em]">spent</span>}
           />
           <ul className="flex flex-col gap-1.5 w-full md:flex-1">
-            {entries.map((e) => (
-              <li
-                key={e.cat}
-                className="flex items-center justify-between gap-3 text-sm"
-                data-testid={`legend-row-${e.cat}`}
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ background: CATEGORY_COLORS[e.cat] }}
-                    aria-hidden
-                  />
-                  <span className="truncate">{CATEGORY_LABELS[e.cat]}</span>
-                </span>
-                <span className="flex items-baseline gap-2 shrink-0">
-                  <MoneyAmount amount={e.value} currency={currency} size="sm" />
-                  <span className="text-ink-3 text-xs num">{e.pct}%</span>
-                </span>
-              </li>
-            ))}
+            {entries.map((e) => {
+              const isActive = activeId === e.cat;
+              return (
+                <li key={e.cat} className="contents">
+                  <button
+                    type="button"
+                    data-testid={`legend-row-${e.cat}`}
+                    onMouseEnter={() => setActiveId(e.cat)}
+                    onMouseLeave={() => setActiveId(null)}
+                    onFocus={() => setActiveId(e.cat)}
+                    onBlur={() => setActiveId(null)}
+                    className={cn(
+                      'flex items-center justify-between gap-3 text-sm w-full text-left rounded-md px-2 py-1 transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20',
+                      isActive && 'bg-surface-2'
+                    )}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full shrink-0 transition-transform"
+                        style={{
+                          background: CATEGORY_COLORS[e.cat],
+                          transform: isActive ? 'scale(1.2)' : undefined,
+                        }}
+                        aria-hidden
+                      />
+                      <span className="truncate">{CATEGORY_LABELS[e.cat]}</span>
+                    </span>
+                    <span className="flex items-baseline gap-2 shrink-0">
+                      <MoneyAmount amount={e.value} currency={currency} size="sm" />
+                      <span className="text-ink-3 text-xs num">{e.pct}%</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
         <div className="flex flex-col gap-2 pt-3 border-t border-line">
