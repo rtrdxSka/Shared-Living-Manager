@@ -3,6 +3,7 @@ import { render, type RenderOptions, type RenderResult } from '@testing-library/
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { createTestQueryClient } from './test-query-client';
 
 interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper'> {
@@ -22,7 +23,9 @@ export function renderWithProviders(
     return (
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[route]}>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+          </AuthProvider>
         </MemoryRouter>
       </QueryClientProvider>
     );
