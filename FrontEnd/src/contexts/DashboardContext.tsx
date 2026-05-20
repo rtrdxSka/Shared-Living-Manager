@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+
+import { DashboardContext } from './useDashboard';
 
 import type { HouseholdResponse, HouseholdMemberResponse } from '@/types/household.types';
 import type { ExpenseResponse } from '@/types/expense.types';
@@ -129,16 +131,6 @@ export interface DashboardContextValue {
   handleFinanceModeChange: (v: FinanceMode) => Promise<void>;
   handleSplitMethodChange: (v: ExpenseSplitMethod) => Promise<void>;
   handleCustomPctCommit: (v: number) => Promise<void>;
-}
-
-// ── Context ───────────────────────────────────────────────────────────────
-
-const DashboardContext = createContext<DashboardContextValue | null>(null);
-
-export function useDashboard(): DashboardContextValue {
-  const ctx = useContext(DashboardContext);
-  if (!ctx) throw new Error('useDashboard must be used within DashboardProvider');
-  return ctx;
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────
