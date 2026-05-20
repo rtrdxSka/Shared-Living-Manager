@@ -17,5 +17,7 @@ COPY BackEnd ./BackEnd
 WORKDIR /app/BackEnd
 EXPOSE 5000
 
-# Start with nodemon for hot-reload
-CMD ["pnpm", "dev"]
+# Start with nodemon for hot-reload.
+# Re-runs pnpm install on container start so newly-added deps land in the
+# named node_modules volume without needing a volume rebuild.
+CMD ["sh", "-c", "pnpm install --frozen-lockfile --filter backend... && pnpm dev"]
