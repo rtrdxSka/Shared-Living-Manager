@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useBudgetInsights, useUpdateBudget } from '@/hooks/queries/useBudgetQueries';
-import { useAuth } from '@/hooks/useAuth';
 import {
   currentMonthString,
   stepMonth,
@@ -15,25 +14,87 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MoneyAmount } from '@/components/ui/money-amount';
-import CategoryBudgetRow from '@/components/dashboard/solo/CategoryBudgetRow';
-import SpendingBreakdownCard from '@/components/dashboard/solo/SpendingBreakdownCard';
-import MonthlyTrendCard from '@/components/dashboard/solo/MonthlyTrendCard';
+import CategoryBudgetRow from '@/components/dashboard/shared/CategoryBudgetRow';
+import SpendingBreakdownCard from '@/components/dashboard/shared/SpendingBreakdownCard';
+import MonthlyTrendCard from '@/components/dashboard/shared/MonthlyTrendCard';
 import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
+import CoupleSpendComparisonCard from '@/components/dashboard/couple/CoupleSpendComparisonCard';
 
 import { BUDGET_CATEGORIES } from '@/types/budget.types';
 import type { BudgetCategories } from '@/types/budget.types';
+import type { ExpenseType } from '@/types/onboarding.types';
 import { CATEGORY_LABELS } from '@/utils/categoryDisplay';
 
 export default function BudgetPage() {
-  const { household, currentUserId, currency } = useDashboard();
-  const { user } = useAuth();
+  const {
+    household,
+    currentUserId,
+    currency,
+    uiMode,
+    myMember,
+    partnerMember,
+    myNickname,
+    partnerNickname,
+    financeMode,
+  } = useDashboard();
   const householdId = household._id;
-  const myMember = household.members.find((m) => m.userId === user?._id);
   const isAdmin = myMember?.role === 'admin' || myMember?.role === 'owner';
 
   const [month, setMonth] = useState<string>(currentMonthString());
   const insightsQuery = useBudgetInsights(householdId, month);
   const updateBudget = useUpdateBudget(householdId);
+
+  // Couple-mode is only active when both members are present in the dashboard
+  // context. Defensive coercion of _id to string in case it arrives as an
+  // ObjectId-like object on some code paths.
+  const isCoupleView =
+    uiMode === 'couple' && myMember != null && partnerMember != null;
+  const myMemberIdStr = myMember ? String(myMember._id) : '';
+  const partnerMemberIdStr = partnerMember ? String(partnerMember._id) : '';
+
+  // Build a map of category → { share?, paid } from the per-member breakdown
+  // so each CategoryBudgetRow can render both sub-blocks inline. Only
+  // computed when in couple view; otherwise the map is empty and rows render
+  // unchanged (no byMemberSplit prop). Computed unconditionally to keep hook
+  // order stable across the loading/error early-return branches.
+  const byMemberData = insightsQuery.data?.byMember;
+  const byCategoryMap = useMemo(() => {
+    type ByMemberSplitForCategory = {
+      share?: { myAmount: number; partnerAmount: number };
+      paid: { myAmount: number; partnerAmount: number };
+    };
+    const map = new Map<ExpenseType, ByMemberSplitForCategory>();
+    if (!isCoupleView || !byMemberData) return map;
+    const me = byMemberData.find((m) => m.memberId === myMemberIdStr);
+    const partner = byMemberData.find((m) => m.memberId === partnerMemberIdStr);
+    if (!me || !partner) return map;
+    for (const cat of BUDGET_CATEGORIES) {
+      const myShare = me.shareByCategory?.[cat];
+      const partnerShare = partner.shareByCategory?.[cat];
+      const myPaid = me.paidByCategory[cat] ?? 0;
+      const partnerPaid = partner.paidByCategory[cat] ?? 0;
+
+      // Skip categories with no activity at all.
+      const hasShare = (myShare ?? 0) > 0 || (partnerShare ?? 0) > 0;
+      const hasPaid = myPaid > 0 || partnerPaid > 0;
+      if (!hasShare && !hasPaid) continue;
+
+      // `share` is omitted when neither member has a share entry (joint mode
+      // or no expense activity at the share level). Both `me` and `partner`
+      // will have shareByCategory either both defined or both undefined,
+      // because the backend treats joint mode uniformly.
+      const share =
+        me.shareByCategory !== undefined && partner.shareByCategory !== undefined
+          ? { myAmount: myShare ?? 0, partnerAmount: partnerShare ?? 0 }
+          : undefined;
+
+      map.set(cat, {
+        share,
+        paid: { myAmount: myPaid, partnerAmount: partnerPaid },
+      });
+    }
+    return map;
+  }, [isCoupleView, byMemberData, myMemberIdStr, partnerMemberIdStr]);
 
   if (insightsQuery.isLoading) {
     return <div className="p-6">Loading budget…</div>;
@@ -87,6 +148,17 @@ export default function BudgetPage() {
             {extractApiError(updateBudget.error, 'Failed to update budget. Please try again.')}
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Couple-only: per-member spending comparison card above the summary row */}
+      {isCoupleView && (
+        <CoupleSpendComparisonCard
+          byMember={data.byMember}
+          myMemberId={myMemberIdStr}
+          partnerMemberId={partnerMemberIdStr}
+          currency={currency}
+          mode={financeMode === 'joint' ? 'paid' : 'share'}
+        />
       )}
 
       {/* Summary row */}
@@ -157,25 +229,42 @@ export default function BudgetPage() {
           <CardTitle>Categories</CardTitle>
         </CardHeader>
         <CardContent>
-          {BUDGET_CATEGORIES.map((cat) => (
-            <CategoryBudgetRow
-              key={cat}
-              category={cat}
-              label={CATEGORY_LABELS[cat]}
-              budgeted={data.budget[cat]}
-              spent={data.spendByCategory[cat] ?? 0}
-              canEdit={isAdmin && isCurrentOrFuture}
-              isSaving={updateBudget.isPending}
-              onSave={handleSave}
-              currentCategories={data.budget}
-              currency={currency}
-            />
-          ))}
+          {BUDGET_CATEGORIES.map((cat) => {
+            const split = byCategoryMap.get(cat);
+            return (
+              <CategoryBudgetRow
+                key={cat}
+                category={cat}
+                label={CATEGORY_LABELS[cat]}
+                budgeted={data.budget[cat]}
+                spent={data.spendByCategory[cat] ?? 0}
+                canEdit={isAdmin && isCurrentOrFuture}
+                isSaving={updateBudget.isPending}
+                onSave={handleSave}
+                currentCategories={data.budget}
+                currency={currency}
+                byMemberSplit={
+                  split
+                    ? {
+                        myNickname,
+                        partnerNickname,
+                        share: split.share,
+                        paid: split.paid,
+                      }
+                    : undefined
+                }
+              />
+            );
+          })}
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SpendingBreakdownCard data={data} currency={currency} />
+        <SpendingBreakdownCard
+          data={data}
+          currency={currency}
+          byMember={isCoupleView ? data.byMember : undefined}
+        />
         <MonthlyTrendCard data={data} currency={currency} />
       </div>
     </div>

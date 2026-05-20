@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useExpenses, useJointAccountSummary } from '@/hooks/queries';
+import { useBudgetInsights } from '@/hooks/queries/useBudgetQueries';
 import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
 import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
-import OverBudgetBanner from '@/components/dashboard/solo/OverBudgetBanner';
+import OverBudgetBanner from '@/components/dashboard/shared/OverBudgetBanner';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { HeroNumberCard } from '@/components/ui/hero-number-card';
 import { Donut } from '@/components/ui/donut';
@@ -80,6 +81,12 @@ export default function OverviewPage() {
   );
   const jointAccount = jointAccountData ?? null;
 
+  // Budget insights for the current month — drives the OverBudgetBanner gate.
+  // React Query de-dupes this fetch when the banner internally subscribes to
+  // the same query key, so there's no duplicate network traffic.
+  const { data: insights } = useBudgetInsights(household._id, currentMonthString());
+  const hasOverBudget = (insights?.overBudgetCategories?.length ?? 0) > 0;
+
   const showIncomeCard =
     uiMode === 'couple' && financeMode === 'split' && splitMethod === 'income_based' && myParticipatesInFinances;
 
@@ -95,7 +102,7 @@ export default function OverviewPage() {
       />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {uiMode === 'solo' && household._id && (
+        {household._id && hasOverBudget && (
           <OverBudgetBanner householdId={household._id} currency={currency} />
         )}
 
