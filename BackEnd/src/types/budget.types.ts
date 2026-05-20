@@ -30,6 +30,19 @@ export interface BudgetMonthlyTrendPoint {
   totalSpent: number;
 }
 
+export interface BudgetInsightsByMemberEntry {
+  memberId: string;
+  nickname: string;
+
+  // Effective spend (split-aware). Undefined in joint mode.
+  totalShare?: number;
+  shareByCategory?: Partial<Record<ExpenseType, number>>;
+
+  // Cash outlay (who fronted the money). Always present.
+  totalPaid: number;
+  paidByCategory: Partial<Record<ExpenseType, number>>;
+}
+
 export interface BudgetInsightsResponse {
   month: string; // "YYYY-MM"
   budget: IBudgetCategories;
@@ -41,4 +54,5 @@ export interface BudgetInsightsResponse {
   savingsRate: number | null;
   monthlyIncome: number | null;
   overBudgetCategories: ExpenseType[];
+  byMember: BudgetInsightsByMemberEntry[];
 }
