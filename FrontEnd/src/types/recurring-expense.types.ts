@@ -20,6 +20,8 @@ export interface RecurringExpenseResponse {
   fixedPayerNickname?: string;
   isActive: boolean;
   isFullRepayment: boolean;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +35,8 @@ export interface CreateRecurringExpenseInput {
   payerMode: PayerMode;
   fixedPayerUserId?: string;
   isFullRepayment?: boolean;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
 }
 
 export interface UpdateRecurringExpenseInput {
@@ -44,4 +48,6 @@ export interface UpdateRecurringExpenseInput {
   payerMode?: PayerMode;
   fixedPayerUserId?: string;
   isFullRepayment?: boolean;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
 }

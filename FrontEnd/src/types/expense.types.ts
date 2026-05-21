@@ -16,6 +16,15 @@ export const EMPTY_EXPENSE_FILTERS: ExpenseFilters = {
   status: null,
 };
 
+export interface ExpenseDebtorState {
+  userId: string;
+  nickname?: string;
+  share: number;
+  claimedAt?: string;
+  confirmedAt?: string;
+  disputedAt?: string;
+}
+
 export interface ExpenseResponse {
   _id: string;
   householdId: string;
@@ -31,12 +40,9 @@ export interface ExpenseResponse {
   isResolved: boolean;
   isFullRepayment: boolean;
   resolvedAt?: string;
-  resolvedByUserId?: string;
-  pendingConfirmation: boolean;
-  pendingConfirmationAt?: string;
-  pendingConfirmationByUserId?: string;
-  pendingConfirmationByNickname?: string;
-  lastDisputedAt?: string;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
+  debtorStates: ExpenseDebtorState[];
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +55,8 @@ export interface AddExpenseInput {
   notes?: string;
   paidByUserId?: string;
   isFullRepayment?: boolean;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
 }
 
 export interface UpdateExpenseInput {
@@ -59,4 +67,7 @@ export interface UpdateExpenseInput {
   notes?: string;
   paidByUserId?: string | null;
   isFullRepayment?: boolean;
+  // Pass `null` or `[]` to clear the subgroup ("go back to all members").
+  participantUserIds?: string[] | null;
+  customSplitOverrides?: { userId: string; pct: number }[];
 }
