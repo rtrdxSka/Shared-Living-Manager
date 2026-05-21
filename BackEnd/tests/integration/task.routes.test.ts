@@ -85,6 +85,21 @@ describe('Task routes', () => {
     expect(res.body.data.task.assignedToMemberId).toBe(eveMember.toString());
   });
 
+  it('PATCH /:taskId/assign → 403 when admin non-creator tries to reassign in fixed mode', async () => {
+    // Eve is admin in flatshare but did NOT create flat-bathroom (Carol did).
+    // The fixed-mode rule restricts non-self assignment to the creator only —
+    // admin override does NOT apply (per the approved auth rules).
+    const eve = FIXTURES.user('eve');
+    const flatshare = FIXTURES.household('flatshare');
+    const id = FIXTURES.task('flat-bathroom');
+    const carolMember = FIXTURES.member('carol-member');
+    const res = await request(app)
+      .patch(`/api/households/${flatshare._id}/tasks/${id}/assign`)
+      .set('Authorization', auth(eve._id.toString()))
+      .send({ assignedToMemberId: carolMember.toString() });
+    expect(res.status).toBe(403);
+  });
+
   it('PATCH /:taskId/complete → 200', async () => {
     const bob = FIXTURES.user('bob');
     const couple = FIXTURES.household('couple');
@@ -101,6 +116,35 @@ describe('Task routes', () => {
     expect(res.body.data.task.completedByMemberId).toBe(
       FIXTURES.member('bob-member').toString()
     );
+  });
+
+  it('PATCH /:taskId/complete → 403 when non-completer tries to undo within 24h', async () => {
+    // Carol creates + completes a fresh task in flatshare. Eve (admin) tries
+    // to undo Carol's completion within the 24h window — backend rule:
+    // "Only the person who completed this task can undo it within 24 hours".
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+    const flatshare = FIXTURES.household('flatshare');
+
+    const created = await request(app)
+      .post(`/api/households/${flatshare._id}/tasks`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ title: 'Take out trash — auth undo test' });
+    expect(created.status).toBe(201);
+    const taskId = created.body.data.task._id;
+
+    // Carol marks complete.
+    const carolComplete = await request(app)
+      .patch(`/api/households/${flatshare._id}/tasks/${taskId}/complete`)
+      .set('Authorization', auth(carol._id.toString()));
+    expect(carolComplete.status).toBe(200);
+    expect(carolComplete.body.data.task.isCompleted).toBe(true);
+
+    // Eve (admin, non-completer) tries to undo within 24h → 403.
+    const eveUndo = await request(app)
+      .patch(`/api/households/${flatshare._id}/tasks/${taskId}/complete`)
+      .set('Authorization', auth(eve._id.toString()));
+    expect(eveUndo.status).toBe(403);
   });
 
   it('DELETE → 204 (creator)', async () => {

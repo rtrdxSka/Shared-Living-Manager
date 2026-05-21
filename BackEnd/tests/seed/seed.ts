@@ -7,6 +7,11 @@ import { Task } from '../../src/models/task.model';
 import { Goal } from '../../src/models/goal.model';
 import { ShoppingListItem } from '../../src/models/shopping-list-item.model';
 import { JointAccountTransaction } from '../../src/models/joint-account-transaction.model';
+import {
+  computeDebtorShares,
+  type SplitMethod,
+  type ComputeDebtorSharesParticipant,
+} from '../../src/utils/computeDebtorShares';
 
 import usersData from './data/users.json';
 import householdsData from './data/households.json';
@@ -109,12 +114,96 @@ export const seedDatabase = async (): Promise<SeedResult> => {
 
   // ── Expenses ────────────────────────────────────────────────────────
   const expenseIds: IdMap = {};
+
+  // Pre-load household docs so we can compute debtorStates per expense.
+  const householdById = new Map<string, Awaited<ReturnType<typeof Household.findById>>>();
+  for (const [, hid] of Object.entries(householdIds)) {
+    householdById.set(hid.toString(), await Household.findById(hid));
+  }
+
   for (const e of expensesData) {
     const _id = newId();
     expenseIds[e.key] = _id;
+
+    const householdId = householdIds[e.householdKey];
+    const household = householdById.get(householdId.toString());
+
+    // Build per-debtor states. Skip for solo / joint-mode (no settlement).
+    let debtorStates: Array<{
+      userId: Types.ObjectId;
+      share: number;
+      claimedAt?: Date;
+      confirmedAt?: Date;
+      disputedAt?: Date;
+    }> = [];
+
+    const autoResolveByMode =
+      household?.settings?.financeMode === 'joint' || household?.uiMode === 'solo';
+
+    if (!autoResolveByMode && e.paidByUserKey && household) {
+      const splitMethod = (household.settings?.expenseSplitMethod ?? 'equal') as SplitMethod;
+      const participants: ComputeDebtorSharesParticipant[] = household.members
+        .filter((m) => m.participatesInFinances && m.userId)
+        .map((m) => ({
+          userId: m.userId as Types.ObjectId,
+          monthlyIncome: m.monthlyIncome ?? undefined,
+          role: m.role,
+        }));
+      const shares = computeDebtorShares({
+        amount: e.amount,
+        payerUserId: userIds[e.paidByUserKey],
+        participants,
+        splitMethod,
+        customSplitPercentage: household.settings?.customSplitPercentage,
+        isFullRepayment: e.isFullRepayment,
+      });
+
+      // Carry legacy resolution state onto the matching debtor entries.
+      const pendingByUserId =
+        'pendingConfirmationByUserKey' in e && e.pendingConfirmationByUserKey
+          ? userIds[e.pendingConfirmationByUserKey]
+          : undefined;
+      const pendingAt =
+        'pendingConfirmationAt' in e && e.pendingConfirmationAt
+          ? new Date(e.pendingConfirmationAt)
+          : undefined;
+      const resolvedAt =
+        'resolvedAt' in e && e.resolvedAt ? new Date(e.resolvedAt) : undefined;
+      const resolvedByUserId =
+        'resolvedByUserKey' in e && e.resolvedByUserKey
+          ? userIds[e.resolvedByUserKey]
+          : undefined;
+
+      debtorStates = shares.map((s) => {
+        const entry: {
+          userId: Types.ObjectId;
+          share: number;
+          claimedAt?: Date;
+          confirmedAt?: Date;
+          disputedAt?: Date;
+        } = { userId: s.userId, share: Math.round(s.share * 100) / 100 };
+        if (
+          pendingByUserId &&
+          s.userId.toString() === pendingByUserId.toString() &&
+          pendingAt
+        ) {
+          entry.claimedAt = pendingAt;
+        }
+        if (
+          e.isResolved &&
+          resolvedByUserId &&
+          s.userId.toString() === resolvedByUserId.toString() &&
+          resolvedAt
+        ) {
+          entry.confirmedAt = resolvedAt;
+        }
+        return entry;
+      });
+    }
+
     await Expense.create({
       _id,
-      householdId: householdIds[e.householdKey],
+      householdId,
       paidByUserId: e.paidByUserKey ? userIds[e.paidByUserKey] : undefined,
       createdByUserId: userIds[e.createdByUserKey],
       description: e.description,
@@ -125,19 +214,7 @@ export const seedDatabase = async (): Promise<SeedResult> => {
       isResolved: e.isResolved,
       isFullRepayment: e.isFullRepayment,
       resolvedAt: 'resolvedAt' in e && e.resolvedAt ? new Date(e.resolvedAt) : undefined,
-      resolvedByUserId:
-        'resolvedByUserKey' in e && e.resolvedByUserKey
-          ? userIds[e.resolvedByUserKey]
-          : undefined,
-      pendingConfirmation: e.pendingConfirmation,
-      pendingConfirmationAt:
-        'pendingConfirmationAt' in e && e.pendingConfirmationAt
-          ? new Date(e.pendingConfirmationAt)
-          : undefined,
-      pendingConfirmationByUserId:
-        'pendingConfirmationByUserKey' in e && e.pendingConfirmationByUserKey
-          ? userIds[e.pendingConfirmationByUserKey]
-          : undefined,
+      debtorStates,
     });
   }
 
