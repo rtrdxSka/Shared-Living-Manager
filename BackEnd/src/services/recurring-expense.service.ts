@@ -11,6 +11,7 @@ import {
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { getHouseholdForMember } from '../utils/household.helpers';
+import { validateParticipantsAndOverrides } from './_shared/expense-subgroup';
 
 class RecurringExpenseService {
   private formatResponse(
@@ -31,6 +32,15 @@ class RecurringExpenseService {
       ...(fixedPayerNickname && { fixedPayerNickname }),
       isActive: template.isActive,
       isFullRepayment: template.isFullRepayment,
+      ...(template.participantUserIds && template.participantUserIds.length > 0 && {
+        participantUserIds: template.participantUserIds.map((id) => id.toString()),
+      }),
+      ...(template.customSplitOverrides && template.customSplitOverrides.length > 0 && {
+        customSplitOverrides: template.customSplitOverrides.map((o) => ({
+          userId: o.userId.toString(),
+          pct: o.pct,
+        })),
+      }),
       createdAt: template.createdAt.toISOString(),
       updatedAt: template.updatedAt.toISOString(),
     };
@@ -67,6 +77,16 @@ class RecurringExpenseService {
       fixedPayerNickname = payerMember.nickname;
     }
 
+    // Validate optional subgroup (participantUserIds + customSplitOverrides).
+    // Payer constraint applies only when payerMode === 'fixed'; in
+    // open_to_claim mode there is no template-level payer yet.
+    const subgroup = validateParticipantsAndOverrides(
+      household,
+      input.participantUserIds,
+      input.customSplitOverrides,
+      input.payerMode === 'fixed' ? input.fixedPayerUserId : undefined
+    );
+
     const template = await RecurringExpense.create({
       householdId: household._id,
       createdByUserId: userId,
@@ -78,6 +98,8 @@ class RecurringExpenseService {
       payerMode: input.payerMode,
       ...(input.fixedPayerUserId && { fixedPayerUserId: input.fixedPayerUserId }),
       isFullRepayment: input.isFullRepayment ?? false,
+      ...(subgroup?.participantUserIds && { participantUserIds: subgroup.participantUserIds }),
+      ...(subgroup?.customSplitOverrides && { customSplitOverrides: subgroup.customSplitOverrides }),
     });
 
     return this.formatResponse(template, fixedPayerNickname);
@@ -159,6 +181,50 @@ class RecurringExpenseService {
       template.fixedPayerUserId = input.fixedPayerUserId as unknown as typeof template.fixedPayerUserId;
     }
     if (input.isFullRepayment !== undefined) template.isFullRepayment = input.isFullRepayment;
+
+    // Subgroup updates. Mirrors expense.service.ts:updateExpense:
+    //   - participantUserIds === null or [] → clear subgroup (and overrides)
+    //   - non-empty array → revalidate & set both fields
+    //   - only customSplitOverrides passed → reuse existing participantUserIds
+    const subgroupTouched =
+      input.participantUserIds !== undefined ||
+      input.customSplitOverrides !== undefined;
+    if (subgroupTouched) {
+      const clearing =
+        input.participantUserIds === null ||
+        (Array.isArray(input.participantUserIds) && input.participantUserIds.length === 0);
+      if (clearing) {
+        if (input.customSplitOverrides && input.customSplitOverrides.length > 0) {
+          throw BadRequestError(
+            'customSplitOverrides requires participantUserIds to be set'
+          );
+        }
+        template.participantUserIds = undefined;
+        template.customSplitOverrides = undefined;
+      } else {
+        const effectiveParticipants =
+          input.participantUserIds ??
+          template.participantUserIds?.map((id) => id.toString());
+        // Effective payer for the cross-check: only meaningful when the
+        // (effective) payerMode is 'fixed' — open_to_claim has no payer.
+        const effectiveFixedPayerId =
+          effectivePayerMode === 'fixed'
+            ? input.fixedPayerUserId ?? template.fixedPayerUserId?.toString()
+            : undefined;
+        const subgroup = validateParticipantsAndOverrides(
+          household,
+          effectiveParticipants,
+          input.customSplitOverrides,
+          effectiveFixedPayerId
+        );
+        if (subgroup?.participantUserIds) {
+          template.participantUserIds = subgroup.participantUserIds;
+        }
+        if (input.customSplitOverrides !== undefined) {
+          template.customSplitOverrides = subgroup?.customSplitOverrides;
+        }
+      }
+    }
 
     await template.save();
 
@@ -261,6 +327,12 @@ class RecurringExpenseService {
             ? { paidByUserId: template.fixedPayerUserId }
             : {}),
           isFullRepayment: template.isFullRepayment,
+          ...(template.participantUserIds && template.participantUserIds.length > 0 && {
+            participantUserIds: template.participantUserIds,
+          }),
+          ...(template.customSplitOverrides && template.customSplitOverrides.length > 0 && {
+            customSplitOverrides: template.customSplitOverrides,
+          }),
         });
       } catch (err) {
         logger.error(
