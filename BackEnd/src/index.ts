@@ -21,6 +21,7 @@ import { startRecurringScheduler } from './scheduler/recurringExpenses';
 import { startRecurringTaskScheduler } from './scheduler/recurringTasks';
 import { startPendingExpenseScheduler } from './scheduler/pendingExpenses';
 import { startRecurringShoppingItemScheduler } from './scheduler/recurringShoppingItems';
+import { startAutoCloseVotesScheduler } from './scheduler/autoCloseVotes';
 import { logger } from './utils/logger';
 
 type RequestWithId = Request & { requestId?: string };
@@ -140,6 +141,7 @@ const startServer = async () => {
     startRecurringTaskScheduler();
     startPendingExpenseScheduler();
     startRecurringShoppingItemScheduler();
+    startAutoCloseVotesScheduler();
 
     const server = app.listen(Number(PORT), '0.0.0.0', () => {
       logger.info(`🚀 Server running on port ${PORT}`);
