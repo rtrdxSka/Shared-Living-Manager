@@ -26,7 +26,10 @@ const SEVERE_THRESHOLD = 50; // % over budget at which we shift to the coral sev
 
 export default function OverBudgetBanner({ householdId, currency }: Props) {
   const month = currentMonthString();
-  const { data } = useBudgetInsights(householdId, month);
+  // Banner reflects the household-wide over-budget state; `overBudgetCategories`
+  // is derived from household totals regardless of scope, so request household
+  // scope here to keep `spendByCategory` and `budget` in the same dimension.
+  const { data } = useBudgetInsights(householdId, month, 'household');
 
   if (!data || data.overBudgetCategories.length === 0) return null;
 
