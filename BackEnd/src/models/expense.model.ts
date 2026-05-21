@@ -1,6 +1,8 @@
 import { Schema, model } from 'mongoose';
 import { IExpense } from '../types/expense.types';
 import { EXPENSE_TYPES } from '../types/household.types';
+import { customSplitOverrideSchema } from './_shared/expense-subgroup.schema';
+import { expenseDebtorStateSchema } from './_shared/expense-debtor-state.schema';
 
 const expenseSchema = new Schema<IExpense>(
   {
@@ -20,11 +22,9 @@ const expenseSchema = new Schema<IExpense>(
     isResolved: { type: Boolean, default: false },
     isFullRepayment: { type: Boolean, required: true, default: false },
     resolvedAt: { type: Date, default: undefined },
-    resolvedByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
-    pendingConfirmation: { type: Boolean, default: false },
-    pendingConfirmationAt: { type: Date, default: undefined },
-    pendingConfirmationByUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
-    lastDisputedAt: { type: Date, default: undefined },
+    participantUserIds: { type: [Schema.Types.ObjectId], ref: 'User', default: undefined },
+    customSplitOverrides: { type: [customSplitOverrideSchema], default: undefined },
+    debtorStates: { type: [expenseDebtorStateSchema], default: [] },
   },
   {
     timestamps: true,
@@ -37,16 +37,14 @@ const expenseSchema = new Schema<IExpense>(
   }
 );
 
-// Primary access pattern: filter by household + date range
 expenseSchema.index({ householdId: 1, date: -1 });
-// Support category filter on top
 expenseSchema.index({ householdId: 1, category: 1, date: -1 });
-// Prevent duplicate recurring expense instances for the same period
 expenseSchema.index(
   { recurringExpenseId: 1, date: 1 },
   { unique: true, partialFilterExpression: { recurringExpenseId: { $exists: true } } }
 );
-// Supports findOne({ _id, householdId }) household-scoping on writes/reads
 expenseSchema.index({ _id: 1, householdId: 1 });
+expenseSchema.index({ householdId: 1, participantUserIds: 1 });
+expenseSchema.index({ householdId: 1, 'debtorStates.userId': 1 });
 
 export const Expense = model<IExpense>('Expense', expenseSchema);
