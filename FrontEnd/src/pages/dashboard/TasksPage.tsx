@@ -160,7 +160,6 @@ const TaskRow = React.memo(function TaskRow({
     taskMembers,
     rotationStatus,
     deleteTask,
-    uiMode,
   } = useDashboard();
 
   const [completePending, setCompletePending] = useState(false);
@@ -373,7 +372,7 @@ const TaskRow = React.memo(function TaskRow({
           )}
 
           {/* Assignment section */}
-          {!task.isCompleted && uiMode === 'couple' && (
+          {!task.isCompleted && (
             <div>
               <p className="text-xs font-medium text-ink-3 mb-1.5">Assignment</p>
               {distribution === 'rotation' ? (

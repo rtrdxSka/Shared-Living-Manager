@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useHousehold } from '@/hooks/queries';
 import type { HouseholdResponse } from '@/types/household.types';
 import CoupleDashboardShell from '@/components/dashboard/couple/CoupleDashboardShell';
+import RoommatesDashboardShell from '@/components/dashboard/roommates/RoommatesDashboardShell';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -69,7 +70,11 @@ export default function DashboardPage() {
     );
   }
 
-  // For non-couple/solo modes (future expansion), show a minimal placeholder
+  if (resolved.uiMode === 'roommates' && user) {
+    return <RoommatesDashboardShell household={resolved} currentUserId={user._id} />;
+  }
+
+  // For non-couple/solo/roommates modes (future expansion), show a minimal placeholder
   if ((resolved.uiMode !== 'couple' && resolved.uiMode !== 'solo') || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">

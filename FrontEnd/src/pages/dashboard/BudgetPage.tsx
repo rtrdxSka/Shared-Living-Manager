@@ -21,9 +21,10 @@ import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagement
 import CoupleSpendComparisonCard from '@/components/dashboard/couple/CoupleSpendComparisonCard';
 
 import { BUDGET_CATEGORIES } from '@/types/budget.types';
-import type { BudgetCategories } from '@/types/budget.types';
+import type { BudgetCategories, BudgetInsightsScope } from '@/types/budget.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 import { CATEGORY_LABELS } from '@/utils/categoryDisplay';
+import { cn } from '@/lib/utils';
 
 export default function BudgetPage() {
   const {
@@ -41,7 +42,16 @@ export default function BudgetPage() {
   const isAdmin = myMember?.role === 'admin' || myMember?.role === 'owner';
 
   const [month, setMonth] = useState<string>(currentMonthString());
-  const insightsQuery = useBudgetInsights(householdId, month);
+  // Joint-mode households can't meaningfully show per-user share, so the
+  // toggle is forced to 'household' and disabled. In split mode default to
+  // 'personal' (the user's share) — matches what people expect when they
+  // see numbers like "you spent X this month".
+  const isJointMode = financeMode === 'joint';
+  const [scope, setScope] = useState<BudgetInsightsScope>(
+    isJointMode ? 'household' : 'personal'
+  );
+  const effectiveRequestScope: BudgetInsightsScope = isJointMode ? 'household' : scope;
+  const insightsQuery = useBudgetInsights(householdId, month, effectiveRequestScope);
   const updateBudget = useUpdateBudget(householdId);
 
   // Couple-mode is only active when both members are present in the dashboard
@@ -112,32 +122,71 @@ export default function BudgetPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      {/* Header + month picker */}
-      <div className="flex items-center justify-between">
+      {/* Header + month picker + scope toggle */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold">Budget</h1>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setMonth((m) => stepMonth(m, 'prev'))}
-            aria-label="Previous month"
-            data-testid="budget-month-prev"
+        <div className="flex items-center gap-3">
+          {/* YOU / HOUSEHOLD scope toggle */}
+          <div
+            className="flex items-center rounded-full border border-line bg-surface-2 p-0.5"
+            data-testid="budget-scope-toggle"
           >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="px-2 min-w-[120px] text-center" data-testid="budget-month-label">
-            {formatMonthLabel(month)}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setMonth((m) => stepMonth(m, 'next'))}
-            disabled={month >= currentMonthString()}
-            aria-label="Next month"
-            data-testid="budget-month-next"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+            <button
+              type="button"
+              onClick={() => !isJointMode && setScope('personal')}
+              disabled={isJointMode}
+              aria-pressed={effectiveRequestScope === 'personal'}
+              data-testid="budget-scope-personal"
+              title={isJointMode ? 'Joint mode shows shared household spending only' : undefined}
+              className={cn(
+                'px-3 py-1 text-xs font-medium rounded-full transition-colors',
+                effectiveRequestScope === 'personal'
+                  ? 'bg-accent text-accent-ink'
+                  : 'text-ink-3 hover:text-ink',
+                isJointMode && 'opacity-40 cursor-not-allowed hover:text-ink-3'
+              )}
+            >
+              YOU
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('household')}
+              aria-pressed={effectiveRequestScope === 'household'}
+              data-testid="budget-scope-household"
+              className={cn(
+                'px-3 py-1 text-xs font-medium rounded-full transition-colors',
+                effectiveRequestScope === 'household'
+                  ? 'bg-accent text-accent-ink'
+                  : 'text-ink-3 hover:text-ink'
+              )}
+            >
+              HOUSEHOLD
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMonth((m) => stepMonth(m, 'prev'))}
+              aria-label="Previous month"
+              data-testid="budget-month-prev"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-2 min-w-[120px] text-center" data-testid="budget-month-label">
+              {formatMonthLabel(month)}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMonth((m) => stepMonth(m, 'next'))}
+              disabled={month >= currentMonthString()}
+              aria-label="Next month"
+              data-testid="budget-month-next"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -188,6 +237,11 @@ export default function BudgetPage() {
                   }}
                 />
               </div>
+            )}
+            {data.effectiveScope === 'personal' && (
+              <p className="mt-1.5 text-[11px] text-ink-3">
+                Household budget · your share of spending shown
+              </p>
             )}
           </CardContent>
         </Card>

@@ -27,6 +27,7 @@ import type { ExpenseResponse, ExpenseFilters } from '@/types/expense.types';
 import { EMPTY_EXPENSE_FILTERS } from '@/types/expense.types';
 import type { RecurringExpenseResponse } from '@/types/recurring-expense.types';
 import { EXPENSE_TYPES, type ExpenseType, type UIMode } from '@/types/onboarding.types';
+import type { HouseholdMemberResponse } from '@/types/household.types';
 
 // ── Date formatter ────────────────────────────────────────────────────────
 
@@ -78,9 +79,9 @@ export default function ExpensesPage() {
     setEditingExpense,
     deleteExpense,
     claimExpense,
-    requestResolution,
-    confirmResolution,
-    disputeResolution,
+    claimPayback,
+    confirmPayback,
+    disputePayback,
     deactivateRecurringExpense,
   } = useDashboard();
 
@@ -145,12 +146,33 @@ export default function ExpensesPage() {
       balance: myPaidUnresolved - myShare,
     };
 
-    // Category totals for right-rail breakdown
+    // Per-expense share for the current user — used for the right-rail
+    // BY CATEGORY breakdown and FORECAST so totals reflect what *I* spent,
+    // not the full household amount.
+    //   - Joint mode: a personal share isn't meaningful → use full amount.
+    //   - Split mode + full repayment: the entire amount lands on the
+    //     non-payer's side; payer's share for that expense is 0.
+    //   - Split mode + standard: applies the active split percentage.
+    const myShareForExpense = (e: ExpenseResponse): number => {
+      if (financeMode === 'joint') return e.amount;
+      if (e.isFullRepayment) {
+        return e.paidByNickname === myNickname ? 0 : e.amount;
+      }
+      const myPct =
+        splitMethod === 'equal'
+          ? 0.5
+          : splitMethod === 'income_based' && incomeSplit
+          ? incomeSplit.myPct / 100
+          : customMyPct / 100;
+      return e.amount * myPct;
+    };
+
     const catTotals = Object.fromEntries(EXPENSE_TYPES.map((t) => [t, 0])) as Record<ExpenseType, number>;
     let totalAmount = 0;
     for (const e of expenses) {
-      catTotals[e.category] = (catTotals[e.category] ?? 0) + e.amount;
-      totalAmount += e.amount;
+      const share = myShareForExpense(e);
+      catTotals[e.category] = (catTotals[e.category] ?? 0) + share;
+      totalAmount += share;
     }
 
     return {
@@ -158,7 +180,7 @@ export default function ExpensesPage() {
       catTotals,
       totalAmount,
     };
-  }, [expenses, myNickname, splitMethod, incomeSplit, customMyPct]);
+  }, [expenses, myNickname, splitMethod, incomeSplit, customMyPct, financeMode]);
 
   const maxCatTotal = Math.max(...Object.values(catTotals), 1);
 
@@ -303,8 +325,70 @@ export default function ExpensesPage() {
               />
             ) : (
               <>
-                {/* Outstanding section — split-mode + couple-mode only (joint accounts don't track per-user owed amounts; solo has no partner debt) */}
-                {uiMode === 'couple' && financeMode === 'split' && (
+                {/* All-expenses flat list — roommates+joint only.
+                    Joint mode has no per-person debt, so we skip the Outstanding/Settled split
+                    and render every expense chronologically in a single section. */}
+                {uiMode === 'roommates' && financeMode === 'joint' && (
+                  <section>
+                    <div className="rounded-xl border border-line bg-surface-2 px-4 py-3 mb-3 flex items-center gap-3">
+                      <EyebrowLabel className="text-ink-2">ALL EXPENSES</EyebrowLabel>
+                      <span className="text-sm text-ink-2">
+                        {expenses.length} {expenses.length === 1 ? 'entry' : 'entries'}
+                      </span>
+                      <button
+                        onClick={() => setOutstandingOpen((o) => !o)}
+                        className="rounded-full p-1 hover:bg-surface-3 text-ink-2 ml-auto"
+                      >
+                        <ChevronDown
+                          className={cn('h-4 w-4 transition-transform', outstandingOpen && 'rotate-180')}
+                        />
+                      </button>
+                    </div>
+                    {outstandingOpen && (
+                      <div className="space-y-2">
+                        {expenses.map((expense) => (
+                          <ExpenseRow
+                            key={expense._id}
+                            expense={expense}
+                            isExpanded={expandedExpenseId === expense._id}
+                            isConfirmingDelete={confirmingDelete === expense._id}
+                            onToggle={() => toggleExpand(expense._id)}
+                            onStartDelete={() => setConfirmingDelete(expense._id)}
+                            onCancelDelete={() => setConfirmingDelete(null)}
+                            onConfirmDelete={async () => {
+                              await deleteExpense(expense._id);
+                              setConfirmingDelete(null);
+                              setExpandedExpenseId(null);
+                            }}
+                            onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
+                            onClaim={() => claimExpense(expense._id)}
+                            onClaimPayback={() => claimPayback(expense._id)}
+                            onConfirmPayback={(debtorUserId) => confirmPayback({ expenseId: expense._id, debtorUserId })}
+                            onDisputePayback={(debtorUserId) => disputePayback({ expenseId: expense._id, debtorUserId })}
+                            uiMode={uiMode}
+                            financeMode={financeMode}
+                            splitMethod={splitMethod}
+                            customMyPct={customMyPct}
+                            incomeSplit={incomeSplit}
+                            currency={currency}
+                            currentUserId={currentUserId}
+                            myNickname={myNickname}
+                            partnerNickname={partnerNickname}
+                            myParticipatesInFinances={myParticipatesInFinances}
+                            hasFinancialPartner={hasFinancialPartner}
+                            isAdmin={isAdmin}
+                            members={household.members}
+                            onActionError={setActionError}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* Outstanding section — split-mode only (couple OR roommates).
+                    Joint accounts don't track per-user owed amounts; solo has no partner debt. */}
+                {(uiMode === 'couple' || uiMode === 'roommates') && financeMode === 'split' && (
                 <section>
                   <div className="rounded-xl border border-warn/30 bg-warn-bg/40 px-4 py-3 mb-3 flex items-center gap-3">
                     <EyebrowLabel className="text-warn">OUTSTANDING</EyebrowLabel>
@@ -338,9 +422,9 @@ export default function ExpensesPage() {
                             }}
                             onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
                             onClaim={() => claimExpense(expense._id)}
-                            onRequestResolution={() => requestResolution(expense._id)}
-                            onConfirmResolution={() => confirmResolution(expense._id)}
-                            onDisputeResolution={() => disputeResolution(expense._id)}
+                            onClaimPayback={() => claimPayback(expense._id)}
+                            onConfirmPayback={(debtorUserId) => confirmPayback({ expenseId: expense._id, debtorUserId })}
+                            onDisputePayback={(debtorUserId) => disputePayback({ expenseId: expense._id, debtorUserId })}
                             uiMode={uiMode}
                             financeMode={financeMode}
                             splitMethod={splitMethod}
@@ -352,6 +436,8 @@ export default function ExpensesPage() {
                             partnerNickname={partnerNickname}
                             myParticipatesInFinances={myParticipatesInFinances}
                             hasFinancialPartner={hasFinancialPartner}
+                            isAdmin={isAdmin}
+                            members={household.members}
                             onActionError={setActionError}
                           />
                         ))}
@@ -393,9 +479,9 @@ export default function ExpensesPage() {
                             }}
                             onEdit={() => { setEditingExpense(expense); setExpandedExpenseId(null); }}
                             onClaim={() => claimExpense(expense._id)}
-                            onRequestResolution={() => requestResolution(expense._id)}
-                            onConfirmResolution={() => confirmResolution(expense._id)}
-                            onDisputeResolution={() => disputeResolution(expense._id)}
+                            onClaimPayback={() => claimPayback(expense._id)}
+                            onConfirmPayback={(debtorUserId) => confirmPayback({ expenseId: expense._id, debtorUserId })}
+                            onDisputePayback={(debtorUserId) => disputePayback({ expenseId: expense._id, debtorUserId })}
                             uiMode={uiMode}
                             financeMode={financeMode}
                             splitMethod={splitMethod}
@@ -407,6 +493,8 @@ export default function ExpensesPage() {
                             partnerNickname={partnerNickname}
                             myParticipatesInFinances={myParticipatesInFinances}
                             hasFinancialPartner={hasFinancialPartner}
+                            isAdmin={isAdmin}
+                            members={household.members}
                             onActionError={setActionError}
                           />
                         ))}
@@ -480,7 +568,7 @@ export default function ExpensesPage() {
                   const catTotal = catTotals[cat];
                   const pct = maxCatTotal > 0 ? (catTotal / maxCatTotal) * 100 : 0;
                   return (
-                    <div key={cat} className="flex items-center gap-3">
+                    <div key={cat} className="flex items-center gap-3" data-testid={`cat-row-${cat}`}>
                       <CategoryChip category={cat} className="w-20 justify-center shrink-0" />
                       <div className="h-1.5 flex-1 bg-surface-2 rounded-full overflow-hidden">
                         <div
@@ -488,7 +576,13 @@ export default function ExpensesPage() {
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <MoneyAmount amount={catTotal} currency={currency} size="sm" className="shrink-0 w-20 text-right" />
+                      <MoneyAmount
+                        amount={catTotal}
+                        currency={currency}
+                        size="sm"
+                        className="shrink-0 w-20 text-right"
+                        data-testid={`cat-total-${cat}`}
+                      />
                     </div>
                   );
                 })}
@@ -517,6 +611,129 @@ export default function ExpensesPage() {
   );
 }
 
+// ── Multi-debtor sub-list (roommates split with N≥2 debtors) ───────────────
+
+interface MultiDebtorListProps {
+  expense: ExpenseResponse;
+  currentUserId: string;
+  isCreditor: boolean;
+  members: HouseholdMemberResponse[];
+  partnerNicknameFallback: string;
+  onClaimPayback: () => Promise<void>;
+  onConfirmPayback: (debtorUserId: string) => Promise<void>;
+  onDisputePayback: (debtorUserId: string) => Promise<void>;
+  payerNickname: string;
+}
+
+function MultiDebtorList({
+  expense,
+  currentUserId,
+  isCreditor,
+  members,
+  onClaimPayback,
+  onConfirmPayback,
+  onDisputePayback,
+  payerNickname,
+}: MultiDebtorListProps) {
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+
+  const totalShare = expense.debtorStates.reduce((s, d) => s + d.share, 0);
+  const paidShare = expense.debtorStates
+    .filter((d) => d.confirmedAt)
+    .reduce((s, d) => s + d.share, 0);
+
+  async function run(key: string, fn: () => Promise<void>): Promise<void> {
+    setPendingAction(key);
+    try { await fn(); } finally { setPendingAction(null); }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-ink-3">
+        {`$${paidShare.toFixed(2)} of $${totalShare.toFixed(2)} paid back`}
+      </p>
+      <ul className="divide-y divide-line/60 border border-line rounded-lg overflow-hidden">
+        {expense.debtorStates.map((d) => {
+          const debtorNickname =
+            d.nickname ??
+            members.find((m) => m.userId === d.userId)?.nickname ??
+            'Member';
+          const isMine = d.userId === currentUserId;
+          const status: 'owes' | 'claimed' | 'paid' | 'disputed' = d.confirmedAt
+            ? 'paid'
+            : d.claimedAt
+            ? 'claimed'
+            : d.disputedAt
+            ? 'disputed'
+            : 'owes';
+          return (
+            <li key={d.userId} className="flex items-center gap-2 px-3 py-2 text-sm">
+              <span className="flex-1">
+                <span className="text-ink">{debtorNickname}</span>
+                <span className="text-ink-3"> — ${d.share.toFixed(2)}</span>
+              </span>
+              {status === 'paid' && <span className="text-xs text-pos">✓ Paid back</span>}
+              {status === 'claimed' && (
+                <span className="text-xs text-warn">
+                  Claimed — awaiting {payerNickname}
+                </span>
+              )}
+              {status === 'disputed' && (
+                <span className="text-xs text-warn">Disputed — owes</span>
+              )}
+              {status === 'owes' && <span className="text-xs text-ink-3">Owes</span>}
+              {isMine && (status === 'owes' || status === 'disputed') && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pendingAction === `claim-${d.userId}`}
+                  onClick={() => void run(`claim-${d.userId}`, onClaimPayback)}
+                >
+                  {pendingAction === `claim-${d.userId}` ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    'I paid you back'
+                  )}
+                </Button>
+              )}
+              {isCreditor && status === 'claimed' && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-pos/50 text-pos hover:bg-pos/10 hover:border-pos"
+                    disabled={pendingAction === `confirm-${d.userId}`}
+                    onClick={() => void run(`confirm-${d.userId}`, () => onConfirmPayback(d.userId))}
+                  >
+                    {pendingAction === `confirm-${d.userId}` ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      'Confirm'
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60"
+                    disabled={pendingAction === `dispute-${d.userId}`}
+                    onClick={() => void run(`dispute-${d.userId}`, () => onDisputePayback(d.userId))}
+                  >
+                    {pendingAction === `dispute-${d.userId}` ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      'Dispute'
+                    )}
+                  </Button>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 // ── Expense Row (expand-on-click) ─────────────────────────────────────────
 
 interface ExpenseRowProps {
@@ -529,9 +746,9 @@ interface ExpenseRowProps {
   onConfirmDelete: () => Promise<void>;
   onEdit: () => void;
   onClaim: () => Promise<void>;
-  onRequestResolution: () => Promise<void>;
-  onConfirmResolution: () => Promise<void>;
-  onDisputeResolution: () => Promise<void>;
+  onClaimPayback: () => Promise<void>;
+  onConfirmPayback: (debtorUserId: string) => Promise<void>;
+  onDisputePayback: (debtorUserId: string) => Promise<void>;
   uiMode: UIMode;
   financeMode: string;
   splitMethod: string;
@@ -543,6 +760,8 @@ interface ExpenseRowProps {
   partnerNickname: string;
   myParticipatesInFinances: boolean;
   hasFinancialPartner: boolean;
+  isAdmin: boolean;
+  members: HouseholdMemberResponse[];
   onActionError: (msg: string | null) => void;
 }
 
@@ -556,9 +775,9 @@ const ExpenseRow = React.memo(function ExpenseRow({
   onConfirmDelete,
   onEdit,
   onClaim,
-  onRequestResolution,
-  onConfirmResolution,
-  onDisputeResolution,
+  onClaimPayback,
+  onConfirmPayback,
+  onDisputePayback,
   uiMode,
   financeMode,
   splitMethod,
@@ -570,15 +789,18 @@ const ExpenseRow = React.memo(function ExpenseRow({
   partnerNickname,
   myParticipatesInFinances,
   hasFinancialPartner,
+  isAdmin,
+  members,
   onActionError,
 }: ExpenseRowProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const {
     isUnpaid,
-    isDebtor,
+    isCreditor,
+    hasAnyPendingClaim,
     canClaim,
-    canRequestResolution,
+    canClaimPayback,
     canConfirmOrDispute,
     isAwaitingConfirmation,
     isCreditorWaiting,
@@ -589,49 +811,52 @@ const ExpenseRow = React.memo(function ExpenseRow({
     const isCreatorLocal = expense.createdByUserId === currentUserId;
     const isUnpaidLocal = !expense.paidByUserId;
     const isCreditorLocal = expense.paidByUserId === currentUserId;
-    const isDebtorLocal = !isUnpaidLocal && !isCreditorLocal;
     const isSplitModeLocal = financeMode === 'split' && myParticipatesInFinances && hasFinancialPartner;
-    // Hint persists while the expense is in the disputed state. The backend clears
-    // `lastDisputedAt` when the debtor re-requests resolution or the creditor
-    // confirms receipt, so its presence is a sufficient marker of "currently disputed".
+    const debtorStates = expense.debtorStates ?? [];
+    const myEntry = debtorStates.find((d) => d.userId === currentUserId);
+    const hasAnyPendingClaimLocal = debtorStates.some(
+      (d) => d.claimedAt && !d.confirmedAt
+    );
     const wasRecentlyDisputedLocal = !!(
       !expense.isResolved &&
-      !expense.pendingConfirmation &&
-      expense.lastDisputedAt
+      myEntry &&
+      myEntry.disputedAt &&
+      !myEntry.claimedAt &&
+      !myEntry.confirmedAt
     );
     return {
       isUnpaid: isUnpaidLocal,
-      isDebtor: isDebtorLocal,
-      // Joint-mode expenses are auto-resolved and the household has no notion
-      // of per-member debt, so the claim flow is meaningless there. Gate
-      // `canClaim` on split-mode in addition to "unpaid + participating".
+      isCreditor: isCreditorLocal,
+      myDebtorEntry: myEntry,
+      hasAnyPendingClaim: hasAnyPendingClaimLocal,
       canClaim: financeMode === 'split' && isUnpaidLocal && myParticipatesInFinances,
-      canRequestResolution:
-        isSplitModeLocal && isDebtorLocal && !expense.isResolved && !expense.pendingConfirmation,
+      canClaimPayback:
+        isSplitModeLocal && !!myEntry && !expense.isResolved && !myEntry.claimedAt && !myEntry.confirmedAt,
       canConfirmOrDispute:
-        isSplitModeLocal && isCreditorLocal && expense.pendingConfirmation && !expense.isResolved,
+        isSplitModeLocal && isCreditorLocal && hasAnyPendingClaimLocal && !expense.isResolved,
       isAwaitingConfirmation:
-        isSplitModeLocal && isDebtorLocal && expense.pendingConfirmation && !expense.isResolved,
+        isSplitModeLocal && !!myEntry && !!myEntry.claimedAt && !myEntry.confirmedAt && !expense.isResolved,
       isCreditorWaiting:
         isSplitModeLocal &&
         isCreditorLocal &&
-        !expense.pendingConfirmation &&
+        !hasAnyPendingClaimLocal &&
         !expense.isResolved &&
-        !isUnpaidLocal,
+        !isUnpaidLocal &&
+        debtorStates.length > 0,
       wasRecentlyDisputed: wasRecentlyDisputedLocal,
-      canEdit: isCreatorLocal && !expense.isResolved && !expense.pendingConfirmation,
-      canDelete: isCreatorLocal && !expense.isResolved && !expense.pendingConfirmation,
+      canEdit: isCreatorLocal && !expense.isResolved && !hasAnyPendingClaimLocal,
+      canDelete: (isCreatorLocal || isAdmin) && !expense.isResolved && !hasAnyPendingClaimLocal,
     };
   }, [
     expense.createdByUserId,
     expense.paidByUserId,
     expense.isResolved,
-    expense.pendingConfirmation,
-    expense.lastDisputedAt,
+    expense.debtorStates,
     currentUserId,
     financeMode,
     myParticipatesInFinances,
     hasFinancialPartner,
+    isAdmin,
   ]);
 
   async function handleAction(action: () => Promise<void>, key: string) {
@@ -666,7 +891,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
             Unpaid
           </span>
         )}
-        {uiMode === 'couple' && expense.pendingConfirmation && !expense.isResolved && (
+        {uiMode === 'couple' && hasAnyPendingClaim && !expense.isResolved && (
           <Tooltip>
             <TooltipTrigger asChild>
               <span
@@ -717,6 +942,16 @@ const ExpenseRow = React.memo(function ExpenseRow({
                 <span className="text-ink">{getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency, myNickname)}</span>
               </>
             )}
+            {uiMode === 'roommates' && expense.participantUserIds && expense.participantUserIds.length > 0 && (
+              <>
+                <span className="text-ink-3">Shared by</span>
+                <span className="text-ink text-xs">
+                  {expense.participantUserIds
+                    .map((uid) => members.find((m) => m.userId?.toString() === uid)?.nickname ?? '?')
+                    .join(', ')}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Status hints */}
@@ -738,28 +973,43 @@ const ExpenseRow = React.memo(function ExpenseRow({
               Waiting for {partnerNickname} to confirm they paid you back.
             </p>
           )}
-          {canConfirmOrDispute && (
+          {canConfirmOrDispute && expense.debtorStates.length === 1 && (
             <p className="text-xs text-warn font-medium">
-              {expense.pendingConfirmationByNickname ?? partnerNickname} says they paid you back.
+              {expense.debtorStates[0].nickname ?? partnerNickname} says they paid you back.
             </p>
           )}
-          {isDebtor && wasRecentlyDisputed && !expense.pendingConfirmation && (
+          {expense.debtorStates.length === 1 && wasRecentlyDisputed && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <p
                   tabIndex={0}
                   className="text-xs text-warn cursor-help underline decoration-dotted underline-offset-2 w-fit"
                 >
-                  {partnerNickname} disputed your payment claim. Sort it out and try again.
+                  {expense.paidByNickname ?? partnerNickname} disputed your payment claim. Sort it out and try again.
                 </p>
               </TooltipTrigger>
               <TooltipContent>
-                Your partner pushed back on the repayment. Settle the disagreement, then request resolution again from this expense.
+                Your partner pushed back on the repayment. Settle the disagreement, then click "I paid you back" again to re-claim.
               </TooltipContent>
             </Tooltip>
           )}
 
-          {/* Action buttons */}
+          {/* Multi-debtor list (3+ participant households) */}
+          {expense.debtorStates.length >= 2 && (
+            <MultiDebtorList
+              expense={expense}
+              currentUserId={currentUserId}
+              isCreditor={isCreditor}
+              members={members}
+              partnerNicknameFallback={partnerNickname}
+              onClaimPayback={onClaimPayback}
+              onConfirmPayback={onConfirmPayback}
+              onDisputePayback={onDisputePayback}
+              payerNickname={expense.paidByNickname ?? partnerNickname}
+            />
+          )}
+
+          {/* Action buttons (Case A: no payback UI when length 0; Case B: 1-debtor couple-split) */}
           {!isConfirmingDelete ? (
             <div className="flex flex-wrap gap-2">
               {canClaim && (
@@ -772,29 +1022,29 @@ const ExpenseRow = React.memo(function ExpenseRow({
                   {actionLoading === 'claim' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Claim expense'}
                 </Button>
               )}
-              {canRequestResolution && (
+              {expense.debtorStates.length === 1 && canClaimPayback && (
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={actionLoading === 'request'}
-                  onClick={() => void handleAction(onRequestResolution, 'request')}
+                  onClick={() => void handleAction(onClaimPayback, 'request')}
                 >
                   {actionLoading === 'request' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'I paid you back'}
                 </Button>
               )}
-              {isAwaitingConfirmation && (
+              {expense.debtorStates.length === 1 && isAwaitingConfirmation && (
                 <Button size="sm" variant="outline" disabled className="opacity-60 cursor-not-allowed">
                   Awaiting confirmation…
                 </Button>
               )}
-              {canConfirmOrDispute && (
+              {expense.debtorStates.length === 1 && canConfirmOrDispute && (
                 <>
                   <Button
                     size="sm"
                     variant="outline"
                     className="border-pos/50 text-pos hover:bg-pos/10 hover:border-pos"
                     disabled={actionLoading === 'confirm'}
-                    onClick={() => void handleAction(onConfirmResolution, 'confirm')}
+                    onClick={() => void handleAction(() => onConfirmPayback(expense.debtorStates[0].userId), 'confirm')}
                   >
                     {actionLoading === 'confirm' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Confirm received'}
                   </Button>
@@ -803,7 +1053,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
                     variant="outline"
                     className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60"
                     disabled={actionLoading === 'dispute'}
-                    onClick={() => void handleAction(onDisputeResolution, 'dispute')}
+                    onClick={() => void handleAction(() => onDisputePayback(expense.debtorStates[0].userId), 'dispute')}
                   >
                     {actionLoading === 'dispute' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Dispute'}
                   </Button>

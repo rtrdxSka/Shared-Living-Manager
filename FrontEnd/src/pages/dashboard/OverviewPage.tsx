@@ -10,6 +10,7 @@ import { useBudgetInsights } from '@/hooks/queries/useBudgetQueries';
 import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagementCard';
 import JointAccountConfigDialog from '@/components/dashboard/shared/JointAccountConfigDialog';
 import OverBudgetBanner from '@/components/dashboard/shared/OverBudgetBanner';
+import { RoommatesStatsRow } from '@/components/dashboard/roommates/RoommatesStatsRow';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { HeroNumberCard } from '@/components/ui/hero-number-card';
 import { Donut } from '@/components/ui/donut';
@@ -83,8 +84,13 @@ export default function OverviewPage() {
 
   // Budget insights for the current month — drives the OverBudgetBanner gate.
   // React Query de-dupes this fetch when the banner internally subscribes to
-  // the same query key, so there's no duplicate network traffic.
-  const { data: insights } = useBudgetInsights(household._id, currentMonthString());
+  // the same query key (both call with 'household' scope), so there's no
+  // duplicate network traffic.
+  const { data: insights } = useBudgetInsights(
+    household._id,
+    currentMonthString(),
+    'household'
+  );
   const hasOverBudget = (insights?.overBudgetCategories?.length ?? 0) > 0;
 
   const showIncomeCard =
@@ -171,6 +177,8 @@ export default function OverviewPage() {
             onSetJointTarget={() => setJointConfigOpen(true)}
           />
         )}
+
+        {uiMode === 'roommates' && <RoommatesStatsRow expenses={expenses} />}
 
         {uiMode === 'couple' && financeMode === 'joint' && jointAccount && (
           <JointAccountOverviewCard

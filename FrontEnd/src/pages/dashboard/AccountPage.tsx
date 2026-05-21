@@ -380,7 +380,7 @@ export default function AccountPage() {
 
           {/* Right rail */}
           <div className="space-y-4">
-            {uiMode === 'couple' && showIncomeCard && (
+            {(uiMode === 'couple' || uiMode === 'roommates') && showIncomeCard && (
               <IncomeManagementCard
                 household={household}
                 currentUserId={currentUserId}
@@ -464,7 +464,7 @@ export default function AccountPage() {
       </div>
 
       {/* Config dialog */}
-      {uiMode === 'couple' && (
+      {(uiMode === 'couple' || uiMode === 'roommates') && (
         <JointAccountConfigDialog
           householdId={household._id}
           open={configOpen}
