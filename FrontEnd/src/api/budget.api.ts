@@ -3,6 +3,7 @@ import type { ApiSuccessResponse } from '@/types/auth.types';
 import type {
   Budget,
   BudgetInsights,
+  BudgetInsightsScope,
   BudgetSnapshotResult,
   BudgetUpdateRequest,
 } from '@/types/budget.types';
@@ -31,10 +32,14 @@ export const budgetApi = {
     return data.data;
   },
 
-  async getInsights(householdId: string, month: string): Promise<BudgetInsights> {
+  async getInsights(
+    householdId: string,
+    month: string,
+    scope?: BudgetInsightsScope
+  ): Promise<BudgetInsights> {
     const { data } = await api.get<ApiSuccessResponse<BudgetInsights>>(
       `/households/${householdId}/budget/insights`,
-      { params: { month } }
+      { params: scope ? { month, scope } : { month } }
     );
     return data.data;
   },

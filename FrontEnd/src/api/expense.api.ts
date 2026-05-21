@@ -55,23 +55,33 @@ export const expenseApi = {
     return data.data.expense;
   },
 
-  async requestResolution(householdId: string, expenseId: string): Promise<ExpenseResponse> {
+  async claimPayback(householdId: string, expenseId: string): Promise<ExpenseResponse> {
     const { data } = await api.post<ApiSuccessResponse<{ expense: ExpenseResponse }>>(
-      `/households/${householdId}/expenses/${expenseId}/request-resolution`
+      `/households/${householdId}/expenses/${expenseId}/claim-payback`
     );
     return data.data.expense;
   },
 
-  async confirmResolution(householdId: string, expenseId: string): Promise<ExpenseResponse> {
+  async confirmPayback(
+    householdId: string,
+    expenseId: string,
+    debtorUserId: string
+  ): Promise<ExpenseResponse> {
     const { data } = await api.post<ApiSuccessResponse<{ expense: ExpenseResponse }>>(
-      `/households/${householdId}/expenses/${expenseId}/confirm-resolution`
+      `/households/${householdId}/expenses/${expenseId}/confirm-payback`,
+      { debtorUserId }
     );
     return data.data.expense;
   },
 
-  async disputeResolution(householdId: string, expenseId: string): Promise<ExpenseResponse> {
+  async disputePayback(
+    householdId: string,
+    expenseId: string,
+    debtorUserId: string
+  ): Promise<ExpenseResponse> {
     const { data } = await api.post<ApiSuccessResponse<{ expense: ExpenseResponse }>>(
-      `/households/${householdId}/expenses/${expenseId}/dispute-resolution`
+      `/households/${householdId}/expenses/${expenseId}/dispute-payback`,
+      { debtorUserId }
     );
     return data.data.expense;
   },
