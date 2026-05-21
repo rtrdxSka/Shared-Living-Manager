@@ -61,6 +61,18 @@ export const expenseIdValidation: ValidationChain[] = [
   param('expenseId').isMongoId().withMessage('Invalid expense ID'),
 ];
 
+export const claimPaybackValidation: ValidationChain[] = [...expenseIdValidation];
+
+export const confirmPaybackValidation: ValidationChain[] = [
+  ...expenseIdValidation,
+  body('debtorUserId').isMongoId().withMessage('debtorUserId must be a valid user ID'),
+];
+
+export const disputePaybackValidation: ValidationChain[] = [
+  ...expenseIdValidation,
+  body('debtorUserId').isMongoId().withMessage('debtorUserId must be a valid user ID'),
+];
+
 export const updateExpenseValidation: ValidationChain[] = [
   ...expenseIdValidation,
   body('description').optional().trim().isLength({ min: 1, max: 100 })
