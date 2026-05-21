@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
   MoreHorizontal,
+  Scroll,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -53,6 +54,29 @@ function useNavItems(): NavItem[] {
       { id: 'goals', label: 'Goals', href: '/dashboard/goals', icon: Target },
       { id: 'shopping-list', label: 'Shopping', href: '/dashboard/shopping-list', icon: ShoppingCart },
     ];
+    return items;
+  }
+
+  if (uiMode === 'roommates') {
+    const items: NavItem[] = [
+      { id: 'overview', label: 'Overview', href: '/dashboard/overview', icon: LayoutDashboard },
+      { id: 'expenses', label: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
+      { id: 'budget', label: 'Budget', href: '/dashboard/budget', icon: Wallet },
+      {
+        id: 'tasks',
+        label: 'Tasks',
+        href: '/dashboard/tasks',
+        icon: CheckSquare,
+        badge: overdueCount > 0 ? overdueCount : undefined,
+      },
+      { id: 'house-rules', label: 'House Rules', href: '/dashboard/house-rules', icon: Scroll },
+      { id: 'goals', label: 'Goals', href: '/dashboard/goals', icon: Target },
+      { id: 'shopping-list', label: 'Shopping', href: '/dashboard/shopping-list', icon: ShoppingCart },
+      { id: 'invite', label: 'Invite', href: '/dashboard/invite', icon: UserPlus },
+    ];
+    if (financeMode === 'joint') {
+      items.push({ id: 'account', label: 'Account', href: '/dashboard/account', icon: Wallet });
+    }
     return items;
   }
 
