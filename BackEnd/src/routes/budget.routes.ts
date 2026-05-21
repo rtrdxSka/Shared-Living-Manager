@@ -4,6 +4,7 @@ import {
   getBudgetValidation,
   updateBudgetValidation,
   budgetMonthQueryValidation,
+  budgetInsightsQueryValidation,
 } from '../validators/budget.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
@@ -40,12 +41,12 @@ router.get(
   budgetController.getSnapshot.bind(budgetController)
 );
 
-// GET /api/households/:id/budget/insights?month=YYYY-MM
+// GET /api/households/:id/budget/insights?month=YYYY-MM&scope=personal|household
 router.get(
   '/insights',
   authMiddleware,
   emailVerifiedMiddleware,
-  budgetMonthQueryValidation,
+  budgetInsightsQueryValidation,
   handleValidationErrors,
   budgetController.getInsights.bind(budgetController)
 );

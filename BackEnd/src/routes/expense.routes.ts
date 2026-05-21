@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { expenseController } from '../controllers/expense.controller';
-import { addExpenseValidation, listExpensesValidation, expenseIdValidation, updateExpenseValidation, claimExpenseValidation } from '../validators/expense.validator';
+import { addExpenseValidation, listExpensesValidation, expenseIdValidation, updateExpenseValidation, claimExpenseValidation, claimPaybackValidation, confirmPaybackValidation, disputePaybackValidation } from '../validators/expense.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 
@@ -56,34 +56,34 @@ router.post(
   expenseController.claimExpense.bind(expenseController)
 );
 
-// POST /api/households/:id/expenses/:expenseId/request-resolution
+// POST /api/households/:id/expenses/:expenseId/claim-payback
 router.post(
-  '/:expenseId/request-resolution',
+  '/:expenseId/claim-payback',
   authMiddleware,
   emailVerifiedMiddleware,
-  expenseIdValidation,
+  claimPaybackValidation,
   handleValidationErrors,
-  expenseController.requestResolution.bind(expenseController)
+  expenseController.claimPayback.bind(expenseController)
 );
 
-// POST /api/households/:id/expenses/:expenseId/confirm-resolution
+// POST /api/households/:id/expenses/:expenseId/confirm-payback
 router.post(
-  '/:expenseId/confirm-resolution',
+  '/:expenseId/confirm-payback',
   authMiddleware,
   emailVerifiedMiddleware,
-  expenseIdValidation,
+  confirmPaybackValidation,
   handleValidationErrors,
-  expenseController.confirmResolution.bind(expenseController)
+  expenseController.confirmPayback.bind(expenseController)
 );
 
-// POST /api/households/:id/expenses/:expenseId/dispute-resolution
+// POST /api/households/:id/expenses/:expenseId/dispute-payback
 router.post(
-  '/:expenseId/dispute-resolution',
+  '/:expenseId/dispute-payback',
   authMiddleware,
   emailVerifiedMiddleware,
-  expenseIdValidation,
+  disputePaybackValidation,
   handleValidationErrors,
-  expenseController.disputeResolution.bind(expenseController)
+  expenseController.disputePayback.bind(expenseController)
 );
 
 export default router;
