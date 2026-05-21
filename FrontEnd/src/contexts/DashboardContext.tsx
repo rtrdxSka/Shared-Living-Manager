@@ -19,9 +19,9 @@ import type {
 import {
   useDeleteExpense,
   useClaimExpense,
-  useRequestResolution,
-  useConfirmResolution,
-  useDisputeResolution,
+  useClaimPayback,
+  useConfirmPayback,
+  useDisputePayback,
   useDeactivateRecurringExpense,
   useToggleTaskComplete,
   useDeleteTask,
@@ -72,6 +72,8 @@ export interface DashboardContextValue {
   myParticipatesInFinances: boolean;
   hasFinancialPartner: boolean;
   taskMembers: HouseholdMemberResponse[];
+  roommateMembers: HouseholdMemberResponse[];
+  roommateNicknames: string[];
 
   // Settings (derived from household)
   financeMode: FinanceMode;
@@ -115,9 +117,9 @@ export interface DashboardContextValue {
   // Mutation functions
   deleteExpense: (id: string) => Promise<void>;
   claimExpense: (id: string) => Promise<void>;
-  requestResolution: (id: string) => Promise<void>;
-  confirmResolution: (id: string) => Promise<void>;
-  disputeResolution: (id: string) => Promise<void>;
+  claimPayback: (id: string) => Promise<void>;
+  confirmPayback: (args: { expenseId: string; debtorUserId: string }) => Promise<void>;
+  disputePayback: (args: { expenseId: string; debtorUserId: string }) => Promise<void>;
   deactivateRecurringExpense: (id: string) => Promise<void>;
   toggleTaskComplete: (id: string) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
@@ -190,9 +192,9 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   // ── Mutations ─────────────────────────────────────────────────────────
   const deleteExpenseMutation = useDeleteExpense(household._id);
   const claimExpenseMutation = useClaimExpense(household._id);
-  const requestResolutionMutation = useRequestResolution(household._id);
-  const confirmResolutionMutation = useConfirmResolution(household._id);
-  const disputeResolutionMutation = useDisputeResolution(household._id);
+  const claimPaybackMutation = useClaimPayback(household._id);
+  const confirmPaybackMutation = useConfirmPayback(household._id);
+  const disputePaybackMutation = useDisputePayback(household._id);
   const deactivateRecurringExpenseMutation = useDeactivateRecurringExpense(household._id);
   const toggleCompleteMutation = useToggleTaskComplete(household._id);
   const deleteTaskMutation = useDeleteTask(household._id);
@@ -218,6 +220,14 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const myParticipatesInFinances = myMember?.participatesInFinances ?? false;
   const hasFinancialPartner = partnerMember != null;
   const taskMembers = household.members.filter((m) => m.participatesInTasks);
+  const roommateMembers = useMemo(
+    () => household.members.filter((m) => m.userId?.toString() !== currentUserId),
+    [household.members, currentUserId]
+  );
+  const roommateNicknames = useMemo(
+    () => roommateMembers.map((m) => m.nickname),
+    [roommateMembers]
+  );
 
   // ── Settings (derived from household.settings) ────────────────────────
   const financeMode: FinanceMode = (household.settings.financeMode as FinanceMode) ?? 'split';
@@ -271,9 +281,9 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   // ── Mutation wrappers ─────────────────────────────────────────────────
   const deleteExpenseAsync = deleteExpenseMutation.mutateAsync;
   const claimExpenseAsync = claimExpenseMutation.mutateAsync;
-  const requestResolutionAsync = requestResolutionMutation.mutateAsync;
-  const confirmResolutionAsync = confirmResolutionMutation.mutateAsync;
-  const disputeResolutionAsync = disputeResolutionMutation.mutateAsync;
+  const claimPaybackAsync = claimPaybackMutation.mutateAsync;
+  const confirmPaybackAsync = confirmPaybackMutation.mutateAsync;
+  const disputePaybackAsync = disputePaybackMutation.mutateAsync;
   const deactivateRecurringExpenseAsync = deactivateRecurringExpenseMutation.mutateAsync;
   const toggleCompleteAsync = toggleCompleteMutation.mutateAsync;
   const deleteTaskAsync = deleteTaskMutation.mutateAsync;
@@ -293,17 +303,17 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     async (id: string) => { await claimExpenseAsync(id); },
     [claimExpenseAsync]
   );
-  const requestResolution = useCallback(
-    async (id: string) => { await requestResolutionAsync(id); },
-    [requestResolutionAsync]
+  const claimPayback = useCallback(
+    async (id: string) => { await claimPaybackAsync(id); },
+    [claimPaybackAsync]
   );
-  const confirmResolution = useCallback(
-    async (id: string) => { await confirmResolutionAsync(id); },
-    [confirmResolutionAsync]
+  const confirmPayback = useCallback(
+    async (args: { expenseId: string; debtorUserId: string }) => { await confirmPaybackAsync(args); },
+    [confirmPaybackAsync]
   );
-  const disputeResolution = useCallback(
-    async (id: string) => { await disputeResolutionAsync(id); },
-    [disputeResolutionAsync]
+  const disputePayback = useCallback(
+    async (args: { expenseId: string; debtorUserId: string }) => { await disputePaybackAsync(args); },
+    [disputePaybackAsync]
   );
   const deactivateRecurringExpense = useCallback(
     async (id: string) => { await deactivateRecurringExpenseAsync(id); },
@@ -368,6 +378,8 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     myParticipatesInFinances,
     hasFinancialPartner,
     taskMembers,
+    roommateMembers,
+    roommateNicknames,
     financeMode,
     splitMethod,
     taskLevel,
@@ -400,9 +412,9 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     openTransactionForm,
     deleteExpense,
     claimExpense,
-    requestResolution,
-    confirmResolution,
-    disputeResolution,
+    claimPayback,
+    confirmPayback,
+    disputePayback,
     deactivateRecurringExpense,
     toggleTaskComplete,
     deleteTask,
@@ -430,6 +442,8 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     myParticipatesInFinances,
     hasFinancialPartner,
     taskMembers,
+    roommateMembers,
+    roommateNicknames,
     financeMode,
     splitMethod,
     taskLevel,
@@ -453,9 +467,9 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     openTransactionForm,
     deleteExpense,
     claimExpense,
-    requestResolution,
-    confirmResolution,
-    disputeResolution,
+    claimPayback,
+    confirmPayback,
+    disputePayback,
     deactivateRecurringExpense,
     toggleTaskComplete,
     deleteTask,
