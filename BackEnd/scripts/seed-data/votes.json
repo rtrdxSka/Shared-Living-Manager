@@ -1,0 +1,35 @@
+[
+  {
+    "key": "vote-r2-dishes-24h",
+    "householdKey": "roommates-2",
+    "sourceIssueKey": "issue-r2-dishes",
+    "proposedByUserKey": "vince",
+    "proposedRuleTitle": "Dishes within 24h",
+    "proposedRuleText": "Each member cleans their dishes within 24 hours of use.",
+    "threshold": "simple_majority",
+    "deadlineDaysFromNow": 5,
+    "status": "open"
+  },
+  {
+    "key": "vote-r3-dishes-passed",
+    "householdKey": "roommates-3",
+    "proposedByUserKey": "yara",
+    "proposedRuleTitle": "Dishes 24h",
+    "proposedRuleText": "Each person cleans their dishes within 24h of use.",
+    "threshold": "simple_majority",
+    "deadlineDaysFromNow": -23,
+    "status": "passed",
+    "closedDaysAgo": 30
+  },
+  {
+    "key": "vote-r3-guests-passed",
+    "householdKey": "roommates-3",
+    "proposedByUserKey": "xavier",
+    "proposedRuleTitle": "Weekday overnight guests need pre-approval",
+    "proposedRuleText": "Overnight guests on weeknights must be pre-approved by the household.",
+    "threshold": "supermajority",
+    "deadlineDaysFromNow": -7,
+    "status": "passed",
+    "closedDaysAgo": 14
+  }
+]

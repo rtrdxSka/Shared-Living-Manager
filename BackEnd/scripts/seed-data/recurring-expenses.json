@@ -1,0 +1,40 @@
+[
+  {
+    "key": "rexp-r3-netflix",
+    "householdKey": "roommates-3",
+    "createdByUserKey": "xavier",
+    "description": "Netflix",
+    "amount": 15.99,
+    "category": "subscriptions",
+    "interval": "monthly",
+    "payerMode": "fixed",
+    "fixedPayerUserKey": "xavier",
+    "isActive": true,
+    "isFullRepayment": false,
+    "participantUserKeys": ["xavier", "yara", "drew"],
+    "customSplitOverrides": [
+      { "userKey": "xavier", "pct": 40 },
+      { "userKey": "yara", "pct": 30 },
+      { "userKey": "drew", "pct": 30 }
+    ]
+  },
+  {
+    "key": "rexp-r3-internet",
+    "householdKey": "roommates-3",
+    "createdByUserKey": "xavier",
+    "description": "Internet",
+    "amount": 60,
+    "category": "internet",
+    "interval": "monthly",
+    "payerMode": "fixed",
+    "fixedPayerUserKey": "xavier",
+    "isActive": true,
+    "isFullRepayment": false,
+    "customSplitOverrides": [
+      { "userKey": "xavier", "pct": 40 },
+      { "userKey": "yara", "pct": 20 },
+      { "userKey": "zoe", "pct": 20 },
+      { "userKey": "drew", "pct": 20 }
+    ]
+  }
+]

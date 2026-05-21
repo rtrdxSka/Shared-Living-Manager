@@ -178,5 +178,55 @@
     "amount": 75,
     "note": "groceries",
     "createdAt": "2026-05-08T14:00:00.000Z"
+  },
+  {
+    "key": "jtx-r1-d1",
+    "householdKey": "roommates-1",
+    "memberKey": "riley-m",
+    "userKey": "riley",
+    "type": "deposit",
+    "amount": 600,
+    "note": "May contribution",
+    "createdAt": "2026-05-01T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-r1-d2",
+    "householdKey": "roommates-1",
+    "memberKey": "sam-m",
+    "userKey": "sam",
+    "type": "deposit",
+    "amount": 600,
+    "note": "May contribution",
+    "createdAt": "2026-05-02T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-r1-d3",
+    "householdKey": "roommates-1",
+    "memberKey": "taylor-m",
+    "userKey": "taylor",
+    "type": "deposit",
+    "amount": 600,
+    "note": "May contribution",
+    "createdAt": "2026-05-03T10:00:00.000Z"
+  },
+  {
+    "key": "jtx-r1-w1",
+    "householdKey": "roommates-1",
+    "memberKey": "riley-m",
+    "userKey": "riley",
+    "type": "withdrawal",
+    "amount": 1500,
+    "note": "May rent",
+    "createdAt": "2026-05-01T12:00:00.000Z"
+  },
+  {
+    "key": "jtx-r1-w2",
+    "householdKey": "roommates-1",
+    "memberKey": "sam-m",
+    "userKey": "sam",
+    "type": "withdrawal",
+    "amount": 180,
+    "note": "Utilities",
+    "createdAt": "2026-05-10T12:00:00.000Z"
   }
 ]

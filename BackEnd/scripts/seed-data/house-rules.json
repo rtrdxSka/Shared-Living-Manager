@@ -1,0 +1,18 @@
+[
+  {
+    "key": "rule-r3-dishes",
+    "householdKey": "roommates-3",
+    "sourceVoteKey": "vote-r3-dishes-passed",
+    "title": "Dishes 24h",
+    "text": "Each person cleans their dishes within 24h of use.",
+    "passedDaysAgo": 30
+  },
+  {
+    "key": "rule-r3-guests",
+    "householdKey": "roommates-3",
+    "sourceVoteKey": "vote-r3-guests-passed",
+    "title": "Weekday overnight guests need pre-approval",
+    "text": "Overnight guests on weeknights must be pre-approved by the household.",
+    "passedDaysAgo": 14
+  }
+]

@@ -219,5 +219,135 @@
       "currency": "EUR",
       "notifications": { "email": true, "push": false, "frequency": "daily" }
     }
+  },
+  {
+    "key": "riley",
+    "email": "riley@seed.local",
+    "password": "Password123!",
+    "firstName": "Riley",
+    "lastName": "Reeves",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "BGN",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "sam",
+    "email": "sam@seed.local",
+    "password": "Password123!",
+    "firstName": "Sam",
+    "lastName": "Sullivan",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "BGN",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "taylor",
+    "email": "taylor@seed.local",
+    "password": "Password123!",
+    "firstName": "Taylor",
+    "lastName": "Thompson",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "BGN",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "uma",
+    "email": "uma@seed.local",
+    "password": "Password123!",
+    "firstName": "Uma",
+    "lastName": "Underwood",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "EUR",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "vince",
+    "email": "vince@seed.local",
+    "password": "Password123!",
+    "firstName": "Vince",
+    "lastName": "Vargas",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "EUR",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "wendy",
+    "email": "wendy@seed.local",
+    "password": "Password123!",
+    "firstName": "Wendy",
+    "lastName": "Walsh",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "EUR",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "xavier",
+    "email": "xavier@seed.local",
+    "password": "Password123!",
+    "firstName": "Xavier",
+    "lastName": "Xu",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "USD",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "yara",
+    "email": "yara@seed.local",
+    "password": "Password123!",
+    "firstName": "Yara",
+    "lastName": "Yates",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "USD",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "zoe",
+    "email": "zoe@seed.local",
+    "password": "Password123!",
+    "firstName": "Zoe",
+    "lastName": "Zhang",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "USD",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
+  },
+  {
+    "key": "drew",
+    "email": "drew@seed.local",
+    "password": "Password123!",
+    "firstName": "Drew",
+    "lastName": "Daniels",
+    "isEmailVerified": true,
+    "preferences": {
+      "language": "en",
+      "currency": "USD",
+      "notifications": { "email": true, "push": false, "frequency": "daily" }
+    }
   }
 ]

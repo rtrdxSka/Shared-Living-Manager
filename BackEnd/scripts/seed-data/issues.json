@@ -1,0 +1,46 @@
+[
+  {
+    "key": "issue-r1-dishes",
+    "householdKey": "roommates-1",
+    "authorUserKey": "sam",
+    "title": "Dishes accumulating in the sink",
+    "body": "Hey, just noticing dishes piling up over the last few days. Could we agree to clean within a day?",
+    "category": "cleaning",
+    "status": "open",
+    "createdDaysAgo": 3,
+    "upvotedByUserKeys": ["riley"]
+  },
+  {
+    "key": "issue-r1-music",
+    "householdKey": "roommates-1",
+    "authorUserKey": "taylor",
+    "title": "Music after 11pm",
+    "body": "Heads up — some loud music last night around 11:30. Can we keep things quiet on weeknights?",
+    "category": "noise",
+    "status": "open",
+    "createdDaysAgo": 1,
+    "upvotedByUserKeys": []
+  },
+  {
+    "key": "issue-r1-stranger",
+    "householdKey": "roommates-1",
+    "authorUserKey": "riley",
+    "title": "Stranger in living room last week",
+    "body": "Saw someone I didn't recognise in the common room. Resolved offline; archiving.",
+    "category": "guests",
+    "status": "archived",
+    "createdDaysAgo": 14,
+    "upvotedByUserKeys": []
+  },
+  {
+    "key": "issue-r2-dishes",
+    "householdKey": "roommates-2",
+    "authorUserKey": "vince",
+    "title": "Dishes left overnight",
+    "body": "Could we agree on a 24-hour dish rule?",
+    "category": "cleaning",
+    "status": "escalated",
+    "createdDaysAgo": 3,
+    "upvotedByUserKeys": ["wendy"]
+  }
+]
