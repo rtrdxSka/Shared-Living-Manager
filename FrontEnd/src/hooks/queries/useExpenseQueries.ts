@@ -163,30 +163,32 @@ export function useClaimExpense(householdId: string) {
   });
 }
 
-export function useRequestResolution(householdId: string) {
+export function useClaimPayback(householdId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (expenseId: string) => expenseApi.requestResolution(householdId, expenseId),
+    mutationFn: (expenseId: string) => expenseApi.claimPayback(householdId, expenseId),
     onMutate: () => cancelExpenseListQueries(queryClient, householdId),
     onSuccess: () => invalidateExpensesActive(queryClient, householdId),
     onError: () => invalidateExpensesActive(queryClient, householdId),
   });
 }
 
-export function useConfirmResolution(householdId: string) {
+export function useConfirmPayback(householdId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (expenseId: string) => expenseApi.confirmResolution(householdId, expenseId),
+    mutationFn: ({ expenseId, debtorUserId }: { expenseId: string; debtorUserId: string }) =>
+      expenseApi.confirmPayback(householdId, expenseId, debtorUserId),
     onMutate: () => cancelExpenseListQueries(queryClient, householdId),
     onSuccess: () => invalidateExpensesActive(queryClient, householdId),
     onError: () => invalidateExpensesActive(queryClient, householdId),
   });
 }
 
-export function useDisputeResolution(householdId: string) {
+export function useDisputePayback(householdId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (expenseId: string) => expenseApi.disputeResolution(householdId, expenseId),
+    mutationFn: ({ expenseId, debtorUserId }: { expenseId: string; debtorUserId: string }) =>
+      expenseApi.disputePayback(householdId, expenseId, debtorUserId),
     onMutate: () => cancelExpenseListQueries(queryClient, householdId),
     onSuccess: () => invalidateExpensesActive(queryClient, householdId),
     onError: () => invalidateExpensesActive(queryClient, householdId),
