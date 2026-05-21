@@ -31,7 +31,7 @@ import AccountPage from '@/pages/dashboard/AccountPage';
 import { DashboardProvider } from '@/contexts/DashboardContext';
 import { renderWithProviders } from '@/test/utils/renderWithProviders';
 import { server } from '@/test/mocks/server';
-import { mockHouseholdJoint } from '@/test/mocks/data/households';
+import { mockHouseholdJoint, mockHouseholdRoommatesJoint } from '@/test/mocks/data/households';
 import { mockUsers } from '@/test/mocks/data/users';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -301,5 +301,60 @@ describe('<AccountPage /> flows', () => {
 
     // onSuccess invalidateQueries → refetch → GET count increases
     await waitFor(() => expect(getCount).toBeGreaterThan(initialGetCount));
+  });
+});
+
+describe('<AccountPage /> roommates+joint mode', () => {
+  beforeEach(() => {
+    // Override the default summary handler for these tests with a payload that
+    // includes a real targetMode and member breakdown for the 3-member household.
+    server.use(
+      http.get('/api/households/:id/joint-account', () =>
+        HttpResponse.json({
+          status: 'success',
+          data: {
+            summary: {
+              balance: 250,
+              monthlyDeposits: 250,
+              monthlyWithdrawals: 0,
+              monthlyExpenses: 0,
+              monthlyNet: 250,
+              monthlyTarget: 600,
+              targetMode: 'equal',
+              memberBreakdown: [],
+              transactions: [],
+              transactionTotal: 0,
+              transactionPage: 1,
+              transactionTotalPages: 1,
+            },
+          },
+        }),
+      ),
+    );
+  });
+
+  const renderRoommatesAccount = () =>
+    renderWithProviders(
+      <DashboardProvider
+        household={mockHouseholdRoommatesJoint}
+        currentUserId={mockUsers.alice._id}
+      >
+        <AccountPage />
+      </DashboardProvider>,
+    );
+
+  it('renders the Joint Account heading (does not redirect to /expenses)', async () => {
+    renderRoommatesAccount();
+    expect(
+      await screen.findByRole('heading', { name: /joint account/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('opens the JointAccountConfigDialog when admin clicks Adjust target', async () => {
+    const user = userEvent.setup();
+    renderRoommatesAccount();
+    await user.click(await screen.findByRole('button', { name: /adjust target/i }));
+    // JointAccountConfigDialog uses Radix Dialog — assert the dialog role appears.
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 });

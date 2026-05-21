@@ -19,6 +19,7 @@
 
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import TasksPage from '@/pages/dashboard/TasksPage';
 import { DashboardProvider } from '@/contexts/DashboardContext';
@@ -30,6 +31,7 @@ import {
   mockHouseholdTaskVoluntary,
   mockHouseholdTaskBasic,
   mockHouseholdTaskDisabled,
+  mockHouseholdRoommatesSplit,
 } from '@/test/mocks/data/households';
 import { mockUsers } from '@/test/mocks/data/users';
 
@@ -75,9 +77,12 @@ const taskUnassigned = {
 
 // ── Render helper ─────────────────────────────────────────────────────────────
 
-const renderTasks = (household: typeof mockHouseholdTaskFixed) =>
+const renderTasks = (
+  household: typeof mockHouseholdTaskFixed,
+  currentUserId: string = mockUsers.alice._id,
+) =>
   renderWithProviders(
-    <DashboardProvider household={household} currentUserId={mockUsers.alice._id}>
+    <DashboardProvider household={household} currentUserId={currentUserId}>
       <TasksPage />
     </DashboardProvider>,
   );
@@ -197,5 +202,91 @@ describe('<TasksPage /> mode matrix', () => {
     expect(
       screen.queryByRole('button', { name: /recurring tasks/i }),
     ).not.toBeInTheDocument();
+  });
+
+  /**
+   * J-m.6 — roommates (uiMode='roommates') + full + fixed
+   * Regression test for the bug where the assignment section was gated by
+   * `uiMode === 'couple'`, hiding the AssignSelect on the roommates dashboard.
+   * Expanding the task should reveal the AssignSelect combobox.
+   */
+  it('J-m.6 — roommates + full + fixed: AssignSelect renders in expanded task', async () => {
+    const roommatesFixed = {
+      ...mockHouseholdRoommatesSplit,
+      settings: {
+        ...mockHouseholdRoommatesSplit.settings,
+        taskManagementEnabled: 'full',
+        taskDistributionMethod: 'fixed',
+      },
+    } as typeof mockHouseholdTaskFixed;
+
+    const user = userEvent.setup();
+    renderTasks(roommatesFixed);
+    // Expand the task created by Alice (canReassign = true since alice is currentUser)
+    await user.click(await screen.findByText(/wash dishes/i));
+    // AssignSelect renders as a combobox — this fails before the uiMode gate fix
+    expect(await screen.findByRole('combobox')).toBeInTheDocument();
+  });
+
+  /**
+   * J-m.7 — roommates + full + fixed, viewed by a member (non-creator,
+   * non-admin) who happens to be the assignee. Auth gating regression test:
+   * the AssignSelect must NOT render, and the Delete-task button must NOT
+   * render. Mark-as-incomplete (on a completed-by-someone-else task) must
+   * be disabled.
+   */
+  it('J-m.7 — roommates + fixed: non-creator member sees no AssignSelect, no Delete, disabled Mark-incomplete on others\' completed task', async () => {
+    const roommatesFixed = {
+      ...mockHouseholdRoommatesSplit,
+      settings: {
+        ...mockHouseholdRoommatesSplit.settings,
+        taskManagementEnabled: 'full',
+        taskDistributionMethod: 'fixed',
+      },
+    } as typeof mockHouseholdTaskFixed;
+
+    // Task is created by Alice (owner), assigned to Carol, already completed
+    // by Alice 1 hour ago — within the 24h undo window but Carol is NOT the
+    // completer, so she should not be able to undo it.
+    const completedByAliceTask = {
+      _id: 'task-completed-001',
+      householdId: 'hh-roommates-001',
+      title: 'Take out trash',
+      isCompleted: true,
+      createdByUserId: mockUsers.alice._id,
+      assignedToMemberId: 'mem-carol-001',
+      assignedToNickname: 'Carol',
+      completedByMemberId: 'mem-alice-001',
+      completedByNickname: 'Alice',
+      completedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      createdAt: '2026-05-10T00:00:00.000Z',
+      updatedAt: '2026-05-10T00:00:00.000Z',
+    };
+
+    server.use(
+      http.get('/api/households/:id/tasks', () =>
+        HttpResponse.json({
+          status: 'success',
+          data: { items: [completedByAliceTask], nextCursor: null },
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    // Render as Carol (a member, non-creator, non-admin).
+    renderTasks(roommatesFixed, 'user-carol-001');
+
+    // Expand the task.
+    await user.click(await screen.findByText(/take out trash/i));
+
+    // No AssignSelect (Carol is neither creator nor admin and the spec
+    // explicitly disallows admin reassign).
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    // No Delete button (Carol is neither creator nor admin).
+    expect(screen.queryByRole('button', { name: /delete task/i })).not.toBeInTheDocument();
+    // Mark-as-incomplete button DOES render (task is within 24h) but must be
+    // disabled — Carol is not the completer.
+    const undoBtn = screen.getByRole('button', { name: /mark as incomplete/i });
+    expect(undoBtn).toBeDisabled();
   });
 });

@@ -47,6 +47,8 @@ import {
   mockHouseholdSplitIncomeBased,
   mockHouseholdSplitUsageBased,
   mockHouseholdJoint,
+  mockHouseholdRoommatesSplit,
+  mockHouseholdRoommatesJoint,
 } from '@/test/mocks/data/households';
 import { mockUsers } from '@/test/mocks/data/users';
 
@@ -67,7 +69,7 @@ const baseExpense = {
   category: 'utilities',
   date: '2026-05-05',
   isResolved: false,
-  pendingConfirmation: false,
+  debtorStates: [{ userId: mockUsers.alice._id, nickname: 'Alice', share: 25 }],
   isFullRepayment: false,
   createdAt: '2026-05-05T00:00:00.000Z',
   updatedAt: '2026-05-05T00:00:00.000Z',
@@ -247,5 +249,229 @@ describe('<ExpensesPage /> mode matrix', () => {
     expect(
       screen.queryByText(/split equally|by income|income-based split|your share|50\/50/i),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('<ExpensesPage /> roommates rendering', () => {
+  // Override the default expenses handler from the top-level beforeEach with a
+  // single Rent expense scoped to the roommates household.
+  beforeEach(() => {
+    server.use(
+      http.get('/api/households/:id/expenses', () =>
+        HttpResponse.json({
+          status: 'success',
+          data: {
+            items: [
+              {
+                ...baseExpense,
+                _id: 'exp-rmt-001',
+                description: 'Rent — May',
+                amount: 600,
+                householdId: 'hh-roommates-001',
+              },
+            ],
+            total: 1,
+            nextCursor: null,
+          },
+        }),
+      ),
+    );
+  });
+
+  it('roommates+split shows the unsettled expense in the Outstanding section', async () => {
+    renderWithProviders(
+      <DashboardProvider
+        household={mockHouseholdRoommatesSplit}
+        currentUserId={mockUsers.alice._id}
+      >
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    // OUTSTANDING eyebrow proves the section renders.
+    expect(await screen.findByText(/^OUTSTANDING$/)).toBeInTheDocument();
+    // The expense row renders.
+    expect(await screen.findByText(/Rent — May/)).toBeInTheDocument();
+  });
+
+  it('roommates+joint shows expenses in a flat All Expenses list', async () => {
+    renderWithProviders(
+      <DashboardProvider
+        household={mockHouseholdRoommatesJoint}
+        currentUserId={mockUsers.alice._id}
+      >
+        <ExpensesPage />
+      </DashboardProvider>
+    );
+    expect(await screen.findByText(/^ALL EXPENSES$/)).toBeInTheDocument();
+    expect(await screen.findByText(/Rent — May/)).toBeInTheDocument();
+    // The Outstanding section header must NOT appear in joint mode.
+    expect(screen.queryByText(/^OUTSTANDING$/)).not.toBeInTheDocument();
+  });
+});
+
+// ── Multi-debtor (roommates split, N≥2) — the regression suite for Bug C ──
+
+describe('<ExpensesPage /> roommates-split multi-debtor', () => {
+  const carolUserId = 'user-carol-001';
+  const aliceId = mockUsers.alice._id;
+  const bobId = mockUsers.bob._id;
+
+  function buildMultiDebtorExpense(opts: {
+    bob?: { claimedAt?: string; confirmedAt?: string };
+    carol?: { claimedAt?: string; confirmedAt?: string };
+    isResolved?: boolean;
+  }) {
+    return {
+      _id: 'exp-multi-001',
+      householdId: 'hh-roommates-001',
+      createdByUserId: aliceId,
+      paidByUserId: aliceId,
+      paidByNickname: 'Alice',
+      description: 'Groceries — multi-debtor',
+      amount: 90,
+      category: 'groceries',
+      date: '2026-05-15',
+      isResolved: opts.isResolved ?? false,
+      debtorStates: [
+        { userId: bobId, nickname: 'Bob', share: 30, ...(opts.bob ?? {}) },
+        { userId: carolUserId, nickname: 'Carol', share: 30, ...(opts.carol ?? {}) },
+      ],
+      isFullRepayment: false,
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+  }
+
+  function setupExpense(expense: ReturnType<typeof buildMultiDebtorExpense>) {
+    server.use(
+      http.get('/api/households/:id/expenses', () =>
+        HttpResponse.json({
+          status: 'success',
+          data: { items: [expense], total: 1, nextCursor: null },
+        }),
+      ),
+      http.get('/api/households/:id/recurring-expenses', () =>
+        HttpResponse.json({ status: 'success', data: { items: [] } }),
+      ),
+      http.get('/api/households/:id/members/income', () =>
+        HttpResponse.json({ status: 'success', data: { items: [] } }),
+      ),
+      http.get('/api/households/:id/joint-account', () =>
+        HttpResponse.json({ status: 'success', data: { summary: null } }),
+      ),
+      http.get('/api/households/:id/tasks', () =>
+        HttpResponse.json({ status: 'success', data: { items: [], tasks: [] } }),
+      ),
+      http.get('/api/households/:id/goals', () =>
+        HttpResponse.json({ status: 'success', data: { items: [], goals: [] } }),
+      ),
+    );
+  }
+
+  it('renders per-debtor sub-rows; Bob sees only his own "I paid you back" button', async () => {
+    setupExpense(buildMultiDebtorExpense({}));
+    const user = userEvent.setup();
+    renderWithProviders(
+      <DashboardProvider household={mockHouseholdRoommatesSplit} currentUserId={bobId}>
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    await user.click(await screen.findByText('Groceries — multi-debtor'));
+    // The MultiDebtorList renders a "Owes" badge per debtor when no claim has happened yet.
+    const owesBadges = await screen.findAllByText(/^Owes$/);
+    expect(owesBadges).toHaveLength(2);
+    // The progress summary shows "$0.00 of $60.00 paid back".
+    expect(screen.getByText(/\$0\.00 of \$60\.00 paid back/)).toBeInTheDocument();
+    // Bob (the current user) sees exactly one "I paid you back" button — his own row.
+    const paybackButtons = await screen.findAllByRole('button', { name: /i paid you back/i });
+    expect(paybackButtons).toHaveLength(1);
+  });
+
+  it('shows "Claimed — awaiting Alice" on the row of the debtor who has claimed', async () => {
+    setupExpense(
+      buildMultiDebtorExpense({ bob: { claimedAt: '2026-05-16T08:00:00.000Z' } })
+    );
+    const user = userEvent.setup();
+    renderWithProviders(
+      <DashboardProvider household={mockHouseholdRoommatesSplit} currentUserId={bobId}>
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    await user.click(await screen.findByText('Groceries — multi-debtor'));
+    expect(await screen.findByText(/Claimed — awaiting Alice/)).toBeInTheDocument();
+  });
+
+  it('payer view shows Confirm/Dispute buttons only for debtors with a pending claim', async () => {
+    setupExpense(
+      buildMultiDebtorExpense({ bob: { claimedAt: '2026-05-16T08:00:00.000Z' } })
+    );
+    const user = userEvent.setup();
+    renderWithProviders(
+      <DashboardProvider household={mockHouseholdRoommatesSplit} currentUserId={aliceId}>
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    await user.click(await screen.findByText('Groceries — multi-debtor'));
+    // Alice sees Confirm and Dispute on Bob's row.
+    expect(await screen.findByRole('button', { name: /^confirm$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^dispute$/i })).toBeInTheDocument();
+    // Carol has not claimed, so there is no second Confirm button.
+    const confirmButtons = screen.queryAllByRole('button', { name: /^confirm$/i });
+    expect(confirmButtons).toHaveLength(1);
+  });
+
+  it('confirming Bob does NOT settle Carol — the regression test for the original bug', async () => {
+    // Server returns updated expense with Bob confirmed but Carol still pending.
+    setupExpense(
+      buildMultiDebtorExpense({
+        bob: { claimedAt: '2026-05-16T08:00:00.000Z' },
+        carol: { claimedAt: '2026-05-16T08:30:00.000Z' },
+      })
+    );
+    server.use(
+      http.post('/api/households/:hid/expenses/:eid/confirm-payback', () =>
+        HttpResponse.json({
+          status: 'success',
+          data: {
+            expense: buildMultiDebtorExpense({
+              bob: { claimedAt: '2026-05-16T08:00:00.000Z', confirmedAt: '2026-05-16T09:00:00.000Z' },
+              carol: { claimedAt: '2026-05-16T08:30:00.000Z' },
+              isResolved: false,
+            }),
+          },
+        }),
+      ),
+      http.get('/api/households/:id/expenses', () =>
+        HttpResponse.json({
+          status: 'success',
+          data: {
+            items: [
+              buildMultiDebtorExpense({
+                bob: { claimedAt: '2026-05-16T08:00:00.000Z', confirmedAt: '2026-05-16T09:00:00.000Z' },
+                carol: { claimedAt: '2026-05-16T08:30:00.000Z' },
+                isResolved: false,
+              }),
+            ],
+            total: 1,
+            nextCursor: null,
+          },
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <DashboardProvider household={mockHouseholdRoommatesSplit} currentUserId={aliceId}>
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    await user.click(await screen.findByText('Groceries — multi-debtor'));
+    // Both rows currently say "Claimed — awaiting Alice". Click Confirm on the first.
+    const confirmButtons = await screen.findAllByRole('button', { name: /^confirm$/i });
+    await user.click(confirmButtons[0]);
+    // After the mutation refetches, Bob's row should now say "Paid back" while Carol still shows pending.
+    expect(await screen.findByText(/Paid back/)).toBeInTheDocument();
+    // The expense remains in the Outstanding section (not Settled).
+    expect(screen.getByText(/^OUTSTANDING$/)).toBeInTheDocument();
   });
 });

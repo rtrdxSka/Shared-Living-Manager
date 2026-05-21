@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import BudgetPage from '@/pages/dashboard/BudgetPage';
 import { server } from '@/test/mocks/server';
@@ -67,9 +68,9 @@ vi.mock('@/contexts/useDashboard', async () => {
       openTransactionForm: vi.fn(),
       deleteExpense: vi.fn(),
       claimExpense: vi.fn(),
-      requestResolution: vi.fn(),
-      confirmResolution: vi.fn(),
-      disputeResolution: vi.fn(),
+      claimPayback: vi.fn(),
+      confirmPayback: vi.fn(),
+      disputePayback: vi.fn(),
       deactivateRecurringExpense: vi.fn(),
       toggleTaskComplete: vi.fn(),
       deleteTask: vi.fn(),
@@ -240,5 +241,106 @@ describe('BudgetPage solo mode', () => {
     // CategoryBudgetRow must NOT show either per-member sub-block.
     expect(screen.queryByTestId('budget-split-groceries')).not.toBeInTheDocument();
     expect(screen.queryByTestId('budget-paid-groceries')).not.toBeInTheDocument();
+  });
+});
+
+describe('BudgetPage scope toggle', () => {
+  it('split mode: defaults to YOU scope and switching to HOUSEHOLD refetches with scope=household', async () => {
+    mockState.uiMode = 'couple';
+    mockState.financeMode = 'split';
+
+    const requestedScopes: string[] = [];
+    server.use(
+      http.get(
+        `http://localhost:3000/api/households/${mockHousehold._id}/budget/insights`,
+        ({ request }) => {
+          const url = new URL(request.url);
+          const scope = url.searchParams.get('scope') ?? 'personal';
+          requestedScopes.push(scope);
+          // Return scope-aware payload so the page renders.
+          const totalSpent = scope === 'household' ? 1600 : 800;
+          return HttpResponse.json({
+            status: 'success',
+            data: {
+              month: '2026-05',
+              budget: { rent: 1500 },
+              budgetSource: 'live',
+              spendByCategory: { rent: totalSpent },
+              totalSpent,
+              totalBudgeted: 1500,
+              monthlyTrend: Array.from({ length: 6 }, (_, i) => ({
+                monthString: `2026-0${i + 1}`,
+                totalSpent: 0,
+              })),
+              savingsRate: 0.6,
+              monthlyIncome: 2000,
+              overBudgetCategories: [],
+              byMember: [],
+              requestedScope: scope,
+              effectiveScope: scope,
+            },
+          });
+        },
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<BudgetPage />);
+    await screen.findByText('Categories');
+
+    // Initial request goes out with scope=personal (default for split mode).
+    expect(requestedScopes[0]).toBe('personal');
+    // The helper caption is visible while in personal scope.
+    expect(
+      screen.getByText(/Household budget · your share of spending shown/i),
+    ).toBeInTheDocument();
+
+    // Switch to HOUSEHOLD.
+    await user.click(screen.getByTestId('budget-scope-household'));
+    await waitFor(() =>
+      expect(requestedScopes.some((s) => s === 'household')).toBe(true),
+    );
+  });
+
+  it('joint mode: YOU button is disabled and request goes out with scope=household', async () => {
+    mockState.uiMode = 'couple';
+    mockState.financeMode = 'joint';
+    let lastScope: string | null = null;
+    server.use(
+      http.get(
+        `http://localhost:3000/api/households/${mockHousehold._id}/budget/insights`,
+        ({ request }) => {
+          const url = new URL(request.url);
+          lastScope = url.searchParams.get('scope');
+          return HttpResponse.json({
+            status: 'success',
+            data: {
+              month: '2026-05',
+              budget: {},
+              budgetSource: 'live',
+              spendByCategory: {},
+              totalSpent: 0,
+              totalBudgeted: 0,
+              monthlyTrend: Array.from({ length: 6 }, (_, i) => ({
+                monthString: `2026-0${i + 1}`,
+                totalSpent: 0,
+              })),
+              savingsRate: null,
+              monthlyIncome: null,
+              overBudgetCategories: [],
+              byMember: [],
+              requestedScope: 'household',
+              effectiveScope: 'household',
+            },
+          });
+        },
+      ),
+    );
+
+    renderWithProviders(<BudgetPage />);
+    await screen.findByText('Categories');
+
+    expect(lastScope).toBe('household');
+    expect(screen.getByTestId('budget-scope-personal')).toBeDisabled();
   });
 });
