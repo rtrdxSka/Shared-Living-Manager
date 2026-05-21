@@ -29,7 +29,7 @@ const mockExpenseResponse: ExpenseResponse = {
   date: '2026-05-14',
   isResolved: false,
   isFullRepayment: false,
-  pendingConfirmation: false,
+  debtorStates: [],
   createdAt: '2026-05-14T00:00:00.000Z',
   updatedAt: '2026-05-14T00:00:00.000Z',
 };

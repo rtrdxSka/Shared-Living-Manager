@@ -16,6 +16,8 @@ function makeData(overrides: Partial<BudgetInsights> = {}): BudgetInsights {
     monthlyIncome: null,
     overBudgetCategories: ['groceries'],
     byMember: [],
+    requestedScope: 'personal',
+    effectiveScope: 'personal',
     ...overrides,
   };
 }

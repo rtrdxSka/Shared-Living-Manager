@@ -22,6 +22,8 @@ function makeData(trend: Array<[string, number]>, overrides: Partial<BudgetInsig
     monthlyIncome: null,
     overBudgetCategories: [],
     byMember: [],
+    requestedScope: 'personal',
+    effectiveScope: 'personal',
     ...overrides,
   };
 }
