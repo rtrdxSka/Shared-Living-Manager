@@ -36,6 +36,7 @@ const GoalsPage    = lazy(() => import('@/pages/dashboard/GoalsPage'));
 const BudgetPage   = lazy(() => import('@/pages/dashboard/BudgetPage'));
 const AccountPage  = lazy(() => import('@/pages/dashboard/AccountPage'));
 const InvitePage   = lazy(() => import('@/pages/dashboard/InvitePage'));
+const HouseRulesPage = lazy(() => import('@/pages/dashboard/HouseRulesPage'));
 
 // Dev-only devtools — tree-shaken out of the production bundle
 const ReactQueryDevtools = import.meta.env.DEV
@@ -107,6 +108,7 @@ const routes: RouteObject[] = [
           { path: 'budget',        element: <BudgetPage /> },
           { path: 'account',       element: <AccountPage /> },
           { path: 'invite',        element: <InvitePage /> },
+          { path: 'house-rules',   element: <HouseRulesPage /> },
         ],
       },
     ],
