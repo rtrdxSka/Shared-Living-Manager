@@ -71,8 +71,6 @@ export default function OverBudgetBanner({ householdId, currency }: Props) {
 
       <ul className="mt-4 space-y-2.5">
         {items.map((it) => {
-          const budgetPct = it.spent > 0 ? (it.budget / it.spent) * 100 : 0;
-          const overPct = it.spent > 0 ? (it.over / it.spent) * 100 : 0;
           return (
             <li
               key={it.cat}
@@ -82,19 +80,14 @@ export default function OverBudgetBanner({ householdId, currency }: Props) {
               <span className="w-24 truncate text-ink-2 shrink-0">
                 {CATEGORY_LABELS[it.cat] ?? it.cat}
               </span>
-              <div className="h-2 flex-1 rounded-full bg-surface-2 overflow-hidden relative">
+              {/* The banner only lists over-budget categories, so every bar is
+                  100% full by definition — magnitude lives in the +delta number.
+                  Colour signals severity: deep red past the 50% threshold,
+                  amber for a mild overspend. */}
+              <div className="h-2 flex-1 rounded-full bg-surface-2 overflow-hidden">
                 <div
-                  className="absolute inset-y-0 left-0 bg-warn"
-                  style={{ width: `${budgetPct}%` }}
-                  data-testid={`over-bar-budget-${it.cat}`}
-                />
-                <div
-                  className={cn(
-                    'absolute inset-y-0 right-0',
-                    it.severe ? 'bg-neg' : 'bg-warn/60',
-                  )}
-                  style={{ width: `${overPct}%` }}
-                  data-testid={`over-bar-overshoot-${it.cat}`}
+                  className={cn('h-full w-full', it.severe ? 'bg-neg' : 'bg-warn')}
+                  data-testid={`over-bar-${it.cat}`}
                 />
               </div>
               <span className="text-ink-3 num text-xs w-28 text-right shrink-0">
