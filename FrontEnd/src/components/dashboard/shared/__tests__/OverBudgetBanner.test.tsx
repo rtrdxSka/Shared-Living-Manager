@@ -70,7 +70,7 @@ describe('OverBudgetBanner', () => {
     expect(screen.getByText(/view budget breakdown/i)).toBeInTheDocument();
   });
 
-  it('uses severe (neg) tone when a category is more than 50% over budget', async () => {
+  it('renders a full-width bar coloured by severity for each over-budget category', async () => {
     mockInsights({
       // groceries: budget 100, spent 250 → 150% over → SEVERE
       // utilities: budget 100, spent 120 → 20% over → not severe
@@ -84,12 +84,19 @@ describe('OverBudgetBanner', () => {
 
     await screen.findByTestId('over-budget-banner');
 
-    // Severe → text-neg, overshoot bar has bg-neg
+    // Over-budget categories always fill the bar (you've used 100%+ of budget);
+    // magnitude is carried by the +delta numbers, not bar length.
+    // Severe (>50% over) → deep red fill.
+    const severeBar = screen.getByTestId('over-bar-groceries');
+    expect(severeBar.className).toMatch(/w-full/);
+    expect(severeBar.className).toMatch(/bg-neg/);
     expect(screen.getByTestId('over-delta-groceries').className).toMatch(/text-neg/);
-    expect(screen.getByTestId('over-bar-overshoot-groceries').className).toMatch(/bg-neg/);
 
-    // Mild → text-warn, overshoot bar has bg-warn/60
+    // Mild → solid amber fill (not the old faded bg-warn/60), still full width.
+    const mildBar = screen.getByTestId('over-bar-utilities');
+    expect(mildBar.className).toMatch(/w-full/);
+    expect(mildBar.className).toMatch(/bg-warn/);
+    expect(mildBar.className).not.toMatch(/bg-warn\/60/);
     expect(screen.getByTestId('over-delta-utilities').className).toMatch(/text-warn/);
-    expect(screen.getByTestId('over-bar-overshoot-utilities').className).toMatch(/bg-warn\/60/);
   });
 });
