@@ -155,10 +155,6 @@ function ActivityRow({
   );
 }
 
-// ── Contribution bar colour map (primary vs other) ────────────────────────
-
-const CONTRIB_BAR: [string, string] = ['bg-accent', 'bg-cat-rent'];
-
 // ── Main page ─────────────────────────────────────────────────────────────
 
 export default function AccountPage() {
@@ -413,8 +409,7 @@ export default function AccountPage() {
               <Card className="p-5 space-y-4">
                 <EyebrowLabel as="div">CONTRIBUTIONS THIS MONTH</EyebrowLabel>
                 <div className="space-y-3">
-                  {memberBreakdown.map((m, i) => {
-                    const barClass = CONTRIB_BAR[i % CONTRIB_BAR.length];
+                  {memberBreakdown.map((m) => {
                     const member = financialMembers.find(
                       (fm) => fm._id === m.memberId
                     );
@@ -451,7 +446,8 @@ export default function AccountPage() {
                         </div>
                         <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                           <div
-                            className={cn('h-full rounded-full transition-all', barClass)}
+                            data-testid="contrib-bar"
+                            className="h-full rounded-full transition-all bg-accent"
                             style={{ width: `${barWidthPct}%` }}
                           />
                         </div>
