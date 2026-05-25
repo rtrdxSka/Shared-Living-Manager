@@ -20,6 +20,7 @@ import {
   currentMonthString,
   getMyShareLabel,
   getBalanceSplitLabel,
+  myShareFromDebtorStates,
 } from '@/utils/dashboardHelpers';
 import { extractApiError } from '@/utils/extractApiError';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -158,6 +159,11 @@ export default function ExpensesPage() {
       if (e.isFullRepayment) {
         return e.paidByNickname === myNickname ? 0 : e.amount;
       }
+      // Resolved expenses are immutable records — use the frozen snapshot so the
+      // category totals don't drift when the household split changes later.
+      if (e.isResolved) {
+        return myShareFromDebtorStates(e, currentUserId);
+      }
       const myPct =
         splitMethod === 'equal'
           ? 0.5
@@ -180,7 +186,7 @@ export default function ExpensesPage() {
       catTotals,
       totalAmount,
     };
-  }, [expenses, myNickname, splitMethod, incomeSplit, customMyPct, financeMode]);
+  }, [expenses, myNickname, splitMethod, incomeSplit, customMyPct, financeMode, currentUserId]);
 
   const maxCatTotal = Math.max(...Object.values(catTotals), 1);
 
@@ -939,7 +945,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
             {uiMode === 'couple' && financeMode === 'split' && myParticipatesInFinances && expense.paidByUserId && (
               <>
                 <span className="text-ink-3">Your share</span>
-                <span className="text-ink">{getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency, myNickname)}</span>
+                <span className="text-ink">{getMyShareLabel(expense, splitMethod, customMyPct, incomeSplit, currency, myNickname, currentUserId)}</span>
               </>
             )}
             {uiMode === 'roommates' && expense.participantUserIds && expense.participantUserIds.length > 0 && (
