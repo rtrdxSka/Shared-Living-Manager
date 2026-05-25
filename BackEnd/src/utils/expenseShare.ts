@@ -15,7 +15,10 @@ export interface MemberAttribution {
   paid: number;
 }
 
-type ExpenseLike = Pick<IExpense, 'amount' | 'paidByUserId' | 'isFullRepayment'>;
+type ExpenseLike = Pick<
+  IExpense,
+  'amount' | 'paidByUserId' | 'isFullRepayment' | 'isResolved' | 'debtorStates'
+>;
 type HouseholdLike = Pick<IHousehold, 'settings' | 'members'>;
 
 /**
@@ -69,6 +72,37 @@ export function computeMemberAttributionsForExpense(
         member.userId?.toString() === payerUserId && !!payerUserId;
       const entry = result.get(member._id.toString())!;
       entry.share = isPayer ? 0 : amount;
+    }
+    return result;
+  }
+
+  // Resolved expenses are immutable records: derive each member's share from the
+  // frozen `debtorStates` snapshot (the split in effect when it was settled), not
+  // from the household's current settings. Unresolved expenses fall through to
+  // the live computation below, so they still track the current split.
+  if (expense.isResolved === true) {
+    const shareByUserId = new Map<string, number>();
+    let debtorTotal = 0;
+    for (const d of expense.debtorStates ?? []) {
+      const uid = d.userId?.toString();
+      if (!uid) continue;
+      shareByUserId.set(uid, d.share);
+      debtorTotal += d.share;
+    }
+    // The payer absorbs everything not owed by a debtor (and any cent-rounding).
+    const payerResidual = Math.round((amount - debtorTotal) * 100) / 100;
+    for (const member of participating) {
+      const uid = member.userId?.toString();
+      const entry = result.get(member._id.toString())!;
+      if (uid && uid === payerUserId) {
+        entry.share = payerResidual;
+      } else if (uid && shareByUserId.has(uid)) {
+        entry.share = shareByUserId.get(uid)!;
+      } else {
+        // Not the payer and not a recorded debtor → not a participant of this
+        // (possibly subgroup) expense.
+        entry.share = 0;
+      }
     }
     return result;
   }
