@@ -79,6 +79,17 @@ export const mockHouseholdSplitUsageBased: HouseholdResponse = {
   settings: { ...mockHousehold.settings, financeMode: 'split', expenseSplitMethod: 'usage_based' },
 };
 
+// Custom split — the stored percentage is the OWNER's (Alice's) share.
+export const mockHouseholdSplitCustom: HouseholdResponse = {
+  ...mockHousehold,
+  settings: {
+    ...mockHousehold.settings,
+    financeMode: 'split',
+    expenseSplitMethod: 'custom',
+    customSplitPercentage: 70,
+  },
+} as unknown as HouseholdResponse;
+
 // ── Task-management × distribution-method variants ────────────────────
 
 export const mockHouseholdTaskFixed: HouseholdResponse = {

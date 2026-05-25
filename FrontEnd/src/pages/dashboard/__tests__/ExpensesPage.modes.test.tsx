@@ -46,6 +46,7 @@ import {
   mockHouseholdSplitEqual,
   mockHouseholdSplitIncomeBased,
   mockHouseholdSplitUsageBased,
+  mockHouseholdSplitCustom,
   mockHouseholdJoint,
   mockHouseholdRoommatesSplit,
   mockHouseholdRoommatesJoint,
@@ -249,6 +250,63 @@ describe('<ExpensesPage /> mode matrix', () => {
     expect(
       screen.queryByText(/split equally|by income|income-based split|your share|50\/50/i),
     ).not.toBeInTheDocument();
+  });
+});
+
+// ── Custom split is owner-relative (regression for the 70/70 bug) ──────────────
+//
+// The stored customSplitPercentage (70) is the OWNER's share. Each user must see
+// THEIR OWN share: owner Alice → 70% (€350), partner Bob → 30% (€150). Before the
+// fix, customMyPct was the raw stored value for everyone, so Bob wrongly saw 70%.
+
+describe('<ExpensesPage /> custom split is owner-relative', () => {
+  const customExpense = {
+    ...baseExpense,
+    _id: 'exp-custom-001',
+    description: 'Big custom expense',
+    amount: 500,
+    paidByUserId: mockUsers.alice._id,
+    paidByNickname: 'Alice',
+    debtorStates: [{ userId: mockUsers.bob._id, nickname: 'Bob', share: 150 }],
+  };
+
+  beforeEach(() => {
+    server.use(
+      http.get('/api/households/:id/expenses', () =>
+        HttpResponse.json({
+          status: 'success',
+          data: { items: [customExpense], total: 1, nextCursor: null },
+        }),
+      ),
+    );
+  });
+
+  it('owner sees their stored share (70% = €350)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <DashboardProvider household={mockHouseholdSplitCustom} currentUserId={mockUsers.alice._id}>
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    await user.click(await screen.findByText('Big custom expense'));
+    expect(
+      await screen.findByText(/your share:\s*350\.00\s*EUR\s*\(70%\)/i),
+    ).toBeInTheDocument();
+  });
+
+  it('non-owner partner sees the complement (30% = €150), not the owner 70%', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <DashboardProvider household={mockHouseholdSplitCustom} currentUserId={mockUsers.bob._id}>
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    await user.click(await screen.findByText('Big custom expense'));
+    expect(
+      await screen.findByText(/your share:\s*150\.00\s*EUR\s*\(30%\)/i),
+    ).toBeInTheDocument();
+    // Regression guard: before the fix this wrongly showed €350 (70%).
+    expect(screen.queryByText(/your share:\s*350\.00\s*EUR/i)).not.toBeInTheDocument();
   });
 });
 
