@@ -21,7 +21,7 @@ import IncomeManagementCard from '@/components/dashboard/shared/IncomeManagement
 import CoupleSpendComparisonCard from '@/components/dashboard/couple/CoupleSpendComparisonCard';
 
 import { BUDGET_CATEGORIES } from '@/types/budget.types';
-import type { BudgetCategories, BudgetInsightsScope } from '@/types/budget.types';
+import type { BudgetCategories } from '@/types/budget.types';
 import type { ExpenseType } from '@/types/onboarding.types';
 import { CATEGORY_LABELS } from '@/utils/categoryDisplay';
 import { cn } from '@/lib/utils';
@@ -37,21 +37,21 @@ export default function BudgetPage() {
     myNickname,
     partnerNickname,
     financeMode,
+    splitMethod,
   } = useDashboard();
   const householdId = household._id;
   const isAdmin = myMember?.role === 'admin' || myMember?.role === 'owner';
 
   const [month, setMonth] = useState<string>(currentMonthString());
-  // Joint-mode households can't meaningfully show per-user share, so the
-  // toggle is forced to 'household' and disabled. In split mode default to
-  // 'personal' (the user's share) — matches what people expect when they
-  // see numbers like "you spent X this month".
-  const isJointMode = financeMode === 'joint';
-  const [scope, setScope] = useState<BudgetInsightsScope>(
-    isJointMode ? 'household' : 'personal'
-  );
-  const effectiveRequestScope: BudgetInsightsScope = isJointMode ? 'household' : scope;
-  const insightsQuery = useBudgetInsights(householdId, month, effectiveRequestScope);
+
+  // The whole page operates at household scope: setting budget caps is a
+  // household activity, and a personal/household toggle inevitably mixes scopes
+  // in the summary row (your spend next to the household cap). So the summary is
+  // always the household picture; the per-person dimension lives in the couple
+  // comparison card, where each figure is clearly attributed to a person.
+  const isRoommates = uiMode === 'roommates';
+
+  const insightsQuery = useBudgetInsights(householdId, month, 'household');
   const updateBudget = useUpdateBudget(householdId);
 
   // Couple-mode is only active when both members are present in the dashboard
@@ -114,6 +114,30 @@ export default function BudgetPage() {
   }
   const data = insightsQuery.data;
 
+  // ── Household budget summary ──────────────────────────────────────────
+  // The whole summary row is budget-scoped: spend vs cap vs remaining.
+  // `myByMember` is still needed for the roommate per-category "your share"
+  // subline.
+  const myByMember = data.byMember.find((m) => m.memberId === myMemberIdStr);
+  const householdSpent = data.totalSpent;
+
+  // Budget status: how much of the cap is left, or how far over, plus % used.
+  // An income-based savings rate deliberately does NOT live here — next to the
+  // caps it reads as budget adherence, which it isn't. `pctUsed` is null when
+  // nothing is budgeted.
+  const hasBudget = data.totalBudgeted > 0;
+  const budgetRemaining = data.totalBudgeted - householdSpent;
+  const isOverBudget = budgetRemaining < 0;
+  const pctUsed = hasBudget
+    ? Math.round((householdSpent / data.totalBudgeted) * 100)
+    : null;
+
+  // The income card stays only where income actually drives the split
+  // (income-based households). Equal/custom splits and solo don't need it on
+  // this page; solo sets income on the Account page.
+  const showIncomeCard =
+    financeMode === 'split' && splitMethod === 'income_based';
+
   const handleSave = (next: BudgetCategories) => {
     updateBudget.mutate({ categories: next });
   };
@@ -124,45 +148,13 @@ export default function BudgetPage() {
     <div className="flex flex-col gap-6 p-6">
       {/* Header + month picker + scope toggle */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-semibold">Budget</h1>
+        <div>
+          <h1 className="text-2xl font-semibold">Budget</h1>
+          {isRoommates && (
+            <p className="text-sm text-ink-3">Shared household spending</p>
+          )}
+        </div>
         <div className="flex items-center gap-3">
-          {/* YOU / HOUSEHOLD scope toggle */}
-          <div
-            className="flex items-center rounded-full border border-line bg-surface-2 p-0.5"
-            data-testid="budget-scope-toggle"
-          >
-            <button
-              type="button"
-              onClick={() => !isJointMode && setScope('personal')}
-              disabled={isJointMode}
-              aria-pressed={effectiveRequestScope === 'personal'}
-              data-testid="budget-scope-personal"
-              title={isJointMode ? 'Joint mode shows shared household spending only' : undefined}
-              className={cn(
-                'px-3 py-1 text-xs font-medium rounded-full transition-colors',
-                effectiveRequestScope === 'personal'
-                  ? 'bg-accent text-accent-ink'
-                  : 'text-ink-3 hover:text-ink',
-                isJointMode && 'opacity-40 cursor-not-allowed hover:text-ink-3'
-              )}
-            >
-              YOU
-            </button>
-            <button
-              type="button"
-              onClick={() => setScope('household')}
-              aria-pressed={effectiveRequestScope === 'household'}
-              data-testid="budget-scope-household"
-              className={cn(
-                'px-3 py-1 text-xs font-medium rounded-full transition-colors',
-                effectiveRequestScope === 'household'
-                  ? 'bg-accent text-accent-ink'
-                  : 'text-ink-3 hover:text-ink'
-              )}
-            >
-              HOUSEHOLD
-            </button>
-          </div>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -210,14 +202,14 @@ export default function BudgetPage() {
         />
       )}
 
-      {/* Summary row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Summary row — all three cards are the same budget scope */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Total Spent</CardTitle>
           </CardHeader>
           <CardContent data-testid="budget-total-spent">
-            <MoneyAmount amount={data.totalSpent} currency={currency} />
+            <MoneyAmount amount={householdSpent} currency={currency} />
           </CardContent>
         </Card>
         <Card>
@@ -230,43 +222,54 @@ export default function BudgetPage() {
               <div className="h-2 bg-surface-2 rounded mt-2 overflow-hidden">
                 <div
                   className={
-                    data.totalSpent > data.totalBudgeted ? 'h-full bg-neg' : 'h-full bg-accent'
+                    householdSpent > data.totalBudgeted ? 'h-full bg-neg' : 'h-full bg-accent'
                   }
                   style={{
-                    width: `${Math.min(100, (data.totalSpent / data.totalBudgeted) * 100)}%`,
+                    width: `${Math.min(100, (householdSpent / data.totalBudgeted) * 100)}%`,
                   }}
                 />
               </div>
-            )}
-            {data.effectiveScope === 'personal' && (
-              <p className="mt-1.5 text-[11px] text-ink-3">
-                Household budget · your share of spending shown
-              </p>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Savings Rate</CardTitle>
+            <CardTitle>Budget Status</CardTitle>
           </CardHeader>
-          <CardContent data-testid="budget-savings-rate">
-            {data.savingsRate === null ? (
+          <CardContent data-testid="budget-status">
+            {!hasBudget ? (
               <span className="text-ink-3 text-sm">
-                Set income below to see your savings rate
+                Set category budgets to track this
               </span>
             ) : (
-              `${(data.savingsRate * 100).toFixed(0)}%`
+              <>
+                <MoneyAmount
+                  amount={Math.abs(budgetRemaining)}
+                  currency={currency}
+                  tone={isOverBudget ? 'neg' : 'neutral'}
+                />
+                <p
+                  className={cn(
+                    'text-xs mt-1',
+                    isOverBudget ? 'text-neg' : 'text-ink-3'
+                  )}
+                >
+                  {isOverBudget ? 'over' : 'left'} · {pctUsed}% used
+                </p>
+              </>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Income management — solo users can set monthly income for savings rate */}
-      <IncomeManagementCard
-        household={household}
-        currentUserId={currentUserId}
-        currency={currency}
-      />
+      {/* Income management — set monthly income for savings rate / income split */}
+      {showIncomeCard && (
+        <IncomeManagementCard
+          household={household}
+          currentUserId={currentUserId}
+          currency={currency}
+        />
+      )}
 
       {/* Over-budget inline alert */}
       {data.overBudgetCategories.length > 0 && (
@@ -285,6 +288,7 @@ export default function BudgetPage() {
         <CardContent>
           {BUDGET_CATEGORIES.map((cat) => {
             const split = byCategoryMap.get(cat);
+            const myShareForCat = myByMember?.shareByCategory?.[cat];
             return (
               <CategoryBudgetRow
                 key={cat}
@@ -305,6 +309,11 @@ export default function BudgetPage() {
                         share: split.share,
                         paid: split.paid,
                       }
+                    : undefined
+                }
+                myShareLine={
+                  isRoommates && typeof myShareForCat === 'number'
+                    ? { amount: myShareForCat }
                     : undefined
                 }
               />
