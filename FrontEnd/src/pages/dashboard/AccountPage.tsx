@@ -23,34 +23,40 @@ import DashboardHeader from '@/components/layout/DashboardHeader';
 import { HeroNumberCard } from '@/components/ui/hero-number-card';
 import { MoneyAmount } from '@/components/ui/money-amount';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
+import { CategoryChip, type Category } from '@/components/ui/category-chip';
 import { fmt, stepMonth, formatMonthLabel, currentMonthString } from '@/utils/dashboardHelpers';
-import type { JointAccountTransactionResponse } from '@/types/joint-account.types';
+import type { ActivityItemResponse } from '@/types/joint-account.types';
 
-// ── Transaction row ───────────────────────────────────────────────────────
+// ── Activity row ──────────────────────────────────────────────────────────
+// Renders one item of the unified feed: a joint-account transaction
+// (deposit/withdrawal, deletable) or an expense (outflow, read-only — expenses
+// are managed on the Expenses tab).
 
-interface TransactionRowProps {
-  tx: JointAccountTransactionResponse;
+interface ActivityRowProps {
+  item: ActivityItemResponse;
   currency: string;
   confirmingDelete: string | null;
   setConfirmingDelete: (id: string | null) => void;
   onDelete: (id: string) => Promise<void>;
 }
 
-function TransactionRow({
-  tx,
+function ActivityRow({
+  item,
   currency,
   confirmingDelete,
   setConfirmingDelete,
   onDelete,
-}: TransactionRowProps) {
+}: ActivityRowProps) {
   const [deletePending, setDeletePending] = useState(false);
-  const isConfirming = confirmingDelete === tx._id;
-  const isInbound = tx.type === 'deposit';
+  const isConfirming = confirmingDelete === item._id;
+  const isInbound = item.type === 'deposit';
+  const isExpense = item.kind === 'expense';
+  const canDelete = item.kind === 'transaction';
 
   async function handleDelete() {
     setDeletePending(true);
     try {
-      await onDelete(tx._id);
+      await onDelete(item._id);
     } finally {
       setDeletePending(false);
       setConfirmingDelete(null);
@@ -75,24 +81,30 @@ function TransactionRow({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-ink truncate">
-          {tx.memberNickname}
-          {tx.note && (
-            <span className="ml-1.5 text-ink-3"> — {tx.note}</span>
+        <p className="text-sm text-ink truncate flex items-center gap-1.5">
+          {isExpense && item.category && (
+            <CategoryChip category={item.category as Category} className="shrink-0" />
           )}
+          <span className="truncate">
+            {item.memberNickname}
+            {item.note && (
+              <span className="ml-1.5 text-ink-3"> — {item.note}</span>
+            )}
+          </span>
         </p>
         <p className="text-[11px] font-mono text-ink-3">
-          {new Date(tx.createdAt).toLocaleDateString('en-US', {
+          {new Date(item.date).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
           })}
+          {isExpense && <span className="ml-1.5 text-ink-4">· expense</span>}
         </p>
       </div>
 
       {/* Amount */}
       <MoneyAmount
-        amount={isInbound ? tx.amount : -tx.amount}
+        amount={isInbound ? item.amount : -item.amount}
         currency={currency}
         signed
         tone={isInbound ? 'pos' : 'neutral'}
@@ -100,44 +112,45 @@ function TransactionRow({
         className="shrink-0"
       />
 
-      {/* Delete */}
-      {!isConfirming ? (
-        <button
-          onClick={() => setConfirmingDelete(tx._id)}
-          className="ml-1 text-ink-3 hover:text-neg transition-colors shrink-0"
-          title="Delete transaction"
-        >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M3 4h10M6 4V3a1 1 0 012 0v1m2 0v9a1 1 0 01-1 1H7a1 1 0 01-1-1V4"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      ) : (
-        <div className="flex items-center gap-1 ml-1 shrink-0">
-          <Button
-            variant="destructive"
-            size="sm"
-            className="h-6 text-xs px-2"
-            onClick={handleDelete}
-            disabled={deletePending}
+      {/* Delete — transactions only; expenses are managed on the Expenses tab */}
+      {canDelete &&
+        (!isConfirming ? (
+          <button
+            onClick={() => setConfirmingDelete(item._id)}
+            className="ml-1 text-ink-3 hover:text-neg transition-colors shrink-0"
+            title="Delete transaction"
           >
-            {deletePending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Delete'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 text-xs px-2"
-            onClick={() => setConfirmingDelete(null)}
-            disabled={deletePending}
-          >
-            Cancel
-          </Button>
-        </div>
-      )}
+            <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M3 4h10M6 4V3a1 1 0 012 0v1m2 0v9a1 1 0 01-1 1H7a1 1 0 01-1-1V4"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        ) : (
+          <div className="flex items-center gap-1 ml-1 shrink-0">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={handleDelete}
+              disabled={deletePending}
+            >
+              {deletePending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Delete'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={() => setConfirmingDelete(null)}
+              disabled={deletePending}
+            >
+              Cancel
+            </Button>
+          </div>
+        ))}
     </div>
   );
 }
@@ -197,7 +210,7 @@ export default function AccountPage() {
     );
   }
 
-  const transactions = summary?.transactions ?? [];
+  const activity = summary?.activity ?? [];
   const memberBreakdown = summary?.memberBreakdown ?? [];
 
   // Monthly target progress
@@ -266,6 +279,14 @@ export default function AccountPage() {
                     ? `You've deposited ${fmt(summary.monthlyDeposits)} ${currency} of ${fmt(summary.monthlyTarget!)} ${currency} monthly target`
                     : `${fmt(summary.monthlyDeposits)} ${currency} deposited this month`}
                 </p>
+                {summary.monthlyExpenses > 0 && (
+                  <p className="text-sm text-ink-3">
+                    {fmt(summary.monthlyExpenses)} {currency} spent this month
+                    <span className="text-ink-4">
+                      {' · '}net {fmt(summary.monthlyNet)} {currency}
+                    </span>
+                  </p>
+                )}
                 {hasTarget ? (
                   <div className="w-full max-w-[480px] h-2 bg-surface-2 rounded-full overflow-hidden">
                     <div
@@ -354,19 +375,19 @@ export default function AccountPage() {
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-4 w-4 animate-spin text-ink-3" />
                 </div>
-              ) : transactions.length === 0 ? (
+              ) : activity.length === 0 ? (
                 <EmptyState
                   icon={Wallet}
-                  title="No transactions this month"
-                  description="Add a deposit or withdrawal to track your joint account activity."
+                  title="No activity this month"
+                  description="Deposits, withdrawals, and expenses will show up here."
                   action={{ label: 'Add transaction', onClick: () => setAddTransactionOpen(true) }}
                 />
               ) : (
                 <div>
-                  {transactions.map((tx) => (
-                    <TransactionRow
-                      key={tx._id}
-                      tx={tx}
+                  {activity.map((item) => (
+                    <ActivityRow
+                      key={item._id}
+                      item={item}
                       currency={currency}
                       confirmingDelete={confirmingDelete}
                       setConfirmingDelete={setConfirmingDelete}
