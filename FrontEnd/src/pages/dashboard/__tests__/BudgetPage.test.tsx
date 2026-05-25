@@ -1,18 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import BudgetPage from '@/pages/dashboard/BudgetPage';
 import { server } from '@/test/mocks/server';
 import { renderWithProviders } from '@/test/utils/renderWithProviders';
 import { mockHousehold } from '@/test/mocks/data/households';
-import type { UIMode, FinanceMode } from '@/types/onboarding.types';
+import type { UIMode, FinanceMode, ExpenseSplitMethod } from '@/types/onboarding.types';
 
-// Mutable mock state so individual tests can flip uiMode + financeMode between
-// 'couple/split', 'couple/joint', and 'solo' without re-mocking the module.
-const mockState: { uiMode: UIMode; financeMode: FinanceMode } = {
+// Mutable mock state so individual tests can flip uiMode + financeMode +
+// splitMethod between 'couple/split', 'couple/joint', 'roommates', and 'solo'
+// without re-mocking the module.
+const mockState: {
+  uiMode: UIMode;
+  financeMode: FinanceMode;
+  splitMethod: ExpenseSplitMethod;
+} = {
   uiMode: 'couple',
   financeMode: 'split',
+  splitMethod: 'equal',
 };
 
 // Mock the DashboardContext hook — the existing pattern across dashboard
@@ -37,7 +42,7 @@ vi.mock('@/contexts/useDashboard', async () => {
       myParticipatesInFinances: true,
       hasFinancialPartner: true,
       financeMode: mockState.financeMode,
-      splitMethod: 'equal',
+      splitMethod: mockState.splitMethod,
       taskLevel: 'full',
       distribution: 'rotation',
       customMyPct: 50,
@@ -122,6 +127,7 @@ beforeEach(() => {
   // Reset to couple-split mode by default; individual tests opt in to others.
   mockState.uiMode = 'couple';
   mockState.financeMode = 'split';
+  mockState.splitMethod = 'equal';
   installInsightsHandler([
     {
       memberId: 'mem-alice-001',
@@ -181,6 +187,9 @@ describe('BudgetPage couple split mode', () => {
     expect(paidBlock).toBeInTheDocument();
     // Paid block has the "paid:" prefix when accompanied by a share block.
     expect(paidBlock.textContent).toMatch(/paid:/i);
+
+    // Couples do NOT get the lighter roommate "your share" subline.
+    expect(screen.queryByTestId('budget-myshare-groceries')).not.toBeInTheDocument();
   });
 });
 
@@ -221,11 +230,21 @@ describe('BudgetPage couple joint mode', () => {
     const paidBlock = screen.getByTestId('budget-paid-groceries');
     expect(paidBlock).toBeInTheDocument();
     expect(paidBlock.textContent).not.toMatch(/paid:/i);
+
+    // Joint mode is pooled — there is no per-person scope to toggle to.
+    expect(screen.queryByTestId('budget-scope-toggle')).not.toBeInTheDocument();
+    // Third card is the budget status (household budget vs spend), not a
+    // savings rate. Default payload: budgeted 200, spent 50 → 150 left, 25% used.
+    expect(screen.queryByTestId('budget-savings-rate')).not.toBeInTheDocument();
+    const status = screen.getByTestId('budget-status');
+    expect(status.textContent).toMatch(/150\.00/);
+    expect(status.textContent).toMatch(/left/i);
+    expect(status.textContent).toMatch(/25%/);
   });
 });
 
 describe('BudgetPage solo mode', () => {
-  it('does not render the CoupleSpendComparisonCard or per-member splits in solo mode', async () => {
+  it('does not render the CoupleSpendComparisonCard, per-member splits, or scope toggle in solo mode', async () => {
     mockState.uiMode = 'solo';
     mockState.financeMode = 'split';
     renderWithProviders(<BudgetPage />);
@@ -238,97 +257,65 @@ describe('BudgetPage solo mode', () => {
     expect(screen.queryByTestId('comparison-row-me')).not.toBeInTheDocument();
     expect(screen.queryByTestId('comparison-row-partner')).not.toBeInTheDocument();
 
-    // CategoryBudgetRow must NOT show either per-member sub-block.
+    // CategoryBudgetRow must NOT show any per-member sub-block.
     expect(screen.queryByTestId('budget-split-groceries')).not.toBeInTheDocument();
     expect(screen.queryByTestId('budget-paid-groceries')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('budget-myshare-groceries')).not.toBeInTheDocument();
+
+    // The YOU/HOUSEHOLD toggle is couple-split only.
+    expect(screen.queryByTestId('budget-scope-toggle')).not.toBeInTheDocument();
+
+    // Solo no longer sets income on the budget page (income lives on Account);
+    // the third summary card is the budget status, not an income-based savings rate.
+    expect(screen.queryByText(/your income/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('budget-savings-rate')).not.toBeInTheDocument();
+    expect(screen.getByTestId('budget-status')).toBeInTheDocument();
   });
 });
 
-describe('BudgetPage scope toggle', () => {
-  it('split mode: defaults to YOU scope and switching to HOUSEHOLD refetches with scope=household', async () => {
-    mockState.uiMode = 'couple';
-    mockState.financeMode = 'split';
-
+describe('BudgetPage caps-always-household (couple split)', () => {
+  function installScopedHandler(): string[] {
     const requestedScopes: string[] = [];
     server.use(
       http.get(
         `http://localhost:3000/api/households/${mockHousehold._id}/budget/insights`,
         ({ request }) => {
           const url = new URL(request.url);
-          const scope = url.searchParams.get('scope') ?? 'personal';
-          requestedScopes.push(scope);
-          // Return scope-aware payload so the page renders.
-          const totalSpent = scope === 'household' ? 1600 : 800;
+          requestedScopes.push(url.searchParams.get('scope') ?? 'none');
           return HttpResponse.json({
             status: 'success',
             data: {
               month: '2026-05',
               budget: { rent: 1500 },
               budgetSource: 'live',
-              spendByCategory: { rent: totalSpent },
-              totalSpent,
+              spendByCategory: { rent: 900 },
+              totalSpent: 900,
               totalBudgeted: 1500,
               monthlyTrend: Array.from({ length: 6 }, (_, i) => ({
                 monthString: `2026-0${i + 1}`,
                 totalSpent: 0,
               })),
-              savingsRate: 0.6,
-              monthlyIncome: 2000,
+              savingsRate: 0.5,
+              monthlyIncome: 3000,
               overBudgetCategories: [],
-              byMember: [],
-              requestedScope: scope,
-              effectiveScope: scope,
-            },
-          });
-        },
-      ),
-    );
-
-    const user = userEvent.setup();
-    renderWithProviders(<BudgetPage />);
-    await screen.findByText('Categories');
-
-    // Initial request goes out with scope=personal (default for split mode).
-    expect(requestedScopes[0]).toBe('personal');
-    // The helper caption is visible while in personal scope.
-    expect(
-      screen.getByText(/Household budget · your share of spending shown/i),
-    ).toBeInTheDocument();
-
-    // Switch to HOUSEHOLD.
-    await user.click(screen.getByTestId('budget-scope-household'));
-    await waitFor(() =>
-      expect(requestedScopes.some((s) => s === 'household')).toBe(true),
-    );
-  });
-
-  it('joint mode: YOU button is disabled and request goes out with scope=household', async () => {
-    mockState.uiMode = 'couple';
-    mockState.financeMode = 'joint';
-    let lastScope: string | null = null;
-    server.use(
-      http.get(
-        `http://localhost:3000/api/households/${mockHousehold._id}/budget/insights`,
-        ({ request }) => {
-          const url = new URL(request.url);
-          lastScope = url.searchParams.get('scope');
-          return HttpResponse.json({
-            status: 'success',
-            data: {
-              month: '2026-05',
-              budget: {},
-              budgetSource: 'live',
-              spendByCategory: {},
-              totalSpent: 0,
-              totalBudgeted: 0,
-              monthlyTrend: Array.from({ length: 6 }, (_, i) => ({
-                monthString: `2026-0${i + 1}`,
-                totalSpent: 0,
-              })),
-              savingsRate: null,
-              monthlyIncome: null,
-              overBudgetCategories: [],
-              byMember: [],
+              byMember: [
+                {
+                  memberId: 'mem-alice-001',
+                  nickname: 'Alice',
+                  totalShare: 500,
+                  shareByCategory: { rent: 500 },
+                  totalPaid: 900,
+                  paidByCategory: { rent: 900 },
+                },
+                {
+                  memberId: 'mem-bob-001',
+                  nickname: 'Bob',
+                  totalShare: 400,
+                  shareByCategory: { rent: 400 },
+                  totalPaid: 0,
+                  paidByCategory: {},
+                },
+              ],
               requestedScope: 'household',
               effectiveScope: 'household',
             },
@@ -336,11 +323,208 @@ describe('BudgetPage scope toggle', () => {
         },
       ),
     );
+    return requestedScopes;
+  }
+
+  it('always requests household scope and never shows the personal-share disclaimer', async () => {
+    mockState.uiMode = 'couple';
+    mockState.financeMode = 'split';
+    const requestedScopes = installScopedHandler();
 
     renderWithProviders(<BudgetPage />);
     await screen.findByText('Categories');
 
-    expect(lastScope).toBe('household');
-    expect(screen.getByTestId('budget-scope-personal')).toBeDisabled();
+    expect(requestedScopes.length).toBeGreaterThan(0);
+    expect(requestedScopes.every((s) => s === 'household')).toBe(true);
+    expect(
+      screen.queryByText(/your share of spending shown/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('has no scope toggle; the summary is the household budget picture (spent / budgeted / status), no income-based savings', async () => {
+    mockState.uiMode = 'couple';
+    mockState.financeMode = 'split';
+    installScopedHandler();
+
+    renderWithProviders(<BudgetPage />);
+    await screen.findByText('Categories');
+
+    // The YOU/HOUSEHOLD toggle is gone.
+    expect(screen.queryByTestId('budget-scope-toggle')).not.toBeInTheDocument();
+
+    // All three summary cards are the same budget scope (spend vs cap vs
+    // remaining) — internally consistent, no income anywhere.
+    expect(screen.getByTestId('budget-total-spent').textContent).toContain('900.00');
+    expect(screen.getByTestId('budget-total-budgeted').textContent).toContain('1500.00');
+
+    // Third card is the budget status, not an income-based savings rate.
+    // budgeted 1500, spent 900 → 600 left, 60% used.
+    expect(screen.queryByTestId('budget-savings-rate')).not.toBeInTheDocument();
+    expect(screen.queryByText(/savings rate/i)).not.toBeInTheDocument();
+    const status = screen.getByTestId('budget-status');
+    expect(status.textContent).toMatch(/600\.00/);
+    expect(status.textContent).toMatch(/left/i);
+    expect(status.textContent).toMatch(/60%/);
+
+    // The income-based per-member savings line is gone from the comparison card.
+    expect(screen.queryByTestId('comparison-savings-me')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('comparison-savings-partner')).not.toBeInTheDocument();
+  });
+});
+
+describe('BudgetPage budget status card', () => {
+  it('shows "over" with the overage and >100% used when household spend exceeds the cap', async () => {
+    mockState.uiMode = 'couple';
+    mockState.financeMode = 'split';
+    server.use(
+      http.get(
+        `http://localhost:3000/api/households/${mockHousehold._id}/budget/insights`,
+        () =>
+          HttpResponse.json({
+            status: 'success',
+            data: {
+              month: '2026-05',
+              budget: { rent: 1000, utilities: 550 },
+              budgetSource: 'live',
+              spendByCategory: { rent: 1445, utilities: 500 },
+              totalSpent: 1945,
+              totalBudgeted: 1550,
+              monthlyTrend: [],
+              savingsRate: null,
+              monthlyIncome: null,
+              overBudgetCategories: ['rent'],
+              byMember: [],
+            },
+          }),
+      ),
+    );
+
+    renderWithProviders(<BudgetPage />);
+    await screen.findByText('Categories');
+
+    // 1550 budgeted, 1945 spent → 395 over, 125% used (1945/1550 = 125.5%).
+    const status = screen.getByTestId('budget-status');
+    expect(status.textContent).toMatch(/395\.00/);
+    expect(status.textContent).toMatch(/over/i);
+    expect(status.textContent).toMatch(/125%/);
+  });
+
+  it('prompts to set a budget when nothing is budgeted', async () => {
+    mockState.uiMode = 'couple';
+    mockState.financeMode = 'split';
+    server.use(
+      http.get(
+        `http://localhost:3000/api/households/${mockHousehold._id}/budget/insights`,
+        () =>
+          HttpResponse.json({
+            status: 'success',
+            data: {
+              month: '2026-05',
+              budget: {},
+              budgetSource: 'live',
+              spendByCategory: { rent: 100 },
+              totalSpent: 100,
+              totalBudgeted: 0,
+              monthlyTrend: [],
+              savingsRate: null,
+              monthlyIncome: null,
+              overBudgetCategories: [],
+              byMember: [],
+            },
+          }),
+      ),
+    );
+
+    renderWithProviders(<BudgetPage />);
+    await screen.findByText('Categories');
+
+    expect(screen.getByTestId('budget-status').textContent).toMatch(/set category budgets/i);
+  });
+});
+
+describe('BudgetPage roommate mode', () => {
+  function installRoommateHandler() {
+    server.use(
+      http.get(
+        `http://localhost:3000/api/households/${mockHousehold._id}/budget/insights`,
+        () =>
+          HttpResponse.json({
+            status: 'success',
+            data: {
+              month: '2026-05',
+              budget: { groceries: 300 },
+              budgetSource: 'live',
+              spendByCategory: { groceries: 240 },
+              totalSpent: 240,
+              totalBudgeted: 300,
+              monthlyTrend: Array.from({ length: 6 }, (_, i) => ({
+                monthString: `2026-0${i + 1}`,
+                totalSpent: 0,
+              })),
+              savingsRate: null,
+              monthlyIncome: null,
+              overBudgetCategories: [],
+              byMember: [
+                {
+                  memberId: 'mem-alice-001',
+                  nickname: 'Alice',
+                  totalShare: 80,
+                  shareByCategory: { groceries: 80 },
+                  totalPaid: 240,
+                  paidByCategory: { groceries: 240 },
+                },
+                {
+                  memberId: 'mem-bob-001',
+                  nickname: 'Bob',
+                  totalShare: 80,
+                  shareByCategory: { groceries: 80 },
+                  totalPaid: 0,
+                  paidByCategory: {},
+                },
+              ],
+              requestedScope: 'household',
+              effectiveScope: 'household',
+            },
+          }),
+      ),
+    );
+  }
+
+  it('equal split: no toggle, no savings card, no income card; shows shared-spending header + per-category your-share subline', async () => {
+    mockState.uiMode = 'roommates';
+    mockState.financeMode = 'split';
+    mockState.splitMethod = 'equal';
+    installRoommateHandler();
+
+    renderWithProviders(<BudgetPage />);
+    await screen.findByText('Categories');
+
+    expect(screen.queryByTestId('budget-scope-toggle')).not.toBeInTheDocument();
+    // No income-based savings rate, but roommates now DO get the budget-status
+    // card (it's budget-scoped, needs no income, and fits a collective view).
+    expect(screen.queryByTestId('budget-savings-rate')).not.toBeInTheDocument();
+    expect(screen.getByTestId('budget-status')).toBeInTheDocument();
+    // IncomeManagementCard renders a "YOUR INCOME" eyebrow — absent for equal split.
+    expect(screen.queryByText(/your income/i)).not.toBeInTheDocument();
+
+    expect(screen.getByText(/shared household spending/i)).toBeInTheDocument();
+
+    const myshare = screen.getByTestId('budget-myshare-groceries');
+    expect(myshare.textContent ?? '').toMatch(/your share/i);
+    expect(myshare).toHaveTextContent('80.00');
+  });
+
+  it('income-based split: income card present so they can set the income that drives settlement (still no savings card / toggle)', async () => {
+    mockState.uiMode = 'roommates';
+    mockState.financeMode = 'split';
+    mockState.splitMethod = 'income_based';
+    installRoommateHandler();
+
+    renderWithProviders(<BudgetPage />);
+    await screen.findByText('Categories');
+
+    expect(screen.getByText(/your income/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('budget-savings-rate')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('budget-scope-toggle')).not.toBeInTheDocument();
   });
 });
