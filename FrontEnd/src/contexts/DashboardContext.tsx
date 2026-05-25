@@ -38,7 +38,7 @@ import {
   useTasks,
 } from '@/hooks/queries';
 
-import { deriveIncomeSplit, getDueDateStatus, currentMonthString } from '@/utils/dashboardHelpers';
+import { deriveIncomeSplit, deriveCustomSplit, getDueDateStatus, currentMonthString } from '@/utils/dashboardHelpers';
 
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
@@ -160,8 +160,11 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     setAddTransactionOpen(true);
   }, []);
 
+  // Seed owner-relatively: the stored `customSplitPercentage` is the OWNER's
+  // share, so each user's slider starts at THEIR own share (owner → stored,
+  // partner → 100 − stored). Kept as state so the slider can drag locally.
   const [customMyPct, setCustomMyPct] = useState(
-    household.settings.customSplitPercentage ?? 50
+    () => deriveCustomSplit(household, currentUserId).myPct
   );
 
   // ── Hoisted queries ───────────────────────────────────────────────────
@@ -271,12 +274,16 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
 
   const handleCustomPctCommit = useCallback(async (v: number) => {
     if (!isAdmin) return;
+    // `v` is the editor's own share; persist it owner-relatively so storage
+    // stays the owner's share (matches the backend's custom split branch).
+    const iAmOwner = myMember?.role === 'owner';
+    const ownerPct = iAmOwner ? v : 100 - v;
     try {
-      await updateSettingsAsync({ customSplitPercentage: v });
+      await updateSettingsAsync({ customSplitPercentage: ownerPct });
     } catch {
       /* ignore */
     }
-  }, [isAdmin, updateSettingsAsync]);
+  }, [isAdmin, myMember?.role, updateSettingsAsync]);
 
   // ── Mutation wrappers ─────────────────────────────────────────────────
   const deleteExpenseAsync = deleteExpenseMutation.mutateAsync;
