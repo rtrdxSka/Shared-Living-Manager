@@ -21,12 +21,6 @@ export default function IncomeManagementCard({
   currency,
 }: IncomeManagementCardProps) {
   const myMember = household.members.find((m) => m.userId === currentUserId);
-  const partnerMember = household.members.find(
-    (m) =>
-      m.userId &&
-      m.userId !== currentUserId &&
-      m.participatesInFinances
-  );
 
   const myIncome = myMember?.monthlyIncome;
   const myIncomeSet = myIncome !== undefined;
@@ -43,12 +37,10 @@ export default function IncomeManagementCard({
     0
   );
 
-  const partnerIncome = partnerMember?.monthlyIncome;
-  const partnerIncomeSet = partnerIncome !== undefined;
-  const partnerPct =
-    partnerIncomeSet && totalIncome > 0
-      ? Math.round((partnerIncome / totalIncome) * 100)
-      : null;
+  // Every OTHER financial member — works for couples (one) and roommates (N).
+  const otherMembers = financialMembers.filter(
+    (m) => m.userId && m.userId !== currentUserId
+  );
 
   const handleEdit = () => {
     setValue(myIncomeSet ? String(myIncome) : '');
@@ -153,13 +145,22 @@ export default function IncomeManagementCard({
         </div>
       )}
 
-      {partnerMember && (
-        <div className="border-t border-line pt-3">
-          <p className="text-xs text-ink-3">
-            {partnerPct !== null
-              ? `${partnerMember.nickname} — ${partnerPct}% of total`
-              : `${partnerMember.nickname} — income not set yet`}
-          </p>
+      {otherMembers.length > 0 && (
+        <div className="border-t border-line pt-3 space-y-1">
+          {otherMembers.map((m) => {
+            const income = m.monthlyIncome;
+            const pct =
+              income !== undefined && totalIncome > 0
+                ? Math.round((income / totalIncome) * 100)
+                : null;
+            return (
+              <p key={m.userId} className="text-xs text-ink-3">
+                {pct !== null
+                  ? `${m.nickname} — ${pct}% of total`
+                  : `${m.nickname} — income not set yet`}
+              </p>
+            );
+          })}
         </div>
       )}
     </Card>
