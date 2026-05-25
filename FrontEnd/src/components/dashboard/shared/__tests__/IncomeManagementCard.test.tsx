@@ -60,6 +60,26 @@ describe('<IncomeManagementCard />', () => {
     expect(received).toEqual(expect.objectContaining({ monthlyIncome: 3500 }));
   });
 
+  it('lists every other financial member (3+ members), not just the first', () => {
+    // Current user Alice (3000) + two others: Bob (2000) and Carol (1000) → total 6000.
+    // Bob = 33%, Carol = 17%. Before the fix only the first other member appeared.
+    const threeMemberHousehold = {
+      ...mockHousehold,
+      members: [
+        { ...mockHousehold.members[0], userId: 'user-alice-001', nickname: 'Alice', monthlyIncome: 3000, participatesInFinances: true },
+        { ...mockHousehold.members[1], userId: 'user-bob-001', nickname: 'Bob', monthlyIncome: 2000, participatesInFinances: true },
+        { ...mockHousehold.members[1], _id: 'mem-carol-001', userId: 'user-carol-001', nickname: 'Carol', monthlyIncome: 1000, participatesInFinances: true },
+      ],
+    } as typeof mockHousehold;
+
+    renderWithProviders(
+      <IncomeManagementCard household={threeMemberHousehold} currentUserId="user-alice-001" currency="EUR" />,
+    );
+
+    expect(screen.getByText(/Bob — 33% of total/i)).toBeInTheDocument();
+    expect(screen.getByText(/Carol — 17% of total/i)).toBeInTheDocument();
+  });
+
   it('shows an inline error when the API returns 400', async () => {
     server.use(
       http.patch(INCOME_URL, () =>
