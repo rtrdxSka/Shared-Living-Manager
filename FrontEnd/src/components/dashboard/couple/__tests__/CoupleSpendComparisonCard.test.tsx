@@ -253,4 +253,18 @@ describe('<CoupleSpendComparisonCard />', () => {
       expect(screen.queryByTestId('comparison-paid-subline')).toBeNull();
     });
   });
+
+  it('does not render any per-member savings line (income-based savings lives off the budget page)', () => {
+    render(
+      <CoupleSpendComparisonCard
+        byMember={makeByMember({ totalShare: 800 }, { totalShare: 500 })}
+        myMemberId="me"
+        partnerMemberId="partner"
+        mode="share"
+      />,
+    );
+
+    expect(screen.queryByTestId('comparison-savings-me')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('comparison-savings-partner')).not.toBeInTheDocument();
+  });
 });
