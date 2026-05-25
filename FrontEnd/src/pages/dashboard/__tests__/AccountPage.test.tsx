@@ -87,7 +87,11 @@ const MOCK_SUMMARY = {
   monthlyNet: 500,
   monthlyTarget: 2000,
   targetMode: 'equal',
-  memberBreakdown: [],
+  memberBreakdown: [
+    { memberId: 'mem-alice-001', nickname: 'Alice', deposits: 600, withdrawals: 0, targetAmount: 600 },
+    { memberId: 'mem-bob-001', nickname: 'Bob', deposits: 600, withdrawals: 0, targetAmount: 600 },
+    { memberId: 'mem-carol-001', nickname: 'Carol', deposits: 600, withdrawals: 0, targetAmount: 600 },
+  ],
   transactions: [],
   transactionTotal: 0,
   transactionPage: 1,
@@ -163,5 +167,20 @@ describe('<AccountPage /> Recent Activity (unified feed)', () => {
     await screen.findByText(/Weekly groceries/i);
     // One transaction + one expense in the feed, but only the transaction is deletable.
     expect(screen.getAllByTitle('Delete transaction')).toHaveLength(1);
+  });
+});
+
+describe('<AccountPage /> contribution bars', () => {
+  it('colors every member bar with the neutral accent — no red alarm bar', async () => {
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/contributions this month/i);
+    const bars = screen.getAllByTestId('contrib-bar');
+    // One bar per member in the breakdown (3).
+    expect(bars.length).toBe(3);
+    bars.forEach((bar) => {
+      // Regression: no member's bar should use the salmon-red cat-rent color.
+      expect(bar.className).not.toMatch(/cat-rent/);
+      expect(bar.className).toMatch(/bg-accent/);
+    });
   });
 });
