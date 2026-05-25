@@ -97,7 +97,12 @@ export default function CoupleSpendComparisonCard({
           <div className="flex flex-col gap-1" data-testid="comparison-row-me">
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="truncate">{me.nickname}</span>
-              <MoneyAmount amount={meTotal} currency={currency} size="sm" />
+              <MoneyAmount
+                amount={meTotal}
+                currency={currency}
+                size="sm"
+                className="shrink-0"
+              />
             </div>
             <div className="h-2 bg-muted rounded overflow-hidden">
               <div
@@ -110,7 +115,12 @@ export default function CoupleSpendComparisonCard({
           <div className="flex flex-col gap-1" data-testid="comparison-row-partner">
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="truncate">{partner.nickname}</span>
-              <MoneyAmount amount={partnerTotal} currency={currency} size="sm" />
+              <MoneyAmount
+                amount={partnerTotal}
+                currency={currency}
+                size="sm"
+                className="shrink-0"
+              />
             </div>
             <div className="h-2 bg-muted rounded overflow-hidden">
               <div
