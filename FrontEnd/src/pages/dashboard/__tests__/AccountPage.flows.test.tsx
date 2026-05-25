@@ -60,6 +60,28 @@ const TX_BOB_WITHDRAWAL = {
   updatedAt: '2026-05-02T10:00:00.000Z',
 };
 
+// Activity-feed equivalents of the seeded transactions (the feed now renders
+// summary.activity, a merge of transactions + expenses).
+const ACT_ALICE_DEPOSIT = {
+  _id: TX_ALICE_DEPOSIT._id,
+  kind: 'transaction' as const,
+  type: 'deposit' as const,
+  amount: TX_ALICE_DEPOSIT.amount,
+  date: TX_ALICE_DEPOSIT.createdAt,
+  memberNickname: 'Alice',
+  note: TX_ALICE_DEPOSIT.note,
+};
+
+const ACT_BOB_WITHDRAWAL = {
+  _id: TX_BOB_WITHDRAWAL._id,
+  kind: 'transaction' as const,
+  type: 'withdrawal' as const,
+  amount: TX_BOB_WITHDRAWAL.amount,
+  date: TX_BOB_WITHDRAWAL.createdAt,
+  memberNickname: 'Bob',
+  note: TX_BOB_WITHDRAWAL.note,
+};
+
 const MOCK_SUMMARY_WITH_TXS = {
   balance: 1300,
   monthlyDeposits: 500,
@@ -73,6 +95,10 @@ const MOCK_SUMMARY_WITH_TXS = {
   transactionTotal: 2,
   transactionPage: 1,
   transactionTotalPages: 1,
+  activity: [ACT_ALICE_DEPOSIT, ACT_BOB_WITHDRAWAL],
+  activityTotal: 2,
+  activityPage: 1,
+  activityTotalPages: 1,
 };
 
 const MOCK_SUMMARY_EMPTY = {
@@ -88,6 +114,10 @@ const MOCK_SUMMARY_EMPTY = {
   transactionTotal: 0,
   transactionPage: 1,
   transactionTotalPages: 1,
+  activity: [],
+  activityTotal: 0,
+  activityPage: 1,
+  activityTotalPages: 1,
 };
 
 // ── Render helper ─────────────────────────────────────────────────────────────
@@ -326,6 +356,10 @@ describe('<AccountPage /> roommates+joint mode', () => {
               transactionTotal: 0,
               transactionPage: 1,
               transactionTotalPages: 1,
+              activity: [],
+              activityTotal: 0,
+              activityPage: 1,
+              activityTotalPages: 1,
             },
           },
         }),

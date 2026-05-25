@@ -253,6 +253,61 @@ describe('<ExpensesPage /> mode matrix', () => {
   });
 });
 
+// ── Joint-mode settled-UI cleanup ──────────────────────────────────────────────
+//
+// Joint-mode expenses are auto-resolved, so the green "SETTLED" collapsible
+// duplicates the flat list (roommates) or is the only list (couple), and the
+// "✓ Share settled" card hint fires on every card where "share" is meaningless.
+// In joint mode we show ONE flat list and drop both bits of settled UI; split
+// mode keeps them.
+
+describe('<ExpensesPage /> joint-mode settled-UI cleanup', () => {
+  const resolvedExpense = {
+    ...baseExpense,
+    _id: 'exp-joint-resolved-001',
+    description: 'Joint groceries',
+    amount: 80,
+    isResolved: true,
+  };
+
+  beforeEach(() => {
+    server.use(
+      http.get('/api/households/:id/expenses', () =>
+        HttpResponse.json({
+          status: 'success',
+          data: { items: [resolvedExpense], total: 1, nextCursor: null },
+        }),
+      ),
+    );
+  });
+
+  it('couple+joint shows a single flat list — no SETTLED dropdown, no "Share settled" text', async () => {
+    const user = userEvent.setup();
+    renderWithMode(mockHouseholdJoint);
+
+    // Flat ALL EXPENSES list — covers couple+joint, which previously relied on
+    // the SETTLED block to render any expenses at all.
+    expect(await screen.findByText(/^ALL EXPENSES$/)).toBeInTheDocument();
+    const row = await screen.findByText('Joint groceries');
+
+    // The redundant green SETTLED collapsible must not appear in joint mode.
+    expect(screen.queryByText(/^SETTLED$/)).not.toBeInTheDocument();
+
+    // Expand the card — the "✓ Share settled" hint is meaningless in joint mode.
+    await user.click(row);
+    expect(screen.queryByText(/share settled/i)).not.toBeInTheDocument();
+  });
+
+  it('split mode keeps the SETTLED section and the "Share settled" hint for resolved expenses', async () => {
+    const user = userEvent.setup();
+    renderWithMode(mockHouseholdSplitEqual);
+
+    expect(await screen.findByText(/^SETTLED$/)).toBeInTheDocument();
+    await user.click(await screen.findByText('Joint groceries'));
+    expect(await screen.findByText(/share settled/i)).toBeInTheDocument();
+  });
+});
+
 // ── Custom split is owner-relative (regression for the 70/70 bug) ──────────────
 //
 // The stored customSplitPercentage (70) is the OWNER's share. Each user must see

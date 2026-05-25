@@ -92,6 +92,30 @@ const MOCK_SUMMARY = {
   transactionTotal: 0,
   transactionPage: 1,
   transactionTotalPages: 1,
+  activity: [
+    {
+      _id: 'tx-1',
+      kind: 'transaction',
+      type: 'deposit',
+      amount: 800,
+      date: '2026-05-10T10:00:00.000Z',
+      memberNickname: 'Alice',
+      note: 'Payday top-up',
+    },
+    {
+      _id: 'exp-1',
+      kind: 'expense',
+      type: 'expense',
+      amount: 200,
+      date: '2026-05-08T18:00:00.000Z',
+      memberNickname: 'Bob',
+      note: 'Weekly groceries',
+      category: 'groceries',
+    },
+  ],
+  activityTotal: 2,
+  activityPage: 1,
+  activityTotalPages: 1,
 };
 
 beforeEach(() => {
@@ -117,5 +141,27 @@ describe('<AccountPage />', () => {
     renderWithProviders(<AccountPage />);
     expect(await screen.findByRole('button', { name: /^deposit$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^withdraw$/i })).toBeInTheDocument();
+  });
+});
+
+describe('<AccountPage /> Recent Activity (unified feed)', () => {
+  it('renders expenses merged into Recent Activity alongside transactions', async () => {
+    renderWithProviders(<AccountPage />);
+    // The expense (description) and the transaction (note) both appear in the feed.
+    expect(await screen.findByText(/Weekly groceries/i)).toBeInTheDocument();
+    expect(screen.getByText(/Payday top-up/i)).toBeInTheDocument();
+  });
+
+  it('surfaces monthly expenses in the hero so the balance drop is explained', async () => {
+    renderWithProviders(<AccountPage />);
+    // monthlyExpenses = 200 → hero subline mentions the spend.
+    expect(await screen.findByText(/spent this month/i)).toBeInTheDocument();
+  });
+
+  it('expense items are read-only — delete control only on transactions', async () => {
+    renderWithProviders(<AccountPage />);
+    await screen.findByText(/Weekly groceries/i);
+    // One transaction + one expense in the feed, but only the transaction is deletable.
+    expect(screen.getAllByTitle('Delete transaction')).toHaveLength(1);
   });
 });
