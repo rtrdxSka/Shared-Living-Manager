@@ -123,19 +123,67 @@ export function deriveIncomeSplit(
   return { myPct, partnerPct: 100 - myPct };
 }
 
+/**
+ * Per-user view of the couple custom split. `customSplitPercentage` stores the
+ * OWNER's share (the backend's custom branch assigns it to the `role: 'owner'`
+ * member), so a non-owner viewer's own share is the complement. Mirrors
+ * `deriveIncomeSplit` so every consumer can read its own correct percentage.
+ *
+ * Falls back to 50/50 when no owner can be identified — the backend's custom
+ * branch does the same (it splits equally without an owner).
+ */
+export function deriveCustomSplit(
+  household: HouseholdResponse,
+  currentUserId: string
+): { myPct: number; partnerPct: number } {
+  const stored = household.settings.customSplitPercentage ?? 50;
+  const owner = household.members.find((m) => m.role === 'owner');
+  if (!owner) return { myPct: 50, partnerPct: 50 };
+  const iAmOwner = owner.userId === currentUserId;
+  const myPct = iAmOwner ? stored : 100 - stored;
+  return { myPct, partnerPct: 100 - myPct };
+}
+
+/**
+ * The current user's share for an expense, read from its frozen `debtorStates`
+ * snapshot: a debtor's recorded share, or (for the payer) the amount minus the
+ * sum of debtor shares, or 0 for a non-participant. Used for RESOLVED expenses
+ * so their shares never drift when the household split changes later.
+ */
+export function myShareFromDebtorStates(
+  expense: Pick<ExpenseResponse, 'amount' | 'paidByUserId' | 'debtorStates'>,
+  currentUserId: string
+): number {
+  const ds = expense.debtorStates ?? [];
+  const mine = ds.find((d) => d.userId === currentUserId);
+  if (mine) return mine.share;
+  if (expense.paidByUserId && expense.paidByUserId === currentUserId) {
+    const debtorTotal = ds.reduce((s, d) => s + d.share, 0);
+    return Math.round((expense.amount - debtorTotal) * 100) / 100;
+  }
+  return 0;
+}
+
 export function getMyShareLabel(
   expense: ExpenseResponse,
   splitMethod: string,
   customMyPct: number,
   incomeSplit: { myPct: number; partnerPct: number } | null,
   currency: string,
-  myNickname: string
+  myNickname: string,
+  currentUserId: string
 ): string {
   const { amount } = expense;
   if (expense.isFullRepayment) {
     if (!expense.paidByNickname) return `Full repayment (payer not set)`;
     const myShare = expense.paidByNickname === myNickname ? 0 : amount;
     return `Your share: ${myShare.toFixed(2)} ${currency} (full repayment)`;
+  }
+  // Resolved expenses are immutable records — read the frozen snapshot rather
+  // than recomputing from the (mutable) current split.
+  if (expense.isResolved) {
+    const share = myShareFromDebtorStates(expense, currentUserId);
+    return `Your share: ${share.toFixed(2)} ${currency}`;
   }
   if (splitMethod === 'equal') {
     return `Your share: ${(amount / 2).toFixed(2)} ${currency}`;
