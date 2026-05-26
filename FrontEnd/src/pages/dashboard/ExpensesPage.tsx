@@ -3,6 +3,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, Receipt, X 
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useDashboard } from '@/contexts/useDashboard';
 import { useExpenses, useRecurringExpenses } from '@/hooks/queries';
 import EmptyState from '@/components/dashboard/shared/EmptyState';
@@ -69,6 +70,8 @@ export default function ExpensesPage() {
     customMyPct,
     setCustomMyPct,
     handleCustomPctCommit,
+    customShares,
+    handleCustomSharesCommit,
     incomeSplit,
     myNickname,
     partnerNickname,
@@ -277,12 +280,19 @@ export default function ExpensesPage() {
         />
 
         {/* ── Split method callout ───────────────────────────────────── */}
-        {uiMode === 'couple' && financeMode === 'split' && (
+        {/* Couple: all split methods. Roommates: only custom (the per-member
+            editor); equal/income callouts stay couple-shaped, so we don't show
+            them to roommates. */}
+        {financeMode === 'split' &&
+          (uiMode === 'couple' || (uiMode === 'roommates' && splitMethod === 'custom')) && (
           <SplitMethodCallout
+            uiMode={uiMode}
             splitMethod={splitMethod}
             customMyPct={customMyPct}
             setCustomMyPct={setCustomMyPct}
             onCustomPctCommit={handleCustomPctCommit}
+            customShares={customShares}
+            onCustomSharesCommit={handleCustomSharesCommit}
             incomeSplit={incomeSplit}
             myNickname={myNickname}
             partnerNickname={partnerNickname}
@@ -1109,19 +1119,25 @@ const ExpenseRow = React.memo(function ExpenseRow({
 // ── Split Method Callout ──────────────────────────────────────────────────
 
 function SplitMethodCallout({
+  uiMode,
   splitMethod,
   customMyPct,
   setCustomMyPct,
   onCustomPctCommit,
+  customShares,
+  onCustomSharesCommit,
   incomeSplit,
   myNickname,
   partnerNickname,
   isAdmin,
 }: {
+  uiMode: UIMode;
   splitMethod: string;
   customMyPct: number;
   setCustomMyPct: (v: number) => void;
   onCustomPctCommit: (v: number) => Promise<void>;
+  customShares: { userId: string; nickname: string; pct: number }[];
+  onCustomSharesCommit: (shares: { userId: string; pct: number }[]) => Promise<void>;
   incomeSplit: { myPct: number; partnerPct: number } | null;
   myNickname: string;
   partnerNickname: string;
@@ -1154,7 +1170,14 @@ function SplitMethodCallout({
           Income data is incomplete — enter your income below to see the split.
         </p>
       )}
-      {splitMethod === 'custom' && (
+      {splitMethod === 'custom' && uiMode === 'roommates' && (
+        <RoommateCustomSharesEditor
+          shares={customShares}
+          onCommit={onCustomSharesCommit}
+          isAdmin={isAdmin}
+        />
+      )}
+      {splitMethod === 'custom' && uiMode !== 'roommates' && (
         <div className="space-y-3">
           <p className="text-sm text-ink">Custom split — set by you</p>
           {isAdmin ? (
@@ -1189,6 +1212,100 @@ function SplitMethodCallout({
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * Household-level per-member custom split editor for roommates — the N-member
+ * equivalent of the couple slider. A single slider can't express N shares, so
+ * this uses per-member number inputs (matching the per-expense editor in
+ * AddExpenseForm) with a live total and an explicit Save that only enables once
+ * the percentages sum to 100. Non-admins see a read-only breakdown.
+ */
+function RoommateCustomSharesEditor({
+  shares,
+  onCommit,
+  isAdmin,
+}: {
+  shares: { userId: string; nickname: string; pct: number }[];
+  onCommit: (shares: { userId: string; pct: number }[]) => Promise<void>;
+  isAdmin: boolean;
+}) {
+  // Seed local edit state from the derived shares; re-seed whenever they change
+  // (after a successful commit refetch, or a membership change resets to even).
+  const sharesKey = shares.map((s) => `${s.userId}:${s.pct}`).join('|');
+  const [pcts, setPcts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(shares.map((s) => [s.userId, s.pct]))
+  );
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setPcts(Object.fromEntries(shares.map((s) => [s.userId, s.pct])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharesKey]);
+
+  const total = shares.reduce((acc, s) => acc + (pcts[s.userId] ?? 0), 0);
+  const dirty = shares.some((s) => (pcts[s.userId] ?? 0) !== s.pct);
+  const canSave = isAdmin && total === 100 && dirty && !saving;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      await onCommit(shares.map((s) => ({ userId: s.userId, pct: pcts[s.userId] ?? 0 })));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-ink">Custom split — set by an admin</p>
+        <div className="flex flex-col gap-1 text-xs text-ink-3">
+          {shares.map((s) => (
+            <span key={s.userId}>
+              {s.nickname} {s.pct}%
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-ink">Custom split — set the share for each member</p>
+      <div className="flex flex-col gap-2">
+        {shares.map((s) => (
+          <div key={s.userId} className="flex items-center gap-2">
+            <span className="w-24 text-sm">{s.nickname}</span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={pcts[s.userId] ?? 0}
+              onChange={(e) =>
+                setPcts((prev) => ({ ...prev, [s.userId]: parseInt(e.target.value || '0', 10) }))
+              }
+              aria-label={`${s.nickname} %`}
+              disabled={saving}
+              className="w-24"
+            />
+            <span className="text-sm text-ink-3">%</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between">
+        <p className={total === 100 ? 'text-xs text-green-600' : 'text-xs text-amber-600'}>
+          Total: {total}%
+          {total !== 100 &&
+            ` (${total < 100 ? `${100 - total}% remaining` : `${total - 100}% over`})`}
+        </p>
+        <Button size="sm" onClick={() => void handleSave()} disabled={!canSave}>
+          {saving ? 'Saving…' : 'Save split'}
+        </Button>
+      </div>
+    </div>
   );
 }
 
