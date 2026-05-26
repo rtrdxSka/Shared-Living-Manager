@@ -155,7 +155,13 @@ export interface ITaskRotationConfig {
 export interface IHouseholdSettings {
   financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
-  customSplitPercentage?: number;   // 1–99, only meaningful when expenseSplitMethod === 'custom'
+  customSplitPercentage?: number;   // 1–99, owner's share — couple-style custom split
+  /**
+   * Per-member custom percentages (roommate-style). Each pct is 0–100; the array
+   * covers every finance member and sums to 100. Used when expenseSplitMethod ===
+   * 'custom' and no per-expense override is set.
+   */
+  customSplitShares?: { userId: string; pct: number }[];
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
   taskManagementEnabled: TaskManagementLevel;
@@ -172,6 +178,7 @@ export interface IUpdateHouseholdSettingsInput {
   financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
   customSplitPercentage?: number;
+  customSplitShares?: { userId: string; pct: number }[];
 }
 
 // ── Household Document ────────────────────────────────────────────────

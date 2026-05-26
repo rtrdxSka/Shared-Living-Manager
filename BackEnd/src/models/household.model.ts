@@ -133,6 +133,23 @@ const settingsSchema = new Schema(
       max: [99, 'Split percentage cannot exceed 99'],
       default: undefined,
     },
+    customSplitShares: {
+      type: [
+        new Schema(
+          {
+            userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+            pct: {
+              type: Number,
+              required: true,
+              min: [0, 'Share percentage cannot be negative'],
+              max: [100, 'Share percentage cannot exceed 100'],
+            },
+          },
+          { _id: false }
+        ),
+      ],
+      default: undefined,
+    },
     trackedExpenseTypes: [
       {
         type: String,
