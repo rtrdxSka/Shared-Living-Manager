@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import {
   Sheet,
@@ -22,13 +22,14 @@ export function NewVoteSheet({ open, onOpenChange }: NewVoteSheetProps) {
   const createVote = useCreateVote(household._id);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset transient state whenever the sheet closes so the next open is fresh.
-  useEffect(() => {
-    if (!open) setError(null);
-  }, [open]);
+  // Reset transient state on close so the next open is fresh.
+  function handleOpenChange(next: boolean) {
+    if (!next) setError(null);
+    onOpenChange(next);
+  }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Propose a new rule</SheetTitle>
@@ -43,12 +44,12 @@ export function NewVoteSheet({ open, onOpenChange }: NewVoteSheetProps) {
           submitLabel="Start vote"
           isSubmitting={createVote.isPending}
           errorMessage={error}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => handleOpenChange(false)}
           onSubmit={async (input) => {
             setError(null);
             try {
               await createVote.mutateAsync(input);
-              onOpenChange(false);
+              handleOpenChange(false);
             } catch (err) {
               setError(extractApiError(err, 'Failed to start vote.'));
             }

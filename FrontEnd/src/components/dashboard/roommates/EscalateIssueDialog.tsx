@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 import { useDashboard } from '@/contexts/useDashboard';
@@ -29,22 +29,23 @@ export function EscalateIssueDialog({
 
   const [error, setError] = useState<string | null>(null);
 
-  // Reset transient state whenever the dialog closes / target switches.
-  useEffect(() => {
-    if (!open) setError(null);
-  }, [open, issueId]);
+  // Reset transient state on close so the next open is fresh.
+  const handleClose = useCallback(() => {
+    setError(null);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   // ESC closes when no escalation write is in flight.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !escalate.isPending) {
-        onOpenChange(false);
+        handleClose();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, escalate.isPending, onOpenChange]);
+  }, [open, escalate.isPending, handleClose]);
 
   if (!open || !issueId) return null;
 
@@ -59,7 +60,7 @@ export function EscalateIssueDialog({
       onClick={(e) => {
         // Click on the backdrop (not the inner panel) closes the dialog.
         if (e.target === e.currentTarget && !escalate.isPending) {
-          onOpenChange(false);
+          handleClose();
         }
       }}
     >
@@ -71,7 +72,7 @@ export function EscalateIssueDialog({
           <button
             type="button"
             aria-label="Close"
-            onClick={() => onOpenChange(false)}
+            onClick={handleClose}
             disabled={escalate.isPending}
             className="rounded-sm text-ink-3 hover:text-ink transition-colors disabled:opacity-50"
           >
@@ -89,12 +90,12 @@ export function EscalateIssueDialog({
           submitLabel="Open vote"
           isSubmitting={escalate.isPending}
           errorMessage={error}
-          onCancel={() => onOpenChange(false)}
+          onCancel={handleClose}
           onSubmit={async (input) => {
             setError(null);
             try {
               await escalate.mutateAsync({ issueId, input });
-              onOpenChange(false);
+              handleClose();
             } catch (err) {
               setError(extractApiError(err, 'Failed to open vote.'));
             }

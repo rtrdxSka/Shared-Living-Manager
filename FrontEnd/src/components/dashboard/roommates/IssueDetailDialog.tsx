@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -40,15 +40,14 @@ export function IssueDetailDialog({
 
   const open = !!issueId;
 
-  // Reset transient state whenever the dialog closes / target switches.
-  useEffect(() => {
-    if (!open) {
-      setCommentText('');
-      setError(null);
-      setConfirmDelete(false);
-      setEscalateOpen(false);
-    }
-  }, [open, issueId]);
+  // Reset transient state on close so the next open is fresh.
+  const handleClose = useCallback(() => {
+    setCommentText('');
+    setError(null);
+    setConfirmDelete(false);
+    setEscalateOpen(false);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   // ESC closes when no destructive write is in flight.
   useEffect(() => {
@@ -61,7 +60,7 @@ export function IssueDetailDialog({
         !deleteIssue.isPending &&
         !escalateOpen
       ) {
-        onOpenChange(false);
+        handleClose();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -72,7 +71,7 @@ export function IssueDetailDialog({
     deleteComment.isPending,
     deleteIssue.isPending,
     escalateOpen,
-    onOpenChange,
+    handleClose,
   ]);
 
   if (!open) return null;
@@ -96,7 +95,7 @@ export function IssueDetailDialog({
     setError(null);
     try {
       await deleteIssue.mutateAsync(issueId);
-      onOpenChange(false);
+      handleClose();
     } catch (err) {
       setError(extractApiError(err, 'Failed to delete issue.'));
       setConfirmDelete(false);
@@ -125,7 +124,7 @@ export function IssueDetailDialog({
         onClick={(e) => {
           // Click on the backdrop (not the inner panel) closes the dialog.
           if (e.target === e.currentTarget && !escalateOpen) {
-            onOpenChange(false);
+            handleClose();
           }
         }}
       >
@@ -137,7 +136,7 @@ export function IssueDetailDialog({
             <button
               type="button"
               aria-label="Close"
-              onClick={() => onOpenChange(false)}
+              onClick={handleClose}
               className="rounded-sm text-ink-3 hover:text-ink transition-colors"
             >
               <X className="h-4 w-4" />
@@ -280,7 +279,7 @@ export function IssueDetailDialog({
           // moved to a vote, close the detail too so the user lands back in
           // the list (Task 25 will drive this from inside EscalateIssueDialog).
           if (!nextOpen && issue?.escalatedToVoteId) {
-            onOpenChange(false);
+            handleClose();
           }
         }}
       />

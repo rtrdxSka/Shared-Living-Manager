@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { extractApiError } from '@/utils/extractApiError';
 import {
@@ -78,8 +78,9 @@ export default function AddExpenseForm({
 }: AddExpenseFormProps) {
   const { uiMode, financeMode, splitMethod, customShares } = useDashboard();
   const isEditMode = expense !== undefined;
-  const payableMembers = household.members.filter(
-    (m) => m.participatesInFinances && m.userId
+  const payableMembers = useMemo(
+    () => household.members.filter((m) => m.participatesInFinances && m.userId),
+    [household.members]
   );
   const dropdownMembers = payableMembers;
 
@@ -102,9 +103,13 @@ export default function AddExpenseForm({
   // checked. Submit logic compares length against payableMembers and omits the
   // field on the payload when the whole household is selected so this stays a
   // pure superset of existing behavior for couple/solo.
-  const allPayableIds = payableMembers
-    .map((m) => m.userId)
-    .filter((id): id is string => Boolean(id));
+  const allPayableIds = useMemo(
+    () =>
+      payableMembers
+        .map((m) => m.userId)
+        .filter((id): id is string => Boolean(id)),
+    [payableMembers]
+  );
   const [participants, setParticipants] = useState<string[]>(() => {
     if (expense?.participantUserIds && expense.participantUserIds.length > 0) {
       return expense.participantUserIds;
@@ -218,12 +223,7 @@ export default function AddExpenseForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expense, open]);
 
-  // Reset all fields when the sheet is dismissed
-  useEffect(() => {
-    if (!open) resetForm();
-  }, [open]);
-
-  function resetForm() {
+  const resetForm = useCallback(() => {
     setDescription('');
     setAmount('');
     setCategory(EXPENSE_TYPES[0]);
@@ -237,7 +237,12 @@ export default function AddExpenseForm({
     setParticipants(allPayableIds);
     setCustomPcts({});
     setError(null);
-  }
+  }, [allPayableIds]);
+
+  // Reset all fields when the sheet is dismissed
+  useEffect(() => {
+    if (!open) resetForm();
+  }, [open, resetForm]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

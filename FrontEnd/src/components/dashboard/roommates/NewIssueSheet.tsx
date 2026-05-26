@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import {
@@ -39,15 +39,16 @@ export function NewIssueSheet({ open, onOpenChange }: NewIssueSheetProps) {
   const [category, setCategory] = useState<IssueCategory>('cleaning');
   const [error, setError] = useState<string | null>(null);
 
-  // Reset transient state whenever the sheet closes so the next open starts fresh.
-  useEffect(() => {
-    if (!open) {
+  // Reset transient state on close so the next open starts fresh.
+  function handleOpenChange(next: boolean) {
+    if (!next) {
       setTitle('');
       setBody('');
       setCategory('cleaning');
       setError(null);
     }
-  }, [open]);
+    onOpenChange(next);
+  }
 
   const canSubmit =
     title.trim().length > 0 && body.trim().length > 0 && !createIssue.isPending;
@@ -62,14 +63,14 @@ export function NewIssueSheet({ open, onOpenChange }: NewIssueSheetProps) {
         body: body.trim(),
         category,
       });
-      onOpenChange(false);
+      handleOpenChange(false);
     } catch (err) {
       setError(extractApiError(err, 'Failed to post issue. Please try again.'));
     }
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Raise an issue</SheetTitle>
@@ -145,7 +146,7 @@ export function NewIssueSheet({ open, onOpenChange }: NewIssueSheetProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
               disabled={createIssue.isPending}
             >
               Cancel
