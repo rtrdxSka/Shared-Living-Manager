@@ -177,3 +177,18 @@ export const mockHouseholdRoommatesSplit: HouseholdResponse = {
     expenseSplitMethod: 'equal',
   },
 };
+
+// Roommates + custom split with stored per-member shares (Alice 50 / Bob 30 / Carol 20).
+export const mockHouseholdRoommatesSplitCustom: HouseholdResponse = {
+  ...baseRoommatesHousehold,
+  settings: {
+    ...baseRoommatesHousehold.settings,
+    financeMode: 'split',
+    expenseSplitMethod: 'custom',
+    customSplitShares: [
+      { userId: 'user-alice-001', pct: 50 },
+      { userId: 'user-bob-001', pct: 30 },
+      { userId: 'user-carol-001', pct: 20 },
+    ],
+  },
+} as unknown as HouseholdResponse;

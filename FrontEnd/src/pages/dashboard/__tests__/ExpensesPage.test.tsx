@@ -49,6 +49,10 @@ vi.mock('@/contexts/useDashboard', async () => {
       customMyPct: 50,
       setCustomMyPct: vi.fn(),
       handleCustomPctCommit: vi.fn(),
+      customShares: dashboardOverride.household.members
+        .filter((m) => m.participatesInFinances && m.userId)
+        .map((m) => ({ userId: m.userId as string, nickname: m.nickname, pct: 0 })),
+      handleCustomSharesCommit: vi.fn(),
       incomeSplit: { myPct: 60, partnerPct: 40 },
       taskLevel: 'full',
       distribution: 'rotation',

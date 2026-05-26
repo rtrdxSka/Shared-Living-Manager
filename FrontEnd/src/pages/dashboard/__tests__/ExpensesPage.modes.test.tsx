@@ -49,6 +49,7 @@ import {
   mockHouseholdSplitCustom,
   mockHouseholdJoint,
   mockHouseholdRoommatesSplit,
+  mockHouseholdRoommatesSplitCustom,
   mockHouseholdRoommatesJoint,
 } from '@/test/mocks/data/households';
 import { mockUsers } from '@/test/mocks/data/users';
@@ -362,6 +363,49 @@ describe('<ExpensesPage /> custom split is owner-relative', () => {
     ).toBeInTheDocument();
     // Regression guard: before the fix this wrongly showed €350 (70%).
     expect(screen.queryByText(/your share:\s*350\.00\s*EUR/i)).not.toBeInTheDocument();
+  });
+});
+
+// ── Roommate household-level custom split editor ───────────────────────────────
+//
+// Roommates + split + custom renders the N-member SplitMethodCallout editor:
+// an admin gets editable per-member inputs + a Save button; a non-admin gets a
+// read-only breakdown. Stored shares are Alice 50 / Bob 30 / Carol 20.
+
+describe('<ExpensesPage /> roommate custom split callout', () => {
+  it('admin sees the per-member editor seeded from stored shares', async () => {
+    renderWithProviders(
+      <DashboardProvider
+        household={mockHouseholdRoommatesSplitCustom}
+        currentUserId={mockUsers.alice._id}
+      >
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    expect(
+      await screen.findByText(/set the share for each member/i),
+    ).toBeInTheDocument();
+    expect((screen.getByLabelText('Alice %') as HTMLInputElement).value).toBe('50');
+    expect((screen.getByLabelText('Bob %') as HTMLInputElement).value).toBe('30');
+    expect((screen.getByLabelText('Carol %') as HTMLInputElement).value).toBe('20');
+    expect(screen.getByText(/Total:\s*100%/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save split/i })).toBeInTheDocument();
+  });
+
+  it('non-admin sees a read-only breakdown, no inputs', async () => {
+    renderWithProviders(
+      <DashboardProvider
+        household={mockHouseholdRoommatesSplitCustom}
+        currentUserId={mockUsers.bob._id}
+      >
+        <ExpensesPage />
+      </DashboardProvider>,
+    );
+    expect(await screen.findByText(/set by an admin/i)).toBeInTheDocument();
+    expect(screen.getByText('Alice 50%')).toBeInTheDocument();
+    expect(screen.getByText('Bob 30%')).toBeInTheDocument();
+    expect(screen.getByText('Carol 20%')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save split/i })).not.toBeInTheDocument();
   });
 });
 

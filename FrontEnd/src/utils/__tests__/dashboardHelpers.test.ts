@@ -7,6 +7,7 @@ import {
   getDueDateStatus,
   formatDueDate,
   deriveCustomSplit,
+  deriveRoommateCustomShares,
   getMyShareLabel,
   myShareFromDebtorStates,
 } from '../dashboardHelpers';
@@ -139,6 +140,70 @@ describe('deriveCustomSplit', () => {
   it('defaults to 50/50 when customSplitPercentage is unset', () => {
     const hh = makeHousehold({});
     expect(deriveCustomSplit(hh, 'u-owner')).toEqual({ myPct: 50, partnerPct: 50 });
+  });
+});
+
+// Roommate household with N finance members and optional stored shares.
+function makeRoommateHousehold(
+  members: { userId: string; nickname: string }[],
+  customSplitShares?: { userId: string; pct: number }[]
+): HouseholdResponse {
+  return {
+    settings: { customSplitShares },
+    members: members.map((m) => ({
+      _id: `m-${m.userId}`,
+      userId: m.userId,
+      nickname: m.nickname,
+      role: 'member',
+      participatesInFinances: true,
+    })),
+  } as unknown as HouseholdResponse;
+}
+
+const THREE = [
+  { userId: 'u-a', nickname: 'Ann' },
+  { userId: 'u-b', nickname: 'Bob' },
+  { userId: 'u-c', nickname: 'Cy' },
+];
+
+describe('deriveRoommateCustomShares', () => {
+  it('returns the stored shares when they exactly cover the members and sum to 100', () => {
+    const hh = makeRoommateHousehold(THREE, [
+      { userId: 'u-a', pct: 50 },
+      { userId: 'u-b', pct: 30 },
+      { userId: 'u-c', pct: 20 },
+    ]);
+    expect(deriveRoommateCustomShares(hh)).toEqual([
+      { userId: 'u-a', nickname: 'Ann', pct: 50 },
+      { userId: 'u-b', nickname: 'Bob', pct: 30 },
+      { userId: 'u-c', nickname: 'Cy', pct: 20 },
+    ]);
+  });
+
+  it('falls back to an even split (remainder to the first) when shares are unset', () => {
+    const hh = makeRoommateHousehold(THREE);
+    expect(deriveRoommateCustomShares(hh)).toEqual([
+      { userId: 'u-a', nickname: 'Ann', pct: 34 },
+      { userId: 'u-b', nickname: 'Bob', pct: 33 },
+      { userId: 'u-c', nickname: 'Cy', pct: 33 },
+    ]);
+  });
+
+  it('falls back to even when stored shares no longer cover the current members (member joined)', () => {
+    const hh = makeRoommateHousehold(THREE, [
+      { userId: 'u-a', pct: 60 },
+      { userId: 'u-b', pct: 40 },
+    ]);
+    expect(deriveRoommateCustomShares(hh).map((s) => s.pct)).toEqual([34, 33, 33]);
+  });
+
+  it('falls back to even when stored shares do not sum to 100', () => {
+    const hh = makeRoommateHousehold(THREE, [
+      { userId: 'u-a', pct: 50 },
+      { userId: 'u-b', pct: 30 },
+      { userId: 'u-c', pct: 10 },
+    ]);
+    expect(deriveRoommateCustomShares(hh).map((s) => s.pct)).toEqual([34, 33, 33]);
   });
 });
 
