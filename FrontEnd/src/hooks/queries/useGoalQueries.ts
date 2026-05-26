@@ -5,6 +5,7 @@ import type {
   AddGoalInput,
   UpdateGoalInput,
   AddContributionInput,
+  GoalPriority,
 } from '@/types/goal.types';
 
 export function useGoals(householdId: string, enabled = true) {
@@ -42,6 +43,20 @@ export function useUpdateGoal(householdId: string) {
       goalId: string;
       input: UpdateGoalInput;
     }) => goalApi.updateGoal(householdId, goalId, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.goals.all(householdId),
+      });
+    },
+  });
+}
+
+export function useSetGoalPriority(householdId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ goalId, priority }: { goalId: string; priority: GoalPriority }) =>
+      goalApi.setGoalPriority(householdId, goalId, priority),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.goals.all(householdId),
