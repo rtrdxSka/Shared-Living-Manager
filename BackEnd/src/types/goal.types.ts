@@ -3,8 +3,10 @@ import { IPaginationInput } from './pagination.types';
 
 export type GoalCategory = 'savings' | 'travel' | 'home' | 'emergency' | 'other';
 export type GoalStatus = 'active' | 'completed' | 'abandoned';
+export type GoalPriority = 'low' | 'normal' | 'high';
 
 export const GOAL_CATEGORIES: GoalCategory[] = ['savings', 'travel', 'home', 'emergency', 'other'];
+export const GOAL_PRIORITIES: GoalPriority[] = ['low', 'normal', 'high'];
 
 export interface IGoalContribution {
   _id: Types.ObjectId;
@@ -23,6 +25,7 @@ export interface IGoal extends Document {
   deadline?: Date;
   status: GoalStatus;
   category?: GoalCategory;
+  priority: GoalPriority;
   createdByUserId: Types.ObjectId;
   completedAt?: Date;
   contributions: IGoalContribution[];
@@ -51,6 +54,10 @@ export interface IUpdateGoalInput {
   status?: 'completed' | 'abandoned';
 }
 
+export interface ISetGoalPriorityInput {
+  priority: GoalPriority;
+}
+
 export interface IAddContributionInput {
   amount: number;
   note?: string;
@@ -75,6 +82,7 @@ export interface IGoalResponse {
   deadline?: string;
   status: GoalStatus;
   category?: GoalCategory;
+  priority: GoalPriority;
   createdByUserId: string;
   completedAt?: string;
   contributions: IGoalContributionResponse[];
