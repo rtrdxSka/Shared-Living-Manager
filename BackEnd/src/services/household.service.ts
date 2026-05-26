@@ -222,6 +222,36 @@ class HouseholdService {
     return this.formatHouseholdResponse(household);
   }
 
+  // ── Update Savings Budget ────────────────────────────────────────────
+
+  /**
+   * Set the couple "Together Fund" monthly savings budget. Any member may set
+   * it — it's a shared plan (not an admin-only setting), so it deliberately
+   * does NOT reuse the admin-gated updateSettings path.
+   */
+  async updateSavingsBudget(
+    householdId: string,
+    requestingUserId: string,
+    monthlySavingsBudget: number
+  ): Promise<IHouseholdResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) {
+      throw NotFoundError('Household not found');
+    }
+
+    const member = household.members.find(
+      (m) => m.userId?.toString() === requestingUserId
+    );
+    if (!member) {
+      throw ForbiddenError('You are not a member of this household');
+    }
+
+    household.settings.monthlySavingsBudget = monthlySavingsBudget;
+    await household.save();
+
+    return this.formatHouseholdResponse(household);
+  }
+
   // ── Update Settings ──────────────────────────────────────────────────
 
   async updateSettings(

@@ -8,6 +8,7 @@ import {
   IGoalResponse,
   IGoalContributionResponse,
   IListGoalsInput,
+  GoalPriority,
 } from '../types/goal.types';
 import { IHouseholdMember } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
@@ -67,6 +68,28 @@ class GoalService {
 
     const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
     if (!goal) throw NotFoundError('Goal not found');
+
+    return this.formatGoalResponse(goal, household.members);
+  }
+
+  /**
+   * Set a goal's funding priority. Any household member may do this — the
+   * savings plan is shared (couple feature), so it isn't gated to the goal's
+   * creator the way name/target/status edits are.
+   */
+  async setGoalPriority(
+    householdId: string,
+    userId: string,
+    goalId: string,
+    priority: GoalPriority
+  ): Promise<IGoalResponse> {
+    const { household } = await getHouseholdForMember(householdId, userId);
+
+    const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
+    if (!goal) throw NotFoundError('Goal not found');
+
+    goal.priority = priority;
+    await goal.save();
 
     return this.formatGoalResponse(goal, household.members);
   }
@@ -244,6 +267,7 @@ class GoalService {
       ...(goal.deadline && { deadline: goal.deadline.toISOString() }),
       status: goal.status,
       ...(goal.category && { category: goal.category }),
+      priority: goal.priority ?? 'normal',
       createdByUserId: goal.createdByUserId.toString(),
       ...(goal.completedAt && { completedAt: goal.completedAt.toISOString() }),
       contributions,
