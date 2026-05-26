@@ -224,6 +224,18 @@ export default function AccountPage() {
   const showIncomeCard = isProportional;
   const showIncomeChips = isProportional && totalIncome > 0;
 
+  // Income-based targets need every participating member's income. When any is
+  // unset, the backend falls back to an equal split — surface that here.
+  const missingIncomeMembers = financialMembers.filter(
+    (m) => typeof m.monthlyIncome !== 'number'
+  );
+  const incomeComplete = missingIncomeMembers.length === 0;
+  const missingIncomeNicknames = missingIncomeMembers.map((m) => m.nickname);
+  // Proportional mode that effectively splits equally (incomplete data or all-zero income).
+  const proportionalSplitsEqually = isProportional && (!incomeComplete || totalIncome === 0);
+  const showIncomeFallbackBanner =
+    !!summary && hasTarget && isProportional && !incomeComplete;
+
   return (
     <div className="pb-8">
       <DashboardHeader
@@ -249,6 +261,18 @@ export default function AccountPage() {
             className="rounded-md border border-neg/40 bg-neg/[0.08] px-4 py-2 text-sm text-neg"
           >
             Joint account is overdrawn by {fmt(Math.abs(summary.balance))} {currency}.
+          </div>
+        )}
+
+        {/* ── Income-based fallback rail ── */}
+        {showIncomeFallbackBanner && (
+          <div
+            role="status"
+            className="rounded-md border border-accent/40 bg-accent/[0.08] px-4 py-2 text-sm text-ink-2"
+          >
+            Income-based targets need everyone's income — still waiting on{' '}
+            <span className="text-ink">{missingIncomeNicknames.join(' and ')}</span>.
+            Contributions are split equally for now.
           </div>
         )}
 
@@ -284,14 +308,14 @@ export default function AccountPage() {
                   </p>
                 )}
                 {hasTarget ? (
-                  <div className="w-full max-w-[480px] h-2 bg-surface-2 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-surface-2 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-accent rounded-full transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                 ) : isAdmin ? (
-                  <div className="space-y-2 max-w-[480px]">
+                  <div className="space-y-2">
                     <div
                       className="h-2 w-full rounded-full border border-dashed border-ink-3/40"
                       aria-hidden
@@ -315,8 +339,8 @@ export default function AccountPage() {
                     )}
                   >
                     {summary.targetMode === 'proportional'
-                      ? totalIncome === 0
-                        ? 'Mode: Income-based · waiting for incomes'
+                      ? proportionalSplitsEqually
+                        ? 'Mode: Income-based · split equally for now'
                         : 'Mode: Income-based'
                       : 'Mode: Equal'}
                   </span>
@@ -489,6 +513,7 @@ export default function AccountPage() {
           currency={currency}
           currentTarget={summary?.monthlyTarget}
           currentMode={summary?.targetMode}
+          membersMissingIncome={missingIncomeNicknames}
         />
       )}
     </div>
