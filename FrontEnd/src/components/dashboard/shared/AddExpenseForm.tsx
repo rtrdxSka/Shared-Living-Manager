@@ -33,6 +33,41 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Seed per-participant custom percentages for a new expense. Uses the household
+ * default shares when they cover every selected participant, renormalized to sum
+ * to 100 across the selection (proportional; integer remainder to the largest
+ * fractions). Falls back to an even split (remainder to the first) when the
+ * defaults don't cover the selection — e.g. a subgroup with a member who has no
+ * stored share. For a full-household selection the defaults are reproduced exactly.
+ */
+function seedCustomPcts(
+  participantIds: string[],
+  defaultPctByUser: Map<string, number>
+): Record<string, number> {
+  const n = participantIds.length;
+  if (n === 0) return {};
+  const out: Record<string, number> = {};
+  const haveAll = participantIds.every((id) => defaultPctByUser.has(id));
+  const rawSum = participantIds.reduce((s, id) => s + (defaultPctByUser.get(id) ?? 0), 0);
+  if (!haveAll || rawSum <= 0) {
+    const evenly = Math.floor(100 / n);
+    const remainder = 100 - evenly * n;
+    participantIds.forEach((id, i) => { out[id] = evenly + (i === 0 ? remainder : 0); });
+    return out;
+  }
+  const scaled = participantIds.map((id) => ((defaultPctByUser.get(id) ?? 0) / rawSum) * 100);
+  participantIds.forEach((id, i) => { out[id] = Math.floor(scaled[i]); });
+  let rem = 100 - participantIds.reduce((s, id) => s + out[id], 0);
+  const byFrac = scaled
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (let k = 0; rem > 0 && k < byFrac.length; k++, rem--) {
+    out[participantIds[byFrac[k].i]] += 1;
+  }
+  return out;
+}
+
 export default function AddExpenseForm({
   open,
   onOpenChange,
@@ -41,7 +76,7 @@ export default function AddExpenseForm({
   initialValues,
   onCreated,
 }: AddExpenseFormProps) {
-  const { uiMode, financeMode, splitMethod } = useDashboard();
+  const { uiMode, financeMode, splitMethod, customShares } = useDashboard();
   const isEditMode = expense !== undefined;
   const payableMembers = household.members.filter(
     (m) => m.participatesInFinances && m.userId
@@ -117,35 +152,21 @@ export default function AddExpenseForm({
 
   const submitting = addExpenseMutation.isPending || updateExpenseMutation.isPending || createRecurringMutation.isPending;
 
-  // Re-initialize the per-participant custom percentages whenever the
-  // participants list, uiMode, or splitMethod change. In edit mode, on the
-  // first render we keep whatever was loaded from `expense.customSplitOverrides`
-  // (handled by the useState initializer above). Subsequent participant
-  // toggles fall through to the even-split branch.
+  // Seed the per-participant custom percentages from the current household default
+  // each time the sheet opens in create mode, and reseed when the participant set
+  // changes while open. The form is permanently mounted, so seeding on open (rather
+  // than once on mount) is what keeps it in sync after the household split is edited;
+  // `resetForm()` clears these on close, so there are no cross-session edits to keep.
+  // Manual per-expense tweaks during an open session survive because `customPcts`
+  // isn't a dependency and the deps are stable until a real participant toggle. Edit
+  // mode loads the expense's own overrides via the [expense, open] effect below.
   useEffect(() => {
-    if (uiMode !== 'roommates' || splitMethod !== 'custom') {
-      setCustomPcts({});
-      return;
-    }
-    setCustomPcts((prev) => {
-      const n = participants.length;
-      if (n === 0) return {};
-      // If the existing map already covers exactly the current participant set,
-      // preserve user-entered values rather than blowing them away on unrelated
-      // re-renders.
-      const prevKeys = Object.keys(prev);
-      const sameSet =
-        prevKeys.length === n && participants.every((p) => prev[p] !== undefined);
-      if (sameSet) return prev;
-      const evenly = Math.floor(100 / n);
-      const remainder = 100 - evenly * n;
-      const init: Record<string, number> = {};
-      participants.forEach((uid, i) => {
-        init[uid] = evenly + (i === 0 ? remainder : 0);
-      });
-      return init;
-    });
-  }, [uiMode, splitMethod, participants]);
+    if (!open || isEditMode) return;
+    if (uiMode !== 'roommates' || splitMethod !== 'custom') return;
+    if (participants.length === 0) return;
+    const defaultPctByUser = new Map(customShares.map((s) => [s.userId, s.pct]));
+    setCustomPcts(seedCustomPcts(participants, defaultPctByUser));
+  }, [open, isEditMode, uiMode, splitMethod, participants, customShares]);
 
   const pctSum = Object.values(customPcts).reduce(
     (s, n) => s + (Number.isFinite(n) ? n : 0),
