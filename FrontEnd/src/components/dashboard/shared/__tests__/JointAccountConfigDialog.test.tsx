@@ -24,6 +24,28 @@ describe('<JointAccountConfigDialog />', () => {
     expect(screen.getByRole('button', { name: /income-based/i })).toBeInTheDocument();
   });
 
+  it('warns when income-based is selected while a member has no income on file', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <JointAccountConfigDialog {...baseProps} membersMissingIncome={['Bob']} />,
+    );
+    // Default mode is equal — no warning until income-based is picked.
+    expect(screen.queryByText(/waiting on income/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /income-based/i }));
+    const note = screen.getByText(/waiting on income/i);
+    expect(note).toBeInTheDocument();
+    expect(note.textContent).toMatch(/Bob/);
+  });
+
+  it('shows no income warning when every member has an income', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <JointAccountConfigDialog {...baseProps} membersMissingIncome={[]} />,
+    );
+    await user.click(screen.getByRole('button', { name: /income-based/i }));
+    expect(screen.queryByText(/waiting on income/i)).not.toBeInTheDocument();
+  });
+
   it('submits a target and closes', async () => {
     server.use(
       http.patch('/api/households/:id/joint-account/config', () =>
