@@ -150,6 +150,11 @@ const settingsSchema = new Schema(
       ],
       default: undefined,
     },
+    monthlySavingsBudget: {
+      type: Number,
+      min: [0, 'Monthly savings budget cannot be negative'],
+      default: undefined,
+    },
     trackedExpenseTypes: [
       {
         type: String,
