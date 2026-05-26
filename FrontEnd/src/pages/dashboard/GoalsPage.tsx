@@ -10,7 +10,17 @@ import DashboardHeader from '@/components/layout/DashboardHeader';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
 import { MoneyAmount } from '@/components/ui/money-amount';
 import { fmt, computeGoalProgress } from '@/utils/dashboardHelpers';
-import type { GoalResponse } from '@/types/goal.types';
+import {
+  contributionsByMember,
+  forecastFinishDate,
+  requiredMonthlyContribution,
+  splitContribution,
+  type SplitContext,
+  type ForecastStatus,
+} from '@/utils/goalPlanner';
+import TogetherProgressBar from '@/components/dashboard/couple/TogetherProgressBar';
+import SavingsPlanCard from '@/components/dashboard/couple/SavingsPlanCard';
+import type { GoalResponse, GoalPriority } from '@/types/goal.types';
 
 // ── Category emoji map ────────────────────────────────────────────────────
 
@@ -38,6 +48,77 @@ function formatDeadline(deadline?: string): string {
   });
 }
 
+function formatPlanDeadline(deadline: string): string {
+  return new Date(deadline).toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+// ── Forecast chip (couple mode) ───────────────────────────────────────────
+
+const FORECAST_CHIP: Record<Exclude<ForecastStatus, 'unknown'>, { label: string; className: string }> = {
+  ahead: { label: 'Ahead of pace', className: 'bg-pos/15 text-pos' },
+  'on-track': { label: 'On track', className: 'bg-pos/15 text-pos' },
+  behind: { label: 'Behind pace', className: 'bg-warn/20 text-warn' },
+};
+
+function ForecastChip({ status }: { status: ForecastStatus }) {
+  if (status === 'unknown') return null;
+  const chip = FORECAST_CHIP[status];
+  return (
+    <span
+      className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', chip.className)}
+      data-testid="goal-forecast-chip"
+    >
+      {chip.label}
+    </span>
+  );
+}
+
+// ── Priority selector (couple mode) ───────────────────────────────────────
+
+const PRIORITY_OPTIONS: { value: GoalPriority; label: string }[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'high', label: 'High' },
+];
+
+function PrioritySelector({
+  value,
+  onChange,
+}: {
+  value: GoalPriority;
+  onChange: (p: GoalPriority) => void;
+}) {
+  return (
+    <div className="mt-3 flex items-center gap-2" data-testid="goal-priority-selector">
+      <span className="text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+        Priority
+      </span>
+      <div className="inline-flex overflow-hidden rounded-lg border border-line">
+        {PRIORITY_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            aria-pressed={value === opt.value}
+            className={cn(
+              'px-2.5 py-1 text-xs transition-colors',
+              value === opt.value
+                ? 'bg-accent text-accent-ink'
+                : 'bg-transparent text-ink-2 hover:bg-surface-2'
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Goal card (new design) ────────────────────────────────────────────────
 
 interface GoalCardProps {
@@ -50,8 +131,16 @@ function GoalCard({ goal, confirmingDelete, setConfirmingDelete }: GoalCardProps
   const {
     currency,
     currentUserId,
+    uiMode,
+    myMemberId,
+    myNickname,
+    partnerNickname,
+    splitMethod,
+    incomeSplit,
+    customMyPct,
     setContributionTarget,
     updateGoal,
+    setGoalPriority,
     deleteGoal,
     removeContribution,
   } = useDashboard();
@@ -69,6 +158,18 @@ function GoalCard({ goal, confirmingDelete, setConfirmingDelete }: GoalCardProps
   const isActive = goal.status === 'active';
   const isCompleted = goal.status === 'completed';
   const isConfirmingThisDelete = confirmingDelete === goal._id;
+
+  // ── Couple "Together Fund" extras (no-op for roommate mode) ──────────────
+  const isCouple = uiMode === 'couple';
+  const splitCtx: SplitContext = { splitMethod, incomeSplit, customMyPct };
+  const teamwork = contributionsByMember(goal, myMemberId);
+  const now = new Date();
+  const forecast = isCouple && isActive ? forecastFinishDate(goal, now) : null;
+  const requiredMonthly =
+    isCouple && isActive && remaining > 0
+      ? requiredMonthlyContribution(remaining, goal.deadline, now)
+      : null;
+  const monthlySplit = requiredMonthly !== null ? splitContribution(requiredMonthly, splitCtx) : null;
 
   async function handleMarkCompleted() {
     setStatusPending(true);
@@ -104,10 +205,11 @@ function GoalCard({ goal, confirmingDelete, setConfirmingDelete }: GoalCardProps
 
   return (
     <Card className={cn('p-5', !isActive && 'opacity-70')}>
-      {/* Top row: emoji + deadline */}
-      <div className="flex items-start">
+      {/* Top row: emoji + forecast + deadline */}
+      <div className="flex items-start gap-2">
         <span className="text-4xl leading-none">{goalEmoji(goal.category)}</span>
         <span className="flex-1" />
+        {forecast && <ForecastChip status={forecast.status} />}
         {goal.deadline && (
           <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-3">
             {formatDeadline(goal.deadline)}
@@ -138,12 +240,25 @@ function GoalCard({ goal, confirmingDelete, setConfirmingDelete }: GoalCardProps
         of {fmt(goal.targetAmount)} {currency}
       </span>
 
-      {/* Progress bar */}
-      <div className="h-2 w-full bg-surface-2 rounded-full overflow-hidden mt-3">
-        <div
-          className="h-full bg-accent rounded-full transition-all"
-          style={{ width: `${capped}%` }}
-        />
+      {/* Progress bar — teamwork (couple) or flat (roommate) */}
+      <div className="mt-3">
+        {isCouple ? (
+          <TogetherProgressBar
+            mine={teamwork.mine}
+            partner={teamwork.partner}
+            myLabel={myNickname}
+            partnerLabel={partnerNickname}
+            target={goal.targetAmount}
+            currency={currency}
+          />
+        ) : (
+          <div className="h-2 w-full bg-surface-2 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent rounded-full transition-all"
+              style={{ width: `${capped}%` }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Footer: pct + remaining/overflow */}
@@ -160,6 +275,28 @@ function GoalCard({ goal, confirmingDelete, setConfirmingDelete }: GoalCardProps
           <span className="shrink-0">{fmt(remaining)} {currency} to go</span>
         ) : null}
       </div>
+
+      {/* Couple savings-plan line (active goals with a deadline) */}
+      {monthlySplit && requiredMonthly !== null && goal.deadline && (
+        <p
+          className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-2"
+          data-testid="goal-plan-line"
+        >
+          To reach this by{' '}
+          <span className="font-medium text-ink">{formatPlanDeadline(goal.deadline)}</span>, save{' '}
+          <span className="font-medium text-ink">{fmt(requiredMonthly)} {currency}/mo</span>{' '}
+          together — {myNickname} {fmt(monthlySplit.mine)} · {partnerNickname}{' '}
+          {fmt(monthlySplit.partner)}
+        </p>
+      )}
+
+      {/* Priority selector — drives the savings-plan allocator (couple, active) */}
+      {isCouple && isActive && (
+        <PrioritySelector
+          value={goal.priority}
+          onChange={(p) => void setGoalPriority(goal._id, p)}
+        />
+      )}
 
       {/* Add contribution ghost button (active goals only) */}
       {isActive && (
@@ -314,9 +451,26 @@ function AddGoalPlaceholder({ onClick }: { onClick: () => void }) {
 // ── Main page ─────────────────────────────────────────────────────────────
 
 export default function GoalsPage() {
-  const { goals, goalsLoading, setAddGoalOpen } = useDashboard();
+  const {
+    goals,
+    goalsLoading,
+    setAddGoalOpen,
+    uiMode,
+    currency,
+    myNickname,
+    partnerNickname,
+    splitMethod,
+    incomeSplit,
+    customMyPct,
+    savingsBudget,
+    commitSavingsBudget,
+  } = useDashboard();
 
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+
+  const isCouple = uiMode === 'couple';
+  const splitCtx: SplitContext = { splitMethod, incomeSplit, customMyPct };
+  const incomeIncomplete = splitMethod === 'income_based' && incomeSplit === null;
 
   const activeGoals = goals.filter((g) => g.status === 'active');
   const completedGoals = goals.filter((g) => g.status === 'completed');
@@ -351,6 +505,20 @@ export default function GoalsPage() {
           />
         ) : (
           <>
+            {/* ── Together Fund: monthly savings plan (couple mode) ─────── */}
+            {isCouple && (
+              <SavingsPlanCard
+                goals={goals}
+                splitCtx={splitCtx}
+                currency={currency}
+                myLabel={myNickname}
+                partnerLabel={partnerNickname}
+                budget={savingsBudget}
+                onBudgetCommit={(n) => void commitSavingsBudget(n)}
+                incomeIncomplete={incomeIncomplete}
+              />
+            )}
+
             {/* ── Active goals ──────────────────────────────────────────── */}
             <section>
               <EyebrowLabel as="div" className="mb-4 block">ACTIVE GOALS</EyebrowLabel>

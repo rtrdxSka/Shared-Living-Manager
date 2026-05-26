@@ -28,6 +28,7 @@ import {
   formatMonthLabel,
   computeGoalProgress,
 } from '@/utils/dashboardHelpers';
+import { forecastFinishDate, type ForecastStatus } from '@/utils/goalPlanner';
 import type { ExpenseResponse } from '@/types/expense.types';
 import type { HouseholdResponse } from '@/types/household.types';
 import type { JointAccountSummaryResponse } from '@/types/joint-account.types';
@@ -194,6 +195,7 @@ export default function OverviewPage() {
             goals={goals}
             goalsLoading={goalsLoading}
             currency={currency}
+            isCouple={uiMode === 'couple'}
             onAddGoal={() => setAddGoalOpen(true)}
             onViewAll={() => navigate('/dashboard/goals')}
           />
@@ -707,10 +709,17 @@ const JointAccountOverviewCard = React.memo(function JointAccountOverviewCard({
 
 // ── Goals Preview Card ────────────────────────────────────────────────────
 
+const OVERVIEW_FORECAST_CHIP: Record<Exclude<ForecastStatus, 'unknown'>, { label: string; className: string }> = {
+  ahead: { label: 'Ahead', className: 'bg-pos/15 text-pos' },
+  'on-track': { label: 'On track', className: 'bg-pos/15 text-pos' },
+  behind: { label: 'Behind', className: 'bg-warn/20 text-warn' },
+};
+
 interface GoalsPreviewCardProps {
   goals: GoalResponse[];
   goalsLoading: boolean;
   currency: string;
+  isCouple: boolean;
   onAddGoal: () => void;
   onViewAll: () => void;
 }
@@ -719,6 +728,7 @@ const GoalsPreviewCard = React.memo(function GoalsPreviewCard({
   goals,
   goalsLoading,
   currency,
+  isCouple,
   onAddGoal,
   onViewAll,
 }: GoalsPreviewCardProps) {
@@ -727,11 +737,15 @@ const GoalsPreviewCard = React.memo(function GoalsPreviewCard({
     return { activeGoals: active.slice(0, 3), hasMoreActive: active.length > 3 };
   }, [goals]);
 
+  const now = new Date();
+
   return (
     <Card>
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-ink">Saving towards</h3>
+          <h3 className="text-base font-semibold text-ink">
+            {isCouple ? 'Building together' : 'Saving towards'}
+          </h3>
           <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onAddGoal}>
             <Plus className="h-3.5 w-3.5" />
             Add
@@ -751,15 +765,30 @@ const GoalsPreviewCard = React.memo(function GoalsPreviewCard({
                 goal.currentAmount,
                 goal.targetAmount
               );
+              const forecast = isCouple ? forecastFinishDate(goal, now) : null;
+              const forecastChip =
+                forecast && forecast.status !== 'unknown'
+                  ? OVERVIEW_FORECAST_CHIP[forecast.status]
+                  : null;
               return (
                 <div key={goal._id} className="space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-sm font-medium text-ink">{goal.name}</span>
-                    {goal.deadline && (
-                      <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-3 shrink-0">
-                        {new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {forecastChip && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${forecastChip.className}`}
+                          data-testid="overview-goal-forecast"
+                        >
+                          {forecastChip.label}
+                        </span>
+                      )}
+                      {goal.deadline && (
+                        <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                          {new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="h-2 w-full bg-surface-2 rounded-full overflow-hidden">
                     <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${capped}%` }} />
