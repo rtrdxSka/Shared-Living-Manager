@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import BudgetPage from '@/pages/dashboard/BudgetPage';
 import { server } from '@/test/mocks/server';
@@ -247,9 +247,24 @@ describe('BudgetPage solo mode', () => {
   it('does not render the CoupleSpendComparisonCard, per-member splits, or scope toggle in solo mode', async () => {
     mockState.uiMode = 'solo';
     mockState.financeMode = 'split';
+    // A solo household has a single member, so the per-member breakdown toggle
+    // must not appear (it requires 2+ members).
+    installInsightsHandler([
+      {
+        memberId: 'mem-alice-001',
+        nickname: 'Alice',
+        totalShare: 50,
+        shareByCategory: { groceries: 50 },
+        totalPaid: 50,
+        paidByCategory: { groceries: 50 },
+      },
+    ]);
     renderWithProviders(<BudgetPage />);
 
     expect(await screen.findByText('Categories')).toBeInTheDocument();
+
+    // Single-member household: no per-member breakdown toggle.
+    expect(screen.queryByTestId('breakdown-mode-toggle')).not.toBeInTheDocument();
 
     // Comparison card must NOT be present.
     expect(screen.queryByText('Spending Comparison')).not.toBeInTheDocument();
@@ -526,5 +541,27 @@ describe('BudgetPage roommate mode', () => {
     expect(screen.getByText(/your income/i)).toBeInTheDocument();
     expect(screen.queryByTestId('budget-savings-rate')).not.toBeInTheDocument();
     expect(screen.queryByTestId('budget-scope-toggle')).not.toBeInTheDocument();
+  });
+
+  it('Spending Breakdown offers a per-member toggle and lists each member', async () => {
+    mockState.uiMode = 'roommates';
+    mockState.financeMode = 'split';
+    mockState.splitMethod = 'equal';
+    installRoommateHandler();
+
+    renderWithProviders(<BudgetPage />);
+    await screen.findByText('Categories');
+
+    // The per-member toggle is now available to roommates (2+ members).
+    expect(screen.getByTestId('breakdown-mode-toggle')).toBeInTheDocument();
+
+    // Switching to "By member" renders one legend row per member.
+    fireEvent.click(screen.getByTestId('breakdown-mode-member'));
+    expect(
+      screen.getByTestId('legend-row-member-mem-alice-001'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('legend-row-member-mem-bob-001'),
+    ).toBeInTheDocument();
   });
 });
