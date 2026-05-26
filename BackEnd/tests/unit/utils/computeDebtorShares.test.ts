@@ -143,6 +143,88 @@ describe('computeDebtorShares', () => {
     expect(result[0].share).toBe(500);
   });
 
+  it('applies household customSplitShares per-member (roommates custom)', () => {
+    const a = p({ role: 'owner' });
+    const b = p();
+    const c = p();
+    const result = computeDebtorShares({
+      amount: 1000,
+      payerUserId: a.userId,
+      participants: [a, b, c],
+      splitMethod: 'custom',
+      customSplitShares: [
+        { userId: a.userId, pct: 50 },
+        { userId: b.userId, pct: 30 },
+        { userId: c.userId, pct: 20 },
+      ],
+    });
+    expect(result).toHaveLength(2);
+    const byUser = new Map(result.map((r) => [r.userId.toString(), r.share]));
+    expect(byUser.get(b.userId.toString())).toBe(300);
+    expect(byUser.get(c.userId.toString())).toBe(200);
+  });
+
+  it('falls back to equal when customSplitShares do not cover every participant', () => {
+    const a = p();
+    const b = p();
+    const c = p();
+    const result = computeDebtorShares({
+      amount: 900,
+      payerUserId: a.userId,
+      participants: [a, b, c],
+      splitMethod: 'custom',
+      // missing c — stale after a member joined
+      customSplitShares: [
+        { userId: a.userId, pct: 60 },
+        { userId: b.userId, pct: 40 },
+      ],
+    });
+    expect(result.map((r) => r.share)).toEqual([300, 300]);
+  });
+
+  it('falls back to equal when customSplitShares over the participant set do not sum to 100 (subgroup)', () => {
+    const a = p();
+    const b = p();
+    const c = p();
+    // Household shares cover everyone, but this expense is a subgroup of a + b
+    // whose stored shares sum to 70, not 100 → equal between the subgroup.
+    const result = computeDebtorShares({
+      amount: 100,
+      payerUserId: a.userId,
+      participants: [a, b],
+      splitMethod: 'custom',
+      customSplitShares: [
+        { userId: a.userId, pct: 40 },
+        { userId: b.userId, pct: 30 },
+        { userId: c.userId, pct: 30 },
+      ],
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].share).toBe(50);
+  });
+
+  it('per-expense customSplitOverrides win over household customSplitShares', () => {
+    const a = p();
+    const b = p();
+    const result = computeDebtorShares({
+      amount: 100,
+      payerUserId: a.userId,
+      participants: [a, b],
+      splitMethod: 'custom',
+      customSplitShares: [
+        { userId: a.userId, pct: 50 },
+        { userId: b.userId, pct: 50 },
+      ],
+      customSplitOverrides: [
+        { userId: a.userId, pct: 10 },
+        { userId: b.userId, pct: 90 },
+      ],
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].userId).toEqual(b.userId);
+    expect(result[0].share).toBe(90);
+  });
+
   it('isFullRepayment makes each non-payer owe the full amount', () => {
     const a = p();
     const b = p();
