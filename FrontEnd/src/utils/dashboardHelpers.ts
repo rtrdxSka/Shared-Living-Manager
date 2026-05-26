@@ -145,6 +145,48 @@ export function deriveCustomSplit(
 }
 
 /**
+ * Per-member view of the roommate custom split. `settings.customSplitShares`
+ * stores one `{ userId, pct }` per finance member, summing to 100. Returns the
+ * shares seeded from storage when they EXACTLY cover the current finance members
+ * and sum to 100; otherwise an even split (remainder to the first). The
+ * even-split fallback mirrors the backend (which falls back to equal when the
+ * stored shares are stale after a membership change) and the per-expense
+ * editor's own initializer in AddExpenseForm.
+ *
+ * Used both to seed the household-level editor and to pre-fill the per-expense
+ * percentages for a new expense.
+ */
+export function deriveRoommateCustomShares(
+  household: HouseholdResponse
+): { userId: string; nickname: string; pct: number }[] {
+  const members = household.members.filter((m) => m.participatesInFinances && m.userId);
+  const n = members.length;
+  if (n === 0) return [];
+
+  const stored = household.settings.customSplitShares;
+  if (stored && stored.length === n) {
+    const pctByUser = new Map(stored.map((s) => [s.userId, s.pct]));
+    const coversAll = members.every((m) => pctByUser.has(m.userId as string));
+    const sum = stored.reduce((acc, s) => acc + s.pct, 0);
+    if (coversAll && sum === 100) {
+      return members.map((m) => ({
+        userId: m.userId as string,
+        nickname: m.nickname,
+        pct: pctByUser.get(m.userId as string) ?? 0,
+      }));
+    }
+  }
+
+  const evenly = Math.floor(100 / n);
+  const remainder = 100 - evenly * n;
+  return members.map((m, i) => ({
+    userId: m.userId as string,
+    nickname: m.nickname,
+    pct: evenly + (i === 0 ? remainder : 0),
+  }));
+}
+
+/**
  * The current user's share for an expense, read from its frozen `debtorStates`
  * snapshot: a debtor's recorded share, or (for the payer) the amount minus the
  * sum of debtor shares, or 0 for a non-participant. Used for RESOLVED expenses
