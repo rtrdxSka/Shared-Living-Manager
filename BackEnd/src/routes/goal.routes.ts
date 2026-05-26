@@ -5,6 +5,7 @@ import {
   listGoalsValidation,
   goalIdValidation,
   updateGoalValidation,
+  setGoalPriorityValidation,
   addContributionValidation,
   removeContributionValidation,
 } from '../validators/goal.validator';
@@ -51,6 +52,16 @@ router.patch(
   updateGoalValidation,
   handleValidationErrors,
   goalController.updateGoal.bind(goalController)
+);
+
+// PATCH /api/households/:id/goals/:goalId/priority
+router.patch(
+  '/:goalId/priority',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  setGoalPriorityValidation,
+  handleValidationErrors,
+  goalController.setGoalPriority.bind(goalController)
 );
 
 // DELETE /api/households/:id/goals/:goalId
