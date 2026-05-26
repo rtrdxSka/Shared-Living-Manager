@@ -265,3 +265,75 @@ describe('jointAccountService.updateConfig', () => {
     ).rejects.toSatisfy(expectAppError(403));
   });
 });
+
+// ── getSummary: income-based (proportional) target fallback ──────────
+// Proportional targets need every participating member's income. With
+// incomplete data we fall back to an equal split (and the Account page warns)
+// rather than handing the lone earner 100% of the target.
+describe('jointAccountService.getSummary — income-based target fallback', () => {
+  it('splits the target equally when a member has no income on file', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+
+    // Proportional target; Alice's income set, Bob's unset → incomplete.
+    // ($unset has no service path — Model write for otherwise-unreachable state.)
+    await Household.updateOne(
+      { _id: couple._id },
+      {
+        $set: {
+          'settings.jointAccountConfig.monthlyTarget': 1000,
+          'settings.jointAccountConfig.targetMode': 'proportional',
+          'members.$[a].monthlyIncome': 3000,
+        },
+        $unset: { 'members.$[b].monthlyIncome': '' },
+      },
+      { arrayFilters: [{ 'a.userId': alice._id }, { 'b.userId': bob._id }] }
+    );
+
+    const result = await jointAccountService.getSummary(
+      couple._id.toString(),
+      alice._id.toString(),
+      '2026-04'
+    );
+
+    const byNick = Object.fromEntries(
+      result.memberBreakdown.map((m) => [m.nickname, m.targetAmount])
+    );
+    // Equal split (500/500), NOT the lone-earner-takes-all 1000/0.
+    expect(byNick.Alice).toBe(500);
+    expect(byNick.Bob).toBe(500);
+  });
+
+  it('splits proportionally when every member has an income', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+
+    await Household.updateOne(
+      { _id: couple._id },
+      {
+        $set: {
+          'settings.jointAccountConfig.monthlyTarget': 1000,
+          'settings.jointAccountConfig.targetMode': 'proportional',
+          'members.$[a].monthlyIncome': 3000,
+          'members.$[b].monthlyIncome': 1000,
+        },
+      },
+      { arrayFilters: [{ 'a.userId': alice._id }, { 'b.userId': bob._id }] }
+    );
+
+    const result = await jointAccountService.getSummary(
+      couple._id.toString(),
+      alice._id.toString(),
+      '2026-04'
+    );
+
+    const byNick = Object.fromEntries(
+      result.memberBreakdown.map((m) => [m.nickname, m.targetAmount])
+    );
+    // 3000/4000 * 1000 = 750, 1000/4000 * 1000 = 250.
+    expect(byNick.Alice).toBe(750);
+    expect(byNick.Bob).toBe(250);
+  });
+});
