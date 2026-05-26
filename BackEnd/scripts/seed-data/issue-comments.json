@@ -1,0 +1,16 @@
+[
+  {
+    "key": "ic-r1-dishes-1",
+    "issueKey": "issue-r1-dishes",
+    "authorUserKey": "riley",
+    "body": "Agreed — also let's keep the counter clear after cooking.",
+    "createdDaysAgo": 2
+  },
+  {
+    "key": "ic-r2-dishes-1",
+    "issueKey": "issue-r2-dishes",
+    "authorUserKey": "wendy",
+    "body": "+1 — though maybe 36 hours is more realistic for weekends?",
+    "createdDaysAgo": 2
+  }
+]

@@ -54,6 +54,88 @@ describe('jointAccountService.getSummary', () => {
   });
 });
 
+// ── getSummary: unified activity feed ────────────────────────────────
+// The Recent Activity feed merges joint-account transactions AND expenses
+// (which already reduce the balance) into one date-sorted list.
+
+describe('jointAccountService.getSummary — activity feed', () => {
+  it('merges expenses and transactions into one date-desc feed', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+
+    const result = await jointAccountService.getSummary(
+      couple._id.toString(),
+      alice._id.toString(),
+      '2026-04'
+    );
+
+    // April couple: 4 transactions (tx-1..tx-4) + 4 expenses = 8 activity items.
+    expect(result.activityTotal).toBe(8);
+    expect(result.activity).toHaveLength(8);
+
+    // Sorted by date descending.
+    for (let i = 1; i < result.activity.length; i++) {
+      expect(
+        new Date(result.activity[i - 1].date).getTime()
+      ).toBeGreaterThanOrEqual(new Date(result.activity[i].date).getTime());
+    }
+
+    // Latest April event is tx-4 (withdrawal 60 at 20:30), just after the
+    // "Dinner at Manastira" expense (64 at 20:00).
+    expect(result.activity[0]).toMatchObject({
+      kind: 'transaction',
+      type: 'withdrawal',
+      amount: 60,
+    });
+    expect(result.activity[1]).toMatchObject({
+      kind: 'expense',
+      type: 'expense',
+      amount: 64,
+      category: 'other',
+      note: 'Dinner at Manastira',
+      memberNickname: 'Bob',
+    });
+  });
+
+  it('represents expenses as positive-amount outflows with payer + category', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+
+    const result = await jointAccountService.getSummary(
+      couple._id.toString(),
+      alice._id.toString(),
+      '2026-04'
+    );
+
+    const rent = result.activity.find((a) => a.note === 'April Rent');
+    expect(rent).toMatchObject({
+      kind: 'expense',
+      type: 'expense',
+      amount: 1200,
+      category: 'rent',
+      memberNickname: 'Alice',
+    });
+    expect(rent?._id).toBeTypeOf('string');
+  });
+
+  it('paginates the merged feed', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+
+    const result = await jointAccountService.getSummary(
+      couple._id.toString(),
+      alice._id.toString(),
+      '2026-04',
+      { page: 1, limit: 5 }
+    );
+
+    expect(result.activityTotal).toBe(8);
+    expect(result.activity).toHaveLength(5);
+    expect(result.activityPage).toBe(1);
+    expect(result.activityTotalPages).toBe(2);
+  });
+});
+
 // ── addTransaction ───────────────────────────────────────────────────
 
 describe('jointAccountService.addTransaction', () => {
@@ -181,5 +263,77 @@ describe('jointAccountService.updateConfig', () => {
         { monthlyTarget: 500 }
       )
     ).rejects.toSatisfy(expectAppError(403));
+  });
+});
+
+// ── getSummary: income-based (proportional) target fallback ──────────
+// Proportional targets need every participating member's income. With
+// incomplete data we fall back to an equal split (and the Account page warns)
+// rather than handing the lone earner 100% of the target.
+describe('jointAccountService.getSummary — income-based target fallback', () => {
+  it('splits the target equally when a member has no income on file', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+
+    // Proportional target; Alice's income set, Bob's unset → incomplete.
+    // ($unset has no service path — Model write for otherwise-unreachable state.)
+    await Household.updateOne(
+      { _id: couple._id },
+      {
+        $set: {
+          'settings.jointAccountConfig.monthlyTarget': 1000,
+          'settings.jointAccountConfig.targetMode': 'proportional',
+          'members.$[a].monthlyIncome': 3000,
+        },
+        $unset: { 'members.$[b].monthlyIncome': '' },
+      },
+      { arrayFilters: [{ 'a.userId': alice._id }, { 'b.userId': bob._id }] }
+    );
+
+    const result = await jointAccountService.getSummary(
+      couple._id.toString(),
+      alice._id.toString(),
+      '2026-04'
+    );
+
+    const byNick = Object.fromEntries(
+      result.memberBreakdown.map((m) => [m.nickname, m.targetAmount])
+    );
+    // Equal split (500/500), NOT the lone-earner-takes-all 1000/0.
+    expect(byNick.Alice).toBe(500);
+    expect(byNick.Bob).toBe(500);
+  });
+
+  it('splits proportionally when every member has an income', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+
+    await Household.updateOne(
+      { _id: couple._id },
+      {
+        $set: {
+          'settings.jointAccountConfig.monthlyTarget': 1000,
+          'settings.jointAccountConfig.targetMode': 'proportional',
+          'members.$[a].monthlyIncome': 3000,
+          'members.$[b].monthlyIncome': 1000,
+        },
+      },
+      { arrayFilters: [{ 'a.userId': alice._id }, { 'b.userId': bob._id }] }
+    );
+
+    const result = await jointAccountService.getSummary(
+      couple._id.toString(),
+      alice._id.toString(),
+      '2026-04'
+    );
+
+    const byNick = Object.fromEntries(
+      result.memberBreakdown.map((m) => [m.nickname, m.targetAmount])
+    );
+    // 3000/4000 * 1000 = 750, 1000/4000 * 1000 = 250.
+    expect(byNick.Alice).toBe(750);
+    expect(byNick.Bob).toBe(250);
   });
 });

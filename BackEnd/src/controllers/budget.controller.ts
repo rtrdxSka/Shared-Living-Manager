@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { budgetService } from '../services/budget.service';
-import { BudgetUpdateRequest } from '../types/budget.types';
+import { BudgetUpdateRequest, BudgetInsightsScope } from '../types/budget.types';
 
 class BudgetController {
   // GET /api/households/:id/budget
@@ -51,7 +51,7 @@ class BudgetController {
     }
   }
 
-  // GET /api/households/:id/budget/insights?month=YYYY-MM
+  // GET /api/households/:id/budget/insights?month=YYYY-MM&scope=personal|household
   async getInsights(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
@@ -60,7 +60,13 @@ class BudgetController {
       }
       const householdId = req.params.id as string;
       const month = req.query.month as string;
-      const insights = await budgetService.getInsights(householdId, req.user.userId, month);
+      const scope = req.query.scope as BudgetInsightsScope | undefined;
+      const insights = await budgetService.getInsights(
+        householdId,
+        req.user.userId,
+        month,
+        scope
+      );
       res.status(200).json({ status: 'success', data: insights });
     } catch (error) {
       next(error);

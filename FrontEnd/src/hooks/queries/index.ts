@@ -13,9 +13,9 @@ export {
   useUpdateExpense,
   useDeleteExpense,
   useClaimExpense,
-  useRequestResolution,
-  useConfirmResolution,
-  useDisputeResolution,
+  useClaimPayback,
+  useConfirmPayback,
+  useDisputePayback,
 } from './useExpenseQueries';
 
 export {

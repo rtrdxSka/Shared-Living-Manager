@@ -21,6 +21,19 @@ export interface JointAccountMemberBreakdown {
   targetAmount?: number;
 }
 
+export type ActivityKind = 'transaction' | 'expense';
+
+export interface ActivityItemResponse {
+  _id: string;
+  kind: ActivityKind;
+  type: 'deposit' | 'withdrawal' | 'expense';
+  amount: number;
+  date: string;
+  memberNickname: string;
+  note?: string;
+  category?: string;
+}
+
 export interface JointAccountSummaryResponse {
   balance: number;
   monthlyDeposits: number;
@@ -34,6 +47,10 @@ export interface JointAccountSummaryResponse {
   transactionTotal: number;
   transactionPage: number;
   transactionTotalPages: number;
+  activity: ActivityItemResponse[];
+  activityTotal: number;
+  activityPage: number;
+  activityTotalPages: number;
 }
 
 export interface AddTransactionInput {

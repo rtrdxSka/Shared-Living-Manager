@@ -147,5 +147,104 @@
     "isCompleted": false,
     "dueDate": "2026-05-18T00:00:00.000Z",
     "createdAt": "2026-05-10T10:00:00.000Z"
+  },
+  {
+    "key": "task-r1-vacuum",
+    "householdKey": "roommates-1",
+    "title": "Vacuum living room",
+    "createdByUserKey": "riley",
+    "assignedToMemberKey": "sam-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-19T00:00:00.000Z",
+    "createdAt": "2026-05-15T09:00:00.000Z"
+  },
+  {
+    "key": "task-r1-trash",
+    "householdKey": "roommates-1",
+    "title": "Take out trash",
+    "createdByUserKey": "sam",
+    "assignedToMemberKey": "taylor-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-21T00:00:00.000Z",
+    "createdAt": "2026-05-18T09:00:00.000Z"
+  },
+  {
+    "key": "task-r1-plants",
+    "householdKey": "roommates-1",
+    "title": "Water plants",
+    "createdByUserKey": "taylor",
+    "assignedToMemberKey": "riley-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-24T00:00:00.000Z",
+    "createdAt": "2026-05-19T09:00:00.000Z"
+  },
+  {
+    "key": "task-r2-kitchen",
+    "householdKey": "roommates-2",
+    "title": "Clean kitchen",
+    "createdByUserKey": "uma",
+    "assignedToMemberKey": "vince-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-22T00:00:00.000Z",
+    "createdAt": "2026-05-19T09:00:00.000Z"
+  },
+  {
+    "key": "task-r2-recycling",
+    "householdKey": "roommates-2",
+    "title": "Recycling pickup",
+    "createdByUserKey": "uma",
+    "assignedToMemberKey": "wendy-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-23T00:00:00.000Z",
+    "createdAt": "2026-05-19T09:00:00.000Z"
+  },
+  {
+    "key": "task-r2-pantry",
+    "householdKey": "roommates-2",
+    "title": "Restock pantry",
+    "createdByUserKey": "vince",
+    "isCompleted": false,
+    "dueDate": "2026-05-25T00:00:00.000Z",
+    "createdAt": "2026-05-20T09:00:00.000Z"
+  },
+  {
+    "key": "task-r3-bathroom",
+    "householdKey": "roommates-3",
+    "title": "Clean bathrooms",
+    "createdByUserKey": "xavier",
+    "assignedToMemberKey": "xavier-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-22T00:00:00.000Z",
+    "createdAt": "2026-05-17T09:00:00.000Z"
+  },
+  {
+    "key": "task-r3-kitchen",
+    "householdKey": "roommates-3",
+    "title": "Deep clean kitchen",
+    "createdByUserKey": "yara",
+    "assignedToMemberKey": "yara-m",
+    "isCompleted": true,
+    "dueDate": "2026-05-15T00:00:00.000Z",
+    "createdAt": "2026-05-10T09:00:00.000Z"
+  },
+  {
+    "key": "task-r3-trash",
+    "householdKey": "roommates-3",
+    "title": "Take out the big trash",
+    "createdByUserKey": "zoe",
+    "assignedToMemberKey": "zoe-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-23T00:00:00.000Z",
+    "createdAt": "2026-05-19T09:00:00.000Z"
+  },
+  {
+    "key": "task-r3-laundry",
+    "householdKey": "roommates-3",
+    "title": "Wash shared towels",
+    "createdByUserKey": "drew",
+    "assignedToMemberKey": "drew-m",
+    "isCompleted": false,
+    "dueDate": "2026-05-26T00:00:00.000Z",
+    "createdAt": "2026-05-20T09:00:00.000Z"
   }
 ]

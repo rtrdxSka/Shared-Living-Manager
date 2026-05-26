@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { budgetApi } from '@/api/budget.api';
-import type { BudgetUpdateRequest } from '@/types/budget.types';
+import type { BudgetInsightsScope, BudgetUpdateRequest } from '@/types/budget.types';
 
 export function useBudget(householdId: string, enabled = true) {
   return useQuery({
@@ -13,10 +13,15 @@ export function useBudget(householdId: string, enabled = true) {
   });
 }
 
-export function useBudgetInsights(householdId: string, month: string, enabled = true) {
+export function useBudgetInsights(
+  householdId: string,
+  month: string,
+  scope?: BudgetInsightsScope,
+  enabled = true
+) {
   return useQuery({
-    queryKey: queryKeys.budget.insights(householdId, month),
-    queryFn: () => budgetApi.getInsights(householdId, month),
+    queryKey: queryKeys.budget.insights(householdId, month, scope),
+    queryFn: () => budgetApi.getInsights(householdId, month, scope),
     enabled: enabled && Boolean(householdId) && Boolean(month),
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,

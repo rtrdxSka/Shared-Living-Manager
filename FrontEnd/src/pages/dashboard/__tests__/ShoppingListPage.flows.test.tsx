@@ -262,7 +262,7 @@ describe('<ShoppingListPage /> flows', () => {
               category: 'groceries',
               date: '2026-05-10',
               isResolved: false,
-              pendingConfirmation: false,
+              debtorStates: [],
               isFullRepayment: false,
               createdByUserId: mockUsers.alice._id,
               createdAt: '2026-05-10T00:00:00.000Z',

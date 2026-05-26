@@ -181,7 +181,8 @@ describe('budgetService.getInsights', () => {
     const insights = await budgetService.getInsights(
       couple._id.toString(),
       alice._id.toString(),
-      monthString
+      monthString,
+      'household'
     );
 
     expect(insights.month).toBe(monthString);
@@ -190,6 +191,7 @@ describe('budgetService.getInsights', () => {
     expect(insights.overBudgetCategories).toContain('groceries');
     expect(insights.monthlyTrend).toHaveLength(6);
     expect(insights.monthlyTrend[5].monthString).toBe(monthString);
+    expect(insights.effectiveScope).toBe('household');
   });
 
   it('returns savingsRate when the requesting member has monthlyIncome set', async () => {
@@ -467,7 +469,8 @@ describe('budgetService.getInsights', () => {
     const insights = await budgetService.getInsights(
       householdId.toString(),
       userIds[0].toString(),
-      isolMonth
+      isolMonth,
+      'household'
     );
 
     // Category total includes both.
@@ -489,6 +492,104 @@ describe('budgetService.getInsights', () => {
     expect(perMemberGroceriesPaid).toBe(60);
     const perMemberTotalPaid = insights.byMember.reduce((sum, row) => sum + row.totalPaid, 0);
     expect(perMemberTotalPaid).toBe(60);
+  });
+
+  // ── scope=personal | household ───────────────────────────────────────
+
+  it('scope=personal (default in split mode): totalSpent reflects only the user share', async () => {
+    // Alice income 6000, Bob income 4000 → income_based: Alice 60%, Bob 40%.
+    // 1600 rent paid by Alice → Alice share=960, Bob share=640.
+    const { householdId, userIds, isolMonth, monthDate } =
+      await buildIsolatedHousehold(['Alice', 'Bob'], {
+        financeMode: 'split',
+        expenseSplitMethod: 'income_based',
+        monthlyIncomes: [6000, 4000],
+      });
+
+    await Expense.create({
+      householdId,
+      paidByUserId: userIds[0],
+      createdByUserId: userIds[0],
+      description: 'Rent',
+      amount: 1600,
+      category: 'rent',
+      date: monthDate,
+      isFullRepayment: false,
+    });
+
+    // Default scope is 'personal'.
+    const insights = await budgetService.getInsights(
+      householdId.toString(),
+      userIds[0].toString(),
+      isolMonth
+    );
+
+    expect(insights.requestedScope).toBe('personal');
+    expect(insights.effectiveScope).toBe('personal');
+    expect(insights.totalSpent).toBeCloseTo(960, 5);
+    expect(insights.spendByCategory.rent).toBeCloseTo(960, 5);
+    // Savings rate uses Alice's income (6000) and her share (960).
+    expect(insights.savingsRate).toBeCloseTo((6000 - 960) / 6000, 5);
+  });
+
+  it('scope=household: totalSpent is the household sum regardless of viewer', async () => {
+    const { householdId, userIds, isolMonth, monthDate } =
+      await buildIsolatedHousehold(['Alice', 'Bob'], {
+        financeMode: 'split',
+        expenseSplitMethod: 'income_based',
+        monthlyIncomes: [6000, 4000],
+      });
+
+    await Expense.create({
+      householdId,
+      paidByUserId: userIds[0],
+      createdByUserId: userIds[0],
+      description: 'Rent',
+      amount: 1600,
+      category: 'rent',
+      date: monthDate,
+      isFullRepayment: false,
+    });
+
+    const insights = await budgetService.getInsights(
+      householdId.toString(),
+      userIds[0].toString(),
+      isolMonth,
+      'household'
+    );
+
+    expect(insights.requestedScope).toBe('household');
+    expect(insights.effectiveScope).toBe('household');
+    expect(insights.totalSpent).toBe(1600);
+    expect(insights.spendByCategory.rent).toBe(1600);
+  });
+
+  it('joint mode: requested scope=personal is overridden to effectiveScope=household', async () => {
+    const { householdId, userIds, isolMonth, monthDate } =
+      await buildIsolatedHousehold(['Alice', 'Bob'], { financeMode: 'joint' });
+
+    await Expense.create({
+      householdId,
+      paidByUserId: userIds[0],
+      createdByUserId: userIds[0],
+      description: 'Joint dinner',
+      amount: 200,
+      category: 'groceries',
+      date: monthDate,
+      isFullRepayment: false,
+    });
+
+    const insights = await budgetService.getInsights(
+      householdId.toString(),
+      userIds[0].toString(),
+      isolMonth,
+      'personal'
+    );
+
+    expect(insights.requestedScope).toBe('personal');
+    expect(insights.effectiveScope).toBe('household');
+    expect(insights.totalSpent).toBe(200);
+    expect(insights.spendByCategory.groceries).toBe(200);
   });
 
   // ── New semantics: split/equal, split/income_based, joint, isFullRepayment ──

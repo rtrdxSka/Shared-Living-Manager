@@ -336,6 +336,26 @@ export const updateSettingsValidation: ValidationChain[] = [
     .optional()
     .isInt({ min: 1, max: 99 })
     .withMessage('customSplitPercentage must be an integer between 1 and 99'),
+
+  body('customSplitShares')
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage('customSplitShares must be a non-empty array'),
+  body('customSplitShares.*.userId')
+    .if(body('customSplitShares').exists())
+    .isMongoId()
+    .withMessage('Each customSplitShares entry needs a valid userId'),
+  body('customSplitShares.*.pct')
+    .if(body('customSplitShares').exists())
+    .isInt({ min: 0, max: 100 })
+    .withMessage('Each customSplitShares pct must be an integer between 0 and 100'),
+  body('customSplitShares')
+    .optional()
+    .custom((shares: { pct: number }[]) => {
+      const sum = shares.reduce((acc, s) => acc + (Number(s?.pct) || 0), 0);
+      if (sum !== 100) throw new Error('customSplitShares percentages must sum to 100');
+      return true;
+    }),
 ];
 
 // ── Update Member Income Validation ───────────────────────────────────

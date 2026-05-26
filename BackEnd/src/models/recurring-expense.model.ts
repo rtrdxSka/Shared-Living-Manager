@@ -1,6 +1,7 @@
 import { Schema, model } from 'mongoose';
 import { IRecurringExpense, RECURRENCE_INTERVALS, PAYER_MODES } from '../types/recurring-expense.types';
 import { EXPENSE_TYPES } from '../types/household.types';
+import { customSplitOverrideSchema } from './_shared/expense-subgroup.schema';
 
 const recurringExpenseSchema = new Schema<IRecurringExpense>(
   {
@@ -27,6 +28,8 @@ const recurringExpenseSchema = new Schema<IRecurringExpense>(
     fixedPayerUserId: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
     isActive: { type: Boolean, required: true, default: true },
     isFullRepayment: { type: Boolean, required: true, default: false },
+    participantUserIds: { type: [Schema.Types.ObjectId], ref: 'User', default: undefined },
+    customSplitOverrides: { type: [customSplitOverrideSchema], default: undefined },
   },
   {
     timestamps: true,
@@ -43,5 +46,7 @@ recurringExpenseSchema.index({ householdId: 1, isActive: 1 });
 recurringExpenseSchema.index({ interval: 1, isActive: 1 });
 // Supports findOne({ _id, householdId }) household-scoping on writes/reads
 recurringExpenseSchema.index({ _id: 1, householdId: 1 });
+// Supports querying recurring expenses that involve a specific participant within a household
+recurringExpenseSchema.index({ householdId: 1, participantUserIds: 1 });
 
 export const RecurringExpense = model<IRecurringExpense>('RecurringExpense', recurringExpenseSchema);

@@ -1,6 +1,14 @@
 import { Document, Types } from 'mongoose';
 import { ExpenseType } from './household.types';
 
+export interface IExpenseDebtorState {
+  userId: Types.ObjectId;
+  share: number;
+  claimedAt?: Date;
+  confirmedAt?: Date;
+  disputedAt?: Date;
+}
+
 export interface IExpense extends Document {
   _id: Types.ObjectId;
   householdId: Types.ObjectId;
@@ -15,11 +23,9 @@ export interface IExpense extends Document {
   isResolved: boolean;
   isFullRepayment: boolean;
   resolvedAt?: Date;
-  resolvedByUserId?: Types.ObjectId;
-  pendingConfirmation: boolean;
-  pendingConfirmationAt?: Date;
-  pendingConfirmationByUserId?: Types.ObjectId;
-  lastDisputedAt?: Date;
+  participantUserIds?: Types.ObjectId[];
+  customSplitOverrides?: { userId: Types.ObjectId; pct: number }[];
+  debtorStates: IExpenseDebtorState[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,16 +34,18 @@ export interface IAddExpenseInput {
   description: string;
   amount: number;
   category: ExpenseType;
-  date: string;         // "YYYY-MM-DD" from client
+  date: string;
   notes?: string;
   paidByUserId?: string;
   isFullRepayment?: boolean;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
 }
 
 export type ExpenseStatus = 'unresolved' | 'pending' | 'resolved';
 
 export interface IListExpensesInput {
-  month?: string;       // "YYYY-MM" or "all" — defaults to current month
+  month?: string;
   search?: string;
   categories?: ExpenseType[];
   paidBy?: string[];
@@ -51,11 +59,20 @@ export interface IListExpensesResult {
   nextCursor: string | null;
 }
 
+export interface IExpenseDebtorStateResponse {
+  userId: string;
+  nickname?: string;
+  share: number;
+  claimedAt?: string;
+  confirmedAt?: string;
+  disputedAt?: string;
+}
+
 export interface IExpenseResponse {
   _id: string;
   householdId: string;
   paidByUserId?: string;
-  paidByNickname?: string;  // resolved from household.members
+  paidByNickname?: string;
   createdByUserId: string;
   description: string;
   amount: number;
@@ -66,12 +83,9 @@ export interface IExpenseResponse {
   isResolved: boolean;
   isFullRepayment: boolean;
   resolvedAt?: string;
-  resolvedByUserId?: string;
-  pendingConfirmation: boolean;
-  pendingConfirmationAt?: string;
-  pendingConfirmationByUserId?: string;
-  pendingConfirmationByNickname?: string;
-  lastDisputedAt?: string;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
+  debtorStates: IExpenseDebtorStateResponse[];
   createdAt: string;
   updatedAt: string;
 }
@@ -80,12 +94,15 @@ export interface IUpdateExpenseInput {
   description?: string;
   amount?: number;
   category?: ExpenseType;
-  date?: string;      // "YYYY-MM-DD"
+  date?: string;
   notes?: string;
   paidByUserId?: string | null;
   isFullRepayment?: boolean;
+  participantUserIds?: string[] | null;
+  customSplitOverrides?: { userId: string; pct: number }[];
 }
 
-export interface IClaimExpenseInput {
-  // no body — auth provides the claimant identity
-}
+export interface IClaimExpenseInput { /* empty — auth provides claimant */ }
+export interface IClaimPaybackInput { /* empty — auth provides debtor */ }
+export interface IConfirmPaybackInput { debtorUserId: string }
+export interface IDisputePaybackInput { debtorUserId: string }

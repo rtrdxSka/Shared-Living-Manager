@@ -102,29 +102,31 @@ class ExpenseController {
     }
   }
 
-  // POST /api/households/:id/expenses/:expenseId/request-resolution
-  async requestResolution(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  // POST /api/households/:id/expenses/:expenseId/claim-payback
+  async claimPayback(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) { res.status(401).json({ status: 'error', message: 'Unauthorized' }); return; }
-      const expense = await expenseService.requestResolution(req.params.id as string, req.user.userId, req.params.expenseId as string);
+      const expense = await expenseService.claimPayback(req.params.id as string, req.user.userId, req.params.expenseId as string);
       res.status(200).json({ status: 'success', data: { expense } });
     } catch (error) { next(error); }
   }
 
-  // POST /api/households/:id/expenses/:expenseId/confirm-resolution
-  async confirmResolution(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  // POST /api/households/:id/expenses/:expenseId/confirm-payback
+  async confirmPayback(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) { res.status(401).json({ status: 'error', message: 'Unauthorized' }); return; }
-      const expense = await expenseService.confirmResolution(req.params.id as string, req.user.userId, req.params.expenseId as string);
+      const { debtorUserId } = req.body as { debtorUserId: string };
+      const expense = await expenseService.confirmPayback(req.params.id as string, req.user.userId, req.params.expenseId as string, { debtorUserId });
       res.status(200).json({ status: 'success', data: { expense } });
     } catch (error) { next(error); }
   }
 
-  // POST /api/households/:id/expenses/:expenseId/dispute-resolution
-  async disputeResolution(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  // POST /api/households/:id/expenses/:expenseId/dispute-payback
+  async disputePayback(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) { res.status(401).json({ status: 'error', message: 'Unauthorized' }); return; }
-      const expense = await expenseService.disputeResolution(req.params.id as string, req.user.userId, req.params.expenseId as string);
+      const { debtorUserId } = req.body as { debtorUserId: string };
+      const expense = await expenseService.disputePayback(req.params.id as string, req.user.userId, req.params.expenseId as string, { debtorUserId });
       res.status(200).json({ status: 'success', data: { expense } });
     } catch (error) { next(error); }
   }

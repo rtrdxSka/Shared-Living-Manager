@@ -1,0 +1,10 @@
+[
+  { "voteKey": "vote-r2-dishes-24h", "userKey": "vince", "choice": "yes" },
+  { "voteKey": "vote-r2-dishes-24h", "userKey": "wendy", "choice": "no" },
+  { "voteKey": "vote-r3-dishes-passed", "userKey": "xavier", "choice": "yes" },
+  { "voteKey": "vote-r3-dishes-passed", "userKey": "yara", "choice": "yes" },
+  { "voteKey": "vote-r3-dishes-passed", "userKey": "zoe", "choice": "yes" },
+  { "voteKey": "vote-r3-guests-passed", "userKey": "xavier", "choice": "yes" },
+  { "voteKey": "vote-r3-guests-passed", "userKey": "zoe", "choice": "yes" },
+  { "voteKey": "vote-r3-guests-passed", "userKey": "drew", "choice": "yes" }
+]

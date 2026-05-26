@@ -39,3 +39,11 @@ export const budgetMonthQueryValidation: ValidationChain[] = [
     .matches(/^(\d{4}-(0[1-9]|1[0-2]))$/)
     .withMessage('month must be in YYYY-MM format'),
 ];
+
+export const budgetInsightsQueryValidation: ValidationChain[] = [
+  ...budgetMonthQueryValidation,
+  query('scope')
+    .optional()
+    .isIn(['personal', 'household'])
+    .withMessage('scope must be either "personal" or "household"'),
+];

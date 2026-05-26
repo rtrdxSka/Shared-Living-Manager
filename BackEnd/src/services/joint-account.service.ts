@@ -8,6 +8,7 @@ import {
   IJointAccountTransactionResponse,
   IJointAccountSummaryResponse,
   IJointAccountMemberBreakdown,
+  IActivityItemResponse,
 } from '../types/joint-account.types';
 import { IHouseholdMember, IHouseholdResponse } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
@@ -46,7 +47,14 @@ class JointAccountService {
       monthly: Array<{ _id: null; total: number }>;
     };
 
-    const [txFacetResult, expFacetResult, transactions, transactionTotal] = await Promise.all([
+    const [
+      txFacetResult,
+      expFacetResult,
+      transactions,
+      transactionTotal,
+      allMonthTx,
+      monthExpenses,
+    ] = await Promise.all([
       JointAccountTransaction.aggregate<TxFacet>([
         { $match: { householdId: householdObjId } },
         {
@@ -81,6 +89,11 @@ class JointAccountService {
         .limit(txLimit)
         .lean(),
       JointAccountTransaction.countDocuments(txFilter),
+      // Full month transactions + expenses for the merged activity feed.
+      JointAccountTransaction.find(txFilter).sort({ createdAt: -1 }).lean(),
+      Expense.find({ householdId: householdObjId, date: { $gte: start, $lt: end } })
+        .sort({ date: -1 })
+        .lean(),
     ]);
 
     const txFacet = txFacetResult[0] ?? {
@@ -141,6 +154,43 @@ class JointAccountService {
       (tx) => this.formatTransactionResponse(tx, memberMap)
     );
 
+    // ── Unified activity feed ──────────────────────────────────────────
+    // Merge transactions + expenses (expenses already draw down the balance)
+    // into one date-desc list, then paginate the merged set in memory.
+    const nicknameByUserId = new Map<string, string>();
+    for (const m of household.members) {
+      if (m.userId) nicknameByUserId.set(m.userId.toString(), m.nickname);
+    }
+
+    const txActivity: IActivityItemResponse[] = allMonthTx.map((tx) => ({
+      _id: tx._id.toString(),
+      kind: 'transaction',
+      type: tx.type,
+      amount: tx.amount,
+      date: new Date(tx.createdAt).toISOString(),
+      memberNickname: memberMap.get(tx.memberId.toString())?.nickname ?? '—',
+      ...(tx.note ? { note: tx.note } : {}),
+    }));
+
+    const expenseActivity: IActivityItemResponse[] = monthExpenses.map((exp) => ({
+      _id: exp._id.toString(),
+      kind: 'expense',
+      type: 'expense',
+      amount: exp.amount,
+      date: new Date(exp.date).toISOString(),
+      memberNickname: exp.paidByUserId
+        ? nicknameByUserId.get(exp.paidByUserId.toString()) ?? '—'
+        : '—',
+      note: exp.description,
+      category: exp.category,
+    }));
+
+    const allActivity = [...txActivity, ...expenseActivity].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    const activityTotal = allActivity.length;
+    const activity = allActivity.slice(txSkip, txSkip + txLimit);
+
     return {
       balance: Math.round(balance * 100) / 100,
       monthlyDeposits: Math.round(monthlyDeposits * 100) / 100,
@@ -154,6 +204,10 @@ class JointAccountService {
       transactionTotal,
       transactionPage: txPage,
       transactionTotalPages: Math.ceil(transactionTotal / txLimit) || 1,
+      activity,
+      activityTotal,
+      activityPage: txPage,
+      activityTotalPages: Math.ceil(activityTotal / txLimit) || 1,
     };
   }
 
@@ -307,13 +361,20 @@ class JointAccountService {
     if (!monthlyTarget || financialMembers.length === 0) return targets;
 
     if (targetMode === 'proportional') {
+      // Income data is "complete" only when every participating member has an
+      // income on file (default is undefined, so unset is distinct from a real 0).
+      const incomeComplete = financialMembers.every(
+        (m) => typeof m.monthlyIncome === 'number'
+      );
       const totalIncome = financialMembers.reduce(
         (sum, m) => sum + (m.monthlyIncome ?? 0),
         0
       );
 
-      // Fall back to equal split if no income data
-      if (totalIncome === 0) {
+      // Fall back to equal split when income data is incomplete (any member
+      // unset) or everyone is on 0 — proportional has no meaningful basis.
+      // The Account page surfaces this fallback with a banner.
+      if (!incomeComplete || totalIncome === 0) {
         const perPerson = monthlyTarget / financialMembers.length;
         for (const m of financialMembers) {
           targets.set(m._id.toString(), Math.round(perPerson * 100) / 100);

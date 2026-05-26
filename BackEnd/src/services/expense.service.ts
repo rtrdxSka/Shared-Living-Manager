@@ -7,12 +7,19 @@ import {
   IListExpensesResult,
   IExpenseResponse,
   IExpense,
+  IExpenseDebtorState,
   IUpdateExpenseInput,
 } from '../types/expense.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { clampLimit, encodeDateIdCursor, parseDateIdCursor } from '../utils/pagination';
 import { escapeRegex } from '../utils/regex';
 import { getHouseholdForMember } from '../utils/household.helpers';
+import { validateParticipantsAndOverrides } from './_shared/expense-subgroup';
+import {
+  computeDebtorShares,
+  type SplitMethod,
+  type ComputeDebtorSharesParticipant,
+} from '../utils/computeDebtorShares';
 
 class ExpenseService {
   async addExpense(
@@ -20,15 +27,12 @@ class ExpenseService {
     requestingUserId: string,
     input: IAddExpenseInput
   ): Promise<IExpenseResponse> {
-    // 1. Find household + verify requester is a member
     const { household, member: requesterMember } = await getHouseholdForMember(householdId, requestingUserId);
 
-    // 2. Verify requester is a financial member
     if (!requesterMember.participatesInFinances) {
       throw ForbiddenError('You do not participate in household finances');
     }
 
-    // 3. Optionally verify payer when provided
     let payerNickname: string | undefined;
     if (input.paidByUserId) {
       const payerMember = household.members.find(
@@ -40,10 +44,63 @@ class ExpenseService {
       payerNickname = payerMember.nickname;
     }
 
-    // 4. Create expense
-    const autoResolve =
+    const subgroup = validateParticipantsAndOverrides(
+      household,
+      input.participantUserIds,
+      input.customSplitOverrides,
+      input.paidByUserId
+    );
+
+    const autoResolveByMode =
       household.settings?.financeMode === 'joint' || household.uiMode === 'solo';
     const now = new Date();
+
+    // Build per-debtor states. Only meaningful in split mode with a known payer.
+    let debtorStates: IExpenseDebtorState[] = [];
+    if (!autoResolveByMode && input.paidByUserId) {
+      const splitMethod = (household.settings?.expenseSplitMethod ?? 'equal') as SplitMethod;
+      const allFinancialParticipants: ComputeDebtorSharesParticipant[] = household.members
+        .filter((m) => m.participatesInFinances && m.userId)
+        .map((m) => ({
+          userId: m.userId as Types.ObjectId,
+          monthlyIncome: m.monthlyIncome ?? undefined,
+          role: m.role,
+        }));
+
+      // If a subgroup was provided, filter participants accordingly.
+      const participantUserIdSet = subgroup?.participantUserIds
+        ? new Set(subgroup.participantUserIds.map((id) => id.toString()))
+        : null;
+      const participants = participantUserIdSet
+        ? allFinancialParticipants.filter((p) => participantUserIdSet.has(p.userId.toString()))
+        : allFinancialParticipants;
+
+      const shares = computeDebtorShares({
+        amount: input.amount,
+        payerUserId: new Types.ObjectId(input.paidByUserId),
+        participants,
+        splitMethod,
+        customSplitOverrides: subgroup?.customSplitOverrides,
+        customSplitPercentage: household.settings?.customSplitPercentage,
+        customSplitShares: household.settings?.customSplitShares?.map((s) => ({
+          userId: new Types.ObjectId(s.userId),
+          pct: s.pct,
+        })),
+        isFullRepayment: input.isFullRepayment,
+      });
+
+      debtorStates = shares.map((s) => ({
+        userId: s.userId,
+        share: Math.round(s.share * 100) / 100,
+        ...(input.isFullRepayment ? { confirmedAt: now } : {}),
+      })) as IExpenseDebtorState[];
+    }
+
+    const allConfirmed = debtorStates.length > 0 && debtorStates.every((d) => d.confirmedAt);
+    const hasPayer = !!input.paidByUserId;
+    const isResolved =
+      autoResolveByMode ||
+      (hasPayer && (debtorStates.length === 0 || allConfirmed));
 
     const expense = await Expense.create({
       householdId: household._id,
@@ -55,14 +112,13 @@ class ExpenseService {
       date: new Date(input.date),
       ...(input.notes && { notes: input.notes }),
       isFullRepayment: input.isFullRepayment ?? false,
-      ...(autoResolve && {
-        isResolved: true,
-        resolvedAt: now,
-        // resolvedByUserId intentionally NOT set — absence marks auto-resolution.
-      }),
+      isResolved,
+      ...(isResolved && { resolvedAt: now }),
+      ...(subgroup?.participantUserIds && { participantUserIds: subgroup.participantUserIds }),
+      ...(subgroup?.customSplitOverrides && { customSplitOverrides: subgroup.customSplitOverrides }),
+      debtorStates,
     });
 
-    // 5. Return formatted response
     return this.formatExpenseResponse(expense, payerNickname);
   }
 
@@ -98,18 +154,20 @@ class ExpenseService {
 
     if (input.status === 'unresolved') {
       query.isResolved = false;
-      query.pendingConfirmation = false;
+      query.debtorStates = {
+        $not: { $elemMatch: { claimedAt: { $exists: true }, confirmedAt: { $exists: false } } },
+      };
     } else if (input.status === 'pending') {
       query.isResolved = false;
-      query.pendingConfirmation = true;
+      query.debtorStates = {
+        $elemMatch: { claimedAt: { $exists: true }, confirmedAt: { $exists: false } },
+      };
     } else if (input.status === 'resolved') {
       query.isResolved = true;
     }
 
     if (input.cursor) {
       const c = parseDateIdCursor(input.cursor);
-      // Tiebreak by _id when dates collide so two items with the same `date`
-      // don't get returned twice across pages.
       query.$or = [
         { date: { $lt: c.date } },
         { date: c.date, _id: { $lt: new Types.ObjectId(c.id) } },
@@ -153,7 +211,6 @@ class ExpenseService {
       year = now.getUTCFullYear();
       monthIndex = now.getUTCMonth();
     }
-    // Date.UTC avoids local server timezone — rolls over correctly
     return {
       start: new Date(Date.UTC(year, monthIndex, 1)),
       end: new Date(Date.UTC(year, monthIndex + 1, 1)),
@@ -179,7 +236,10 @@ class ExpenseService {
       throw BadRequestError('Cannot delete a resolved expense');
     }
 
-    if (expense.createdByUserId.toString() !== requestingUserId) {
+    const isAdminOrOwner =
+      requesterMember.role === 'owner' || requesterMember.role === 'admin';
+    const isCreator = expense.createdByUserId.toString() === requestingUserId;
+    if (!isCreator && !isAdminOrOwner) {
       throw ForbiddenError('You can only delete expenses you created');
     }
 
@@ -230,6 +290,44 @@ class ExpenseService {
       }
     }
 
+    const subgroupTouched =
+      input.participantUserIds !== undefined ||
+      input.customSplitOverrides !== undefined;
+    if (subgroupTouched) {
+      const clearing =
+        input.participantUserIds === null ||
+        (Array.isArray(input.participantUserIds) && input.participantUserIds.length === 0);
+      if (clearing) {
+        if (input.customSplitOverrides && input.customSplitOverrides.length > 0) {
+          throw BadRequestError(
+            'customSplitOverrides requires participantUserIds to be set'
+          );
+        }
+        expense.participantUserIds = undefined;
+        expense.customSplitOverrides = undefined;
+      } else {
+        const effectiveParticipants =
+          input.participantUserIds ??
+          expense.participantUserIds?.map((id) => id.toString());
+        const effectivePayer =
+          input.paidByUserId !== undefined
+            ? input.paidByUserId ?? undefined
+            : expense.paidByUserId?.toString();
+        const subgroup = validateParticipantsAndOverrides(
+          household,
+          effectiveParticipants,
+          input.customSplitOverrides,
+          effectivePayer
+        );
+        if (subgroup?.participantUserIds) {
+          expense.participantUserIds = subgroup.participantUserIds;
+        }
+        if (input.customSplitOverrides !== undefined) {
+          expense.customSplitOverrides = subgroup?.customSplitOverrides;
+        }
+      }
+    }
+
     await expense.save();
 
     const nicknameMap = this.buildNicknameMap(household.members);
@@ -246,7 +344,6 @@ class ExpenseService {
       throw NotFoundError('Household not found');
     }
 
-    // Joint accounts don't use the claim flow — money came from a shared pot.
     if (household.settings?.financeMode === 'joint') {
       throw BadRequestError('Joint accounts do not track per-user claims');
     }
@@ -254,13 +351,13 @@ class ExpenseService {
     const requesterMember = household.members.find(
       (m) => m.userId?.toString() === requestingUserId && m.participatesInFinances
     );
-    if (!requesterMember) {
+    if (!requesterMember || !requesterMember.userId) {
       throw ForbiddenError('You must be a financial member to claim an expense');
     }
 
-    // Atomic conditional update — only succeeds if paidByUserId is currently unset.
-    // Two parallel requests both pass their filter; only the first $set wins; the
-    // second sees a different document state and findOneAndUpdate returns null.
+    // Atomically claim the expense by setting paidByUserId only if no payer
+    // is set yet. This keeps the race-condition semantics: under concurrent
+    // claims, exactly one caller wins and the other gets BadRequest below.
     const expense = await Expense.findOneAndUpdate(
       {
         _id: expenseId,
@@ -272,113 +369,170 @@ class ExpenseService {
     );
 
     if (!expense) {
-      // Disambiguate not-found vs already-claimed.
       const exists = await Expense.exists({ _id: expenseId, householdId: household._id });
       if (!exists) throw NotFoundError('Expense not found');
       throw BadRequestError('This expense has already been claimed');
     }
 
-    return this.formatExpenseResponse(expense, requesterMember.nickname);
-  }
+    // We won the claim — compute debtorStates now that we know the payer.
+    // Mirrors addExpense (lines 59-93) so debtors get the same per-share
+    // entries they would have had if the expense had been created with a
+    // payer from the start.
+    const splitMethod = (household.settings?.expenseSplitMethod ?? 'equal') as SplitMethod;
+    const allFinancialParticipants: ComputeDebtorSharesParticipant[] = household.members
+      .filter((m) => m.participatesInFinances && m.userId)
+      .map((m) => ({
+        userId: m.userId as Types.ObjectId,
+        monthlyIncome: m.monthlyIncome ?? undefined,
+        role: m.role,
+      }));
 
-  async requestResolution(
-    householdId: string,
-    requestingUserId: string,
-    expenseId: string
-  ): Promise<IExpenseResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) throw NotFoundError('Household not found');
+    const participantUserIdSet = expense.participantUserIds?.length
+      ? new Set(expense.participantUserIds.map((id) => id.toString()))
+      : null;
+    const participants = participantUserIdSet
+      ? allFinancialParticipants.filter((p) => participantUserIdSet.has(p.userId.toString()))
+      : allFinancialParticipants;
 
-    if (household.settings?.financeMode === 'joint') {
-      throw BadRequestError('Joint accounts do not use the claim/resolve flow');
+    const shares = computeDebtorShares({
+      amount: expense.amount,
+      payerUserId: requesterMember.userId as Types.ObjectId,
+      participants,
+      splitMethod,
+      customSplitOverrides: expense.customSplitOverrides?.map((o) => ({
+        userId: o.userId as Types.ObjectId,
+        pct: o.pct,
+      })),
+      customSplitPercentage: household.settings?.customSplitPercentage,
+      customSplitShares: household.settings?.customSplitShares?.map((s) => ({
+        userId: new Types.ObjectId(s.userId),
+        pct: s.pct,
+      })),
+      isFullRepayment: expense.isFullRepayment,
+    });
+
+    const now = new Date();
+    expense.debtorStates = shares.map((s) => ({
+      userId: s.userId,
+      share: Math.round(s.share * 100) / 100,
+      ...(expense.isFullRepayment ? { confirmedAt: now } : {}),
+    })) as typeof expense.debtorStates;
+
+    // Full-repayment expense with every debtor pre-confirmed → resolved.
+    // Same rule as addExpense's isResolved condition.
+    const allConfirmed =
+      expense.debtorStates.length > 0 && expense.debtorStates.every((d) => d.confirmedAt);
+    if (expense.debtorStates.length === 0 || allConfirmed) {
+      expense.isResolved = true;
+      expense.resolvedAt = now;
     }
 
-    const isMember = household.members.some(
-      (m) => m.userId?.toString() === requestingUserId && m.participatesInFinances
-    );
-    if (!isMember) throw ForbiddenError('You must be a financial member to request resolution');
-
-    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
-    if (!expense) throw NotFoundError('Expense not found');
-    if (!expense.paidByUserId) throw BadRequestError('Cannot request resolution on an unclaimed expense');
-    if (expense.isResolved) throw BadRequestError('This expense is already resolved');
-    if (expense.paidByUserId.toString() === requestingUserId) {
-      throw ForbiddenError('The payer cannot request resolution — the other person must confirm receipt');
-    }
-    if (expense.pendingConfirmation) throw BadRequestError('Resolution is already pending confirmation');
-
-    expense.pendingConfirmation = true;
-    expense.pendingConfirmationAt = new Date();
-    expense.pendingConfirmationByUserId = requestingUserId as unknown as typeof expense.pendingConfirmationByUserId;
-    expense.lastDisputedAt = undefined;
     await expense.save();
 
     const nicknameMap = this.buildNicknameMap(household.members);
-    return this.formatExpenseResponse(expense, nicknameMap, requestingUserId);
+    return this.formatExpenseResponse(expense, nicknameMap);
   }
 
-  async confirmResolution(
+  async claimPayback(
     householdId: string,
     requestingUserId: string,
     expenseId: string
   ): Promise<IExpenseResponse> {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
-
     if (household.settings?.financeMode === 'joint') {
-      throw BadRequestError('Joint accounts do not use the claim/resolve flow');
+      throw BadRequestError('Joint accounts do not use the payback flow');
+    }
+
+    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
+    if (!expense) throw NotFoundError('Expense not found');
+    if (expense.isResolved) throw BadRequestError('This expense is already resolved');
+
+    const entry = expense.debtorStates.find((d) => d.userId.toString() === requestingUserId);
+    if (!entry) throw ForbiddenError('Only debtors on this expense can claim payback');
+    if (entry.confirmedAt) throw BadRequestError('Your share is already settled');
+
+    entry.claimedAt = new Date();
+    entry.disputedAt = undefined;
+    expense.markModified('debtorStates');
+    await expense.save();
+
+    const nicknameMap = this.buildNicknameMap(household.members);
+    return this.formatExpenseResponse(expense, nicknameMap);
+  }
+
+  async confirmPayback(
+    householdId: string,
+    requestingUserId: string,
+    expenseId: string,
+    input: { debtorUserId: string }
+  ): Promise<IExpenseResponse> {
+    const household = await Household.findById(householdId);
+    if (!household) throw NotFoundError('Household not found');
+    if (household.settings?.financeMode === 'joint') {
+      throw BadRequestError('Joint accounts do not use the payback flow');
     }
 
     const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
     if (!expense) throw NotFoundError('Expense not found');
     if (!expense.paidByUserId) throw BadRequestError('Expense has no payer');
     if (expense.paidByUserId.toString() !== requestingUserId) {
-      throw ForbiddenError('Only the payer can confirm receipt of payment');
+      throw ForbiddenError('Only the payer can confirm payback');
     }
-    if (!expense.pendingConfirmation) throw BadRequestError('No pending resolution to confirm');
-    if (expense.isResolved) throw BadRequestError('This expense is already resolved');
 
-    expense.isResolved = true;
-    expense.resolvedAt = new Date();
-    expense.resolvedByUserId = requestingUserId as unknown as typeof expense.resolvedByUserId;
-    expense.pendingConfirmation = false;
-    expense.pendingConfirmationAt = undefined;
-    expense.pendingConfirmationByUserId = undefined;
-    expense.lastDisputedAt = undefined;
+    const entry = expense.debtorStates.find((d) => d.userId.toString() === input.debtorUserId);
+    if (!entry) throw BadRequestError('Not a debtor on this expense');
+    if (entry.confirmedAt) throw BadRequestError('This debtor is already settled');
+    if (!entry.claimedAt) throw BadRequestError('No pending claim from this debtor');
+
+    const now = new Date();
+    entry.confirmedAt = now;
+
+    if (expense.debtorStates.every((d) => d.confirmedAt)) {
+      expense.isResolved = true;
+      const maxConfirmed = expense.debtorStates.reduce<Date | null>((max, d) => {
+        const ts = d.confirmedAt as Date;
+        return !max || ts > max ? ts : max;
+      }, null);
+      if (maxConfirmed) expense.resolvedAt = maxConfirmed;
+    }
+
+    expense.markModified('debtorStates');
     await expense.save();
-
     const nicknameMap = this.buildNicknameMap(household.members);
-    return this.formatExpenseResponse(expense, nicknameMap, requestingUserId);
+    return this.formatExpenseResponse(expense, nicknameMap);
   }
 
-  async disputeResolution(
+  async disputePayback(
     householdId: string,
     requestingUserId: string,
-    expenseId: string
+    expenseId: string,
+    input: { debtorUserId: string }
   ): Promise<IExpenseResponse> {
     const household = await Household.findById(householdId);
     if (!household) throw NotFoundError('Household not found');
-
     if (household.settings?.financeMode === 'joint') {
-      throw BadRequestError('Joint accounts do not use the claim/resolve flow');
+      throw BadRequestError('Joint accounts do not use the payback flow');
     }
 
     const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
     if (!expense) throw NotFoundError('Expense not found');
     if (!expense.paidByUserId) throw BadRequestError('Expense has no payer');
     if (expense.paidByUserId.toString() !== requestingUserId) {
-      throw ForbiddenError('Only the payer can dispute a resolution request');
+      throw ForbiddenError('Only the payer can dispute a payback claim');
     }
-    if (!expense.pendingConfirmation) throw BadRequestError('No pending resolution to dispute');
 
-    expense.pendingConfirmation = false;
-    expense.pendingConfirmationAt = undefined;
-    expense.pendingConfirmationByUserId = undefined;
-    expense.lastDisputedAt = new Date();
+    const entry = expense.debtorStates.find((d) => d.userId.toString() === input.debtorUserId);
+    if (!entry) throw BadRequestError('Not a debtor on this expense');
+    if (!entry.claimedAt) throw BadRequestError('No pending claim to dispute from this debtor');
+
+    entry.claimedAt = undefined;
+    entry.disputedAt = new Date();
+    expense.markModified('debtorStates');
     await expense.save();
 
     const nicknameMap = this.buildNicknameMap(household.members);
-    return this.formatExpenseResponse(expense, nicknameMap, requestingUserId);
+    return this.formatExpenseResponse(expense, nicknameMap);
   }
 
   async assertExpenseInHousehold(householdId: string, expenseId: string): Promise<void> {
@@ -388,38 +542,46 @@ class ExpenseService {
 
   async autoConfirmExpiredPending(): Promise<number> {
     const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
     const expenses = await Expense.find({
-      pendingConfirmation: true,
-      pendingConfirmationAt: { $lt: cutoff },
       isResolved: false,
-    })
-      .select({ _id: 1, pendingConfirmationByUserId: 1 })
-      .lean();
+      debtorStates: {
+        $elemMatch: {
+          claimedAt: { $lt: cutoff },
+          confirmedAt: { $exists: false },
+        },
+      },
+    });
 
     if (expenses.length === 0) return 0;
 
     const now = new Date();
-    await Expense.bulkWrite(
-      expenses.map((e) => ({
-        updateOne: {
-          filter: { _id: e._id },
-          update: {
-            $set: {
-              isResolved: true,
-              resolvedAt: now,
-              resolvedByUserId: e.pendingConfirmationByUserId,
-              pendingConfirmation: false,
-            },
-            $unset: {
-              pendingConfirmationAt: '',
-              pendingConfirmationByUserId: '',
-            },
-          },
-        },
-      }))
-    );
+    let confirmedEntryCount = 0;
 
-    return expenses.length;
+    for (const expense of expenses) {
+      let touched = false;
+      for (const entry of expense.debtorStates) {
+        if (!entry.confirmedAt && entry.claimedAt && entry.claimedAt < cutoff) {
+          entry.confirmedAt = now;
+          touched = true;
+          confirmedEntryCount += 1;
+        }
+      }
+      if (touched && expense.debtorStates.every((d) => d.confirmedAt)) {
+        expense.isResolved = true;
+        const maxConfirmed = expense.debtorStates.reduce<Date | null>((max, d) => {
+          const ts = d.confirmedAt as Date;
+          return !max || ts > max ? ts : max;
+        }, null);
+        if (maxConfirmed) expense.resolvedAt = maxConfirmed;
+      }
+      if (touched) {
+        expense.markModified('debtorStates');
+        await expense.save();
+      }
+    }
+
+    return confirmedEntryCount;
   }
 
   private buildNicknameMap(members: Array<{ userId?: { toString(): string } | null; nickname: string }>): Map<string, string> {
@@ -430,13 +592,19 @@ class ExpenseService {
     return map;
   }
 
-  formatExpenseResponse(expense: IExpense, nicknameMapOrName?: Map<string, string> | string, _callerUserId?: string): IExpenseResponse {
-    const paidByNickname = typeof nicknameMapOrName === 'string'
-      ? nicknameMapOrName
-      : (nicknameMapOrName && expense.paidByUserId ? nicknameMapOrName.get(expense.paidByUserId.toString()) : undefined);
-    const pendingConfirmationByNickname = (nicknameMapOrName instanceof Map && expense.pendingConfirmationByUserId)
-      ? nicknameMapOrName.get(expense.pendingConfirmationByUserId.toString())
-      : undefined;
+  formatExpenseResponse(
+    expense: IExpense,
+    nicknameMapOrName?: Map<string, string> | string,
+    _callerUserId?: string
+  ): IExpenseResponse {
+    const paidByNickname =
+      typeof nicknameMapOrName === 'string'
+        ? nicknameMapOrName
+        : nicknameMapOrName && expense.paidByUserId
+        ? nicknameMapOrName.get(expense.paidByUserId.toString())
+        : undefined;
+
+    const nicknameMap = nicknameMapOrName instanceof Map ? nicknameMapOrName : undefined;
 
     return {
       _id: expense._id.toString(),
@@ -453,12 +621,25 @@ class ExpenseService {
       isResolved: expense.isResolved ?? false,
       isFullRepayment: expense.isFullRepayment ?? false,
       ...(expense.resolvedAt && { resolvedAt: expense.resolvedAt.toISOString() }),
-      ...(expense.resolvedByUserId && { resolvedByUserId: expense.resolvedByUserId.toString() }),
-      pendingConfirmation: expense.pendingConfirmation ?? false,
-      ...(expense.pendingConfirmationAt && { pendingConfirmationAt: expense.pendingConfirmationAt.toISOString() }),
-      ...(expense.pendingConfirmationByUserId && { pendingConfirmationByUserId: expense.pendingConfirmationByUserId.toString() }),
-      ...(pendingConfirmationByNickname && { pendingConfirmationByNickname }),
-      ...(expense.lastDisputedAt && { lastDisputedAt: expense.lastDisputedAt.toISOString() }),
+      ...(expense.participantUserIds && expense.participantUserIds.length > 0 && {
+        participantUserIds: expense.participantUserIds.map((id) => id.toString()),
+      }),
+      ...(expense.customSplitOverrides && expense.customSplitOverrides.length > 0 && {
+        customSplitOverrides: expense.customSplitOverrides.map((o) => ({
+          userId: o.userId.toString(),
+          pct: o.pct,
+        })),
+      }),
+      debtorStates: (expense.debtorStates ?? []).map((d) => ({
+        userId: d.userId.toString(),
+        ...(nicknameMap && nicknameMap.get(d.userId.toString())
+          ? { nickname: nicknameMap.get(d.userId.toString()) }
+          : {}),
+        share: d.share,
+        ...(d.claimedAt && { claimedAt: d.claimedAt.toISOString() }),
+        ...(d.confirmedAt && { confirmedAt: d.confirmedAt.toISOString() }),
+        ...(d.disputedAt && { disputedAt: d.disputedAt.toISOString() }),
+      })),
       createdAt: expense.createdAt.toISOString(),
       updatedAt: expense.updatedAt.toISOString(),
     };

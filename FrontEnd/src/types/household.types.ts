@@ -39,6 +39,8 @@ export interface HouseholdSettings {
   financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
   customSplitPercentage?: number;
+  /** Per-member custom percentages (roommate-style); sums to 100. */
+  customSplitShares?: { userId: string; pct: number }[];
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
   taskManagementEnabled: TaskManagementLevel;
@@ -53,6 +55,7 @@ export interface UpdateHouseholdSettingsInput {
   financeMode?: FinanceMode;
   expenseSplitMethod?: ExpenseSplitMethod;
   customSplitPercentage?: number;
+  customSplitShares?: { userId: string; pct: number }[];
 }
 
 export interface Settlement {

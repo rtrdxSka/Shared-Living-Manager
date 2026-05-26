@@ -19,6 +19,8 @@ interface JointAccountConfigDialogProps {
   currency: string;
   currentTarget?: number;
   currentMode?: ContributionTargetMode;
+  /** Nicknames of finance members without an income on file (for the income-based note). */
+  membersMissingIncome?: string[];
 }
 
 export default function JointAccountConfigDialog({
@@ -28,6 +30,7 @@ export default function JointAccountConfigDialog({
   currency,
   currentTarget,
   currentMode,
+  membersMissingIncome = [],
 }: JointAccountConfigDialogProps) {
   const [monthlyTarget, setMonthlyTarget] = useState('');
   const [targetMode, setTargetMode] = useState<ContributionTargetMode>('equal');
@@ -142,6 +145,12 @@ export default function JointAccountConfigDialog({
                 ? 'Each member contributes the same amount'
                 : 'Contributions proportional to monthly income'}
             </p>
+            {targetMode === 'proportional' && membersMissingIncome.length > 0 && (
+              <p className="mt-1 rounded-md border border-accent/40 bg-accent/[0.08] px-3 py-2 text-xs text-ink-2">
+                Heads up — still waiting on income from {membersMissingIncome.join(' and ')}, so
+                targets will be split equally until then.
+              </p>
+            )}
           </div>
 
           {error && <p className="text-xs text-neg mt-1">{error}</p>}

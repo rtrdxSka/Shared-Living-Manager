@@ -68,6 +68,23 @@ export interface IJointAccountMemberBreakdown {
   targetAmount?: number;
 }
 
+// ── Unified activity feed ────────────────────────────────────────────
+// Recent Activity merges joint-account transactions with expenses (which
+// also draw down the shared balance) into one date-sorted list.
+
+export type ActivityKind = 'transaction' | 'expense';
+
+export interface IActivityItemResponse {
+  _id: string;
+  kind: ActivityKind;
+  type: 'deposit' | 'withdrawal' | 'expense';
+  amount: number;                   // always positive
+  date: string;                     // ISO — tx.createdAt or expense.date
+  memberNickname: string;           // tx member, or expense payer (fallback '—')
+  note?: string;                    // tx note, or expense description
+  category?: string;                // expense only
+}
+
 export interface IJointAccountSummaryResponse {
   balance: number;                  // all-time: deposits - withdrawals - expenses
   monthlyDeposits: number;
@@ -81,4 +98,8 @@ export interface IJointAccountSummaryResponse {
   transactionTotal: number;
   transactionPage: number;
   transactionTotalPages: number;
+  activity: IActivityItemResponse[];
+  activityTotal: number;
+  activityPage: number;
+  activityTotalPages: number;
 }

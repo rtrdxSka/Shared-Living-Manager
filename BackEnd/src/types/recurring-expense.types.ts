@@ -20,6 +20,8 @@ export interface IRecurringExpense extends Document {
   fixedPayerUserId?: Types.ObjectId;
   isActive: boolean;
   isFullRepayment: boolean;
+  participantUserIds?: Types.ObjectId[];
+  customSplitOverrides?: { userId: Types.ObjectId; pct: number }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +35,8 @@ export interface ICreateRecurringExpenseInput {
   payerMode: PayerMode;
   fixedPayerUserId?: string; // required when payerMode === 'fixed'
   isFullRepayment?: boolean;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
 }
 
 export interface IUpdateRecurringExpenseInput {
@@ -44,6 +48,8 @@ export interface IUpdateRecurringExpenseInput {
   payerMode?: PayerMode;
   fixedPayerUserId?: string;
   isFullRepayment?: boolean;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
 }
 
 export interface IRecurringExpenseResponse {
@@ -60,6 +66,8 @@ export interface IRecurringExpenseResponse {
   fixedPayerNickname?: string; // resolved from household members
   isActive: boolean;
   isFullRepayment: boolean;
+  participantUserIds?: string[];
+  customSplitOverrides?: { userId: string; pct: number }[];
   createdAt: string;
   updatedAt: string;
 }

@@ -43,6 +43,8 @@ export interface BudgetInsightsByMemberEntry {
   paidByCategory: Partial<Record<ExpenseType, number>>;
 }
 
+export type BudgetInsightsScope = 'personal' | 'household';
+
 export interface BudgetInsightsResponse {
   month: string; // "YYYY-MM"
   budget: IBudgetCategories;
@@ -55,4 +57,10 @@ export interface BudgetInsightsResponse {
   monthlyIncome: number | null;
   overBudgetCategories: ExpenseType[];
   byMember: BudgetInsightsByMemberEntry[];
+
+  // Scope of the page-level totals. `effectiveScope` may differ from the
+  // requested scope: joint-mode households always report `household` because
+  // per-user share is undefined there.
+  requestedScope: BudgetInsightsScope;
+  effectiveScope: BudgetInsightsScope;
 }

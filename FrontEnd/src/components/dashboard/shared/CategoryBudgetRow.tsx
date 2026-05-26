@@ -24,6 +24,12 @@ interface Props {
     /** Always present. */
     paid: { myAmount: number; partnerAmount: number };
   };
+  /**
+   * Roommates-only: a light "your share: X" subline beneath the household
+   * spent/budgeted row. Mutually exclusive with `byMemberSplit` (couples use
+   * the richer per-partner breakdown instead).
+   */
+  myShareLine?: { amount: number };
 }
 
 export default function CategoryBudgetRow({
@@ -37,6 +43,7 @@ export default function CategoryBudgetRow({
   currentCategories,
   currency,
   byMemberSplit,
+  myShareLine,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string>(budgeted?.toString() ?? '');
@@ -110,6 +117,15 @@ export default function CategoryBudgetRow({
             {' · '}
             {byMemberSplit.partnerNickname}{' '}
             <MoneyAmount amount={byMemberSplit.paid.partnerAmount} currency={currency} size="sm" />
+          </div>
+        )}
+        {myShareLine && (
+          <div
+            className="text-xs text-muted-foreground mt-0.5"
+            data-testid={`budget-myshare-${category}`}
+          >
+            your share{' '}
+            <MoneyAmount amount={myShareLine.amount} currency={currency} size="sm" />
           </div>
         )}
         <div className="h-2 bg-surface-2 rounded mt-1 overflow-hidden">

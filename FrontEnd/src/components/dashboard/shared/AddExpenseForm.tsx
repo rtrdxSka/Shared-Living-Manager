@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { extractApiError } from '@/utils/extractApiError';
 import {
@@ -33,6 +33,41 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Seed per-participant custom percentages for a new expense. Uses the household
+ * default shares when they cover every selected participant, renormalized to sum
+ * to 100 across the selection (proportional; integer remainder to the largest
+ * fractions). Falls back to an even split (remainder to the first) when the
+ * defaults don't cover the selection — e.g. a subgroup with a member who has no
+ * stored share. For a full-household selection the defaults are reproduced exactly.
+ */
+function seedCustomPcts(
+  participantIds: string[],
+  defaultPctByUser: Map<string, number>
+): Record<string, number> {
+  const n = participantIds.length;
+  if (n === 0) return {};
+  const out: Record<string, number> = {};
+  const haveAll = participantIds.every((id) => defaultPctByUser.has(id));
+  const rawSum = participantIds.reduce((s, id) => s + (defaultPctByUser.get(id) ?? 0), 0);
+  if (!haveAll || rawSum <= 0) {
+    const evenly = Math.floor(100 / n);
+    const remainder = 100 - evenly * n;
+    participantIds.forEach((id, i) => { out[id] = evenly + (i === 0 ? remainder : 0); });
+    return out;
+  }
+  const scaled = participantIds.map((id) => ((defaultPctByUser.get(id) ?? 0) / rawSum) * 100);
+  participantIds.forEach((id, i) => { out[id] = Math.floor(scaled[i]); });
+  let rem = 100 - participantIds.reduce((s, id) => s + out[id], 0);
+  const byFrac = scaled
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (let k = 0; rem > 0 && k < byFrac.length; k++, rem--) {
+    out[participantIds[byFrac[k].i]] += 1;
+  }
+  return out;
+}
+
 export default function AddExpenseForm({
   open,
   onOpenChange,
@@ -41,10 +76,11 @@ export default function AddExpenseForm({
   initialValues,
   onCreated,
 }: AddExpenseFormProps) {
-  const { uiMode, financeMode } = useDashboard();
+  const { uiMode, financeMode, splitMethod, customShares } = useDashboard();
   const isEditMode = expense !== undefined;
-  const payableMembers = household.members.filter(
-    (m) => m.participatesInFinances && m.userId
+  const payableMembers = useMemo(
+    () => household.members.filter((m) => m.participatesInFinances && m.userId),
+    [household.members]
   );
   const dropdownMembers = payableMembers;
 
@@ -63,6 +99,53 @@ export default function AddExpenseForm({
   );
   const [error, setError] = useState<string | null>(null);
 
+  // Participants (roommates only). Default to "everyone" — i.e. all payable members
+  // checked. Submit logic compares length against payableMembers and omits the
+  // field on the payload when the whole household is selected so this stays a
+  // pure superset of existing behavior for couple/solo.
+  const allPayableIds = useMemo(
+    () =>
+      payableMembers
+        .map((m) => m.userId)
+        .filter((id): id is string => Boolean(id)),
+    [payableMembers]
+  );
+  const [participants, setParticipants] = useState<string[]>(() => {
+    if (expense?.participantUserIds && expense.participantUserIds.length > 0) {
+      return expense.participantUserIds;
+    }
+    if (initialValues?.participantUserIds && initialValues.participantUserIds.length > 0) {
+      return initialValues.participantUserIds;
+    }
+    return allPayableIds;
+  });
+
+  const toggleParticipant = (uid: string) => {
+    setParticipants((prev) => {
+      const next = prev.includes(uid) ? prev.filter((p) => p !== uid) : [...prev, uid];
+      // If the current payer was just removed from participants, clear it so we
+      // don't submit an expense paid by someone who isn't sharing it.
+      if (paidByUserId && !next.includes(paidByUserId)) {
+        setPaidByUserId('');
+      }
+      return next;
+    });
+  };
+
+  // Per-participant custom percentages (roommates + splitMethod=custom only).
+  // Prefilled from `expense.customSplitOverrides` in edit mode, otherwise
+  // initialized evenly across current participants on mount and whenever the
+  // selected participants change. Stored as a {userId: pct} map for easy
+  // lookup/update; converted to the array shape at submit time.
+  const [customPcts, setCustomPcts] = useState<Record<string, number>>(() => {
+    if (expense?.customSplitOverrides && expense.customSplitOverrides.length > 0) {
+      const init: Record<string, number> = {};
+      for (const o of expense.customSplitOverrides) init[o.userId] = o.pct;
+      return init;
+    }
+    return {};
+  });
+
   // Recurring state (not available in edit mode)
   const [isRecurring, setIsRecurring] = useState(false);
   const [interval, setInterval] = useState<RecurrenceInterval>('monthly');
@@ -73,6 +156,29 @@ export default function AddExpenseForm({
   const createRecurringMutation = useCreateRecurringExpense(household._id);
 
   const submitting = addExpenseMutation.isPending || updateExpenseMutation.isPending || createRecurringMutation.isPending;
+
+  // Seed the per-participant custom percentages from the current household default
+  // each time the sheet opens in create mode, and reseed when the participant set
+  // changes while open. The form is permanently mounted, so seeding on open (rather
+  // than once on mount) is what keeps it in sync after the household split is edited;
+  // `resetForm()` clears these on close, so there are no cross-session edits to keep.
+  // Manual per-expense tweaks during an open session survive because `customPcts`
+  // isn't a dependency and the deps are stable until a real participant toggle. Edit
+  // mode loads the expense's own overrides via the [expense, open] effect below.
+  useEffect(() => {
+    if (!open || isEditMode) return;
+    if (uiMode !== 'roommates' || splitMethod !== 'custom') return;
+    if (participants.length === 0) return;
+    const defaultPctByUser = new Map(customShares.map((s) => [s.userId, s.pct]));
+    setCustomPcts(seedCustomPcts(participants, defaultPctByUser));
+  }, [open, isEditMode, uiMode, splitMethod, participants, customShares]);
+
+  const pctSum = Object.values(customPcts).reduce(
+    (s, n) => s + (Number.isFinite(n) ? n : 0),
+    0
+  );
+  const customActive = uiMode === 'roommates' && splitMethod === 'custom';
+  const customValid = !customActive || pctSum === 100;
 
   // Re-populate form whenever the expense being edited or initialValues prefill changes,
   // or when the sheet opens in create mode with prefill data.
@@ -85,6 +191,18 @@ export default function AddExpenseForm({
       setPaidByUserId(expense.paidByUserId ?? '');
       setNotes(expense.notes ?? '');
       setSplitMode(expense.isFullRepayment ? 'full' : 'default');
+      setParticipants(
+        expense.participantUserIds && expense.participantUserIds.length > 0
+          ? expense.participantUserIds
+          : allPayableIds
+      );
+      if (expense.customSplitOverrides && expense.customSplitOverrides.length > 0) {
+        const init: Record<string, number> = {};
+        for (const o of expense.customSplitOverrides) init[o.userId] = o.pct;
+        setCustomPcts(init);
+      } else {
+        setCustomPcts({});
+      }
       setError(null);
       return;
     }
@@ -98,16 +216,14 @@ export default function AddExpenseForm({
       if (initialValues.isFullRepayment !== undefined) {
         setSplitMode(initialValues.isFullRepayment ? 'full' : 'default');
       }
+      if (initialValues.participantUserIds && initialValues.participantUserIds.length > 0) {
+        setParticipants(initialValues.participantUserIds);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expense, open]);
 
-  // Reset all fields when the sheet is dismissed
-  useEffect(() => {
-    if (!open) resetForm();
-  }, [open]);
-
-  function resetForm() {
+  const resetForm = useCallback(() => {
     setDescription('');
     setAmount('');
     setCategory(EXPENSE_TYPES[0]);
@@ -118,12 +234,35 @@ export default function AddExpenseForm({
     setIsRecurring(false);
     setInterval('monthly');
     setPayerMode('open_to_claim');
+    setParticipants(allPayableIds);
+    setCustomPcts({});
     setError(null);
-  }
+  }, [allPayableIds]);
+
+  // Reset all fields when the sheet is dismissed
+  useEffect(() => {
+    if (!open) resetForm();
+  }, [open, resetForm]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // When the user has every payable member checked, treat that as "everyone"
+    // and omit the field so the backend uses its default member set. Only when a
+    // strict subset is selected do we send participantUserIds. Note the selector
+    // itself is only rendered in roommates mode, so couple/solo flows always
+    // see `participants.length === allPayableIds.length` here.
+    const subgroupSelected =
+      participants.length > 0 && participants.length < allPayableIds.length;
+    const participantUserIds = subgroupSelected ? participants : undefined;
+    // Only send customSplitOverrides for roommates + splitMethod=custom and
+    // when there's at least one participant selected. The array always covers
+    // exactly the currently selected participants (the same set the backend
+    // sees as the subgroup, or the full household when no subgroup is set).
+    const customSplitOverrides =
+      customActive && participants.length > 0
+        ? participants.map((uid) => ({ userId: uid, pct: customPcts[uid] ?? 0 }))
+        : undefined;
     try {
       if (isEditMode) {
         await updateExpenseMutation.mutateAsync({
@@ -136,6 +275,10 @@ export default function AddExpenseForm({
             paidByUserId: paidByUserId || null,
             notes: notes.trim() || undefined,
             isFullRepayment: splitMode === 'full',
+            // Edit mode supports clearing the subgroup explicitly: send `null`
+            // when the user re-checked everyone so the backend wipes the field.
+            participantUserIds: subgroupSelected ? participants : null,
+            ...(customSplitOverrides && { customSplitOverrides }),
           },
         });
       } else if (isRecurring) {
@@ -148,6 +291,8 @@ export default function AddExpenseForm({
           payerMode,
           ...(payerMode === 'fixed' && paidByUserId ? { fixedPayerUserId: paidByUserId } : {}),
           isFullRepayment: splitMode === 'full',
+          ...(participantUserIds && { participantUserIds }),
+          ...(customSplitOverrides && { customSplitOverrides }),
         });
       } else {
         const input: AddExpenseInput = {
@@ -158,6 +303,8 @@ export default function AddExpenseForm({
           ...(paidByUserId && { paidByUserId }),
           ...(notes.trim() && { notes: notes.trim() }),
           isFullRepayment: splitMode === 'full',
+          ...(participantUserIds && { participantUserIds }),
+          ...(customSplitOverrides && { customSplitOverrides }),
         };
         const created = await addExpenseMutation.mutateAsync(input);
         if (onCreated) onCreated(created);
@@ -184,7 +331,8 @@ export default function AddExpenseForm({
     description.trim() &&
     amount &&
     !submitting &&
-    !(paidByRequired && !paidByUserId);
+    !(paidByRequired && !paidByUserId) &&
+    customValid;
 
   const dateLabel = isRecurring ? 'STARTS FROM' : 'DATE';
 
@@ -362,6 +510,82 @@ export default function AddExpenseForm({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* Participants — roommates only. Couple/solo always split with everyone. */}
+          {uiMode === 'roommates' && payableMembers.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                WHO SHARES THIS?
+              </label>
+              <p className="-mt-1 text-xs text-ink-3">
+                Leave all checked to split with the whole household.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {payableMembers.map((m) => {
+                  const uid = m.userId!;
+                  return (
+                    <label key={uid} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={participants.includes(uid)}
+                        onChange={() => toggleParticipant(uid)}
+                        aria-label={m.nickname}
+                        disabled={submitting}
+                        className="h-4 w-4 rounded border-line"
+                      />
+                      <span>{m.nickname}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              {financeMode === 'joint' && (
+                <p className="text-xs text-amber-600">
+                  In joint mode, this is informational — the joint account still pays.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Custom percentages — roommates + splitMethod=custom only. */}
+          {customActive && participants.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="block mb-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-ink-3">
+                CUSTOM PERCENTAGES
+              </label>
+              <div className="flex flex-col gap-2">
+                {participants.map((uid) => {
+                  const m = payableMembers.find((pm) => pm.userId === uid);
+                  if (!m) return null;
+                  return (
+                    <div key={uid} className="flex items-center gap-2">
+                      <span className="w-20 text-sm">{m.nickname}</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={customPcts[uid] ?? 0}
+                        onChange={(e) =>
+                          setCustomPcts((prev) => ({
+                            ...prev,
+                            [uid]: parseInt(e.target.value || '0', 10),
+                          }))
+                        }
+                        aria-label={`${m.nickname} %`}
+                        disabled={submitting}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-ink-3">%</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className={pctSum === 100 ? 'text-xs text-green-600' : 'text-xs text-amber-600'}>
+                Total: {pctSum}%
+                {pctSum !== 100 &&
+                  ` (${pctSum < 100 ? `${100 - pctSum}% remaining` : `${pctSum - 100}% over`})`}
+              </p>
             </div>
           )}
 

@@ -12,6 +12,9 @@ import recurringTaskRouter from './recurring-task.routes';
 import goalRouter from './goal.routes';
 import jointAccountRouter from './joint-account.routes';
 import budgetRouter from './budget.routes';
+import houseRuleRouter from './house-rule.routes';
+import issueRouter from './issue.routes';
+import voteRouter from './vote.routes';
 
 const router = Router();
 
@@ -120,5 +123,8 @@ router.use('/:id/recurring-tasks', recurringTaskRouter);
 router.use('/:id/goals', goalRouter);
 router.use('/:id/joint-account', jointAccountRouter);
 router.use('/:id/budget', budgetRouter);
+router.use('/:id/house-rules', houseRuleRouter);
+router.use('/:id/issues', issueRouter);
+router.use('/:id/votes', voteRouter);
 
 export default router;

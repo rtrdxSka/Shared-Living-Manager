@@ -57,8 +57,10 @@ export const queryKeys = {
   budget: {
     all: (householdId: string) => ['budget', householdId] as const,
     current: (householdId: string) => ['budget', householdId, 'current'] as const,
-    insights: (householdId: string, month: string) =>
-      ['budget', householdId, 'insights', month] as const,
+    insights: (householdId: string, month: string, scope?: 'personal' | 'household') =>
+      scope
+        ? (['budget', householdId, 'insights', month, scope] as const)
+        : (['budget', householdId, 'insights', month] as const),
     snapshot: (householdId: string, month: string) =>
       ['budget', householdId, 'snapshot', month] as const,
   },

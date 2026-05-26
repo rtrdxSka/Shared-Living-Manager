@@ -109,6 +109,63 @@ describe('Expense routes', () => {
     expect(res.status).toBe(204);
   });
 
+  it('DELETE → 403 when non-creator non-admin tries to delete someone else\'s expense', async () => {
+    // Frank (member, non-creator) in the flatshare household tries to delete
+    // an expense Carol (owner) created. Member role → 403 by the
+    // !isCreator && !isAdminOrOwner guard in deleteExpense.
+    const carol = FIXTURES.user('carol');
+    const frank = FIXTURES.user('frank');
+    const flatshare = FIXTURES.household('flatshare');
+
+    const created = await expenseService.addExpense(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      {
+        description: 'Carol creates this for the auth test',
+        amount: 12,
+        category: 'groceries',
+        date: new Date().toISOString(),
+        paidByUserId: carol._id.toString(),
+      },
+    );
+
+    const res = await request(app)
+      .delete(`/api/households/${flatshare._id}/expenses/${created._id}`)
+      .set('Authorization', auth(frank._id.toString()));
+    expect(res.status).toBe(403);
+
+    // Cleanup: Carol deletes her own expense so this test doesn't leak state.
+    await Expense.deleteOne({ _id: created._id });
+  });
+
+  it('DELETE → 204 when admin non-creator deletes someone else\'s expense', async () => {
+    // Eve is admin in the flatshare household. She can delete Carol's
+    // expense thanks to the admin/owner override in deleteExpense.
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+    const flatshare = FIXTURES.household('flatshare');
+
+    const created = await expenseService.addExpense(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      {
+        description: 'Carol\'s admin-deletable expense',
+        amount: 8,
+        category: 'groceries',
+        date: new Date().toISOString(),
+        paidByUserId: carol._id.toString(),
+      },
+    );
+
+    const res = await request(app)
+      .delete(`/api/households/${flatshare._id}/expenses/${created._id}`)
+      .set('Authorization', auth(eve._id.toString()));
+    expect(res.status).toBe(204);
+
+    const stillThere = await Expense.findById(created._id).lean();
+    expect(stillThere).toBeNull();
+  });
+
   it('POST /:expenseId/claim → 200 claims unclaimed expense', async () => {
     const alice = FIXTURES.user('alice');
     const couple = FIXTURES.household('couple');
@@ -131,44 +188,52 @@ describe('Expense routes', () => {
     expect(res.body.data.expense.paidByUserId).toBe(bob._id.toString());
   });
 
-  it('POST /:expenseId/request-resolution → 200', async () => {
+  it('POST /:expenseId/claim-payback → 200', async () => {
     const alice = FIXTURES.user('alice');
     const couple = FIXTURES.household('couple');
-    // `dinner-out`: paidBy bob, not pending, not resolved → alice (counterparty) can request.
-    // (Note: the plan used `utilities-april`, but that fixture already has pendingConfirmation=true,
-    // which causes request-resolution to throw "already pending".)
+    // `dinner-out`: paidBy bob → alice (the debtor) claims payback.
     const id = FIXTURES.expense('dinner-out');
     const res = await request(app)
-      .post(`/api/households/${couple._id}/expenses/${id}/request-resolution`)
+      .post(`/api/households/${couple._id}/expenses/${id}/claim-payback`)
       .set('Authorization', auth(alice._id.toString()));
     expect(res.status).toBe(200);
-    expect(res.body.data.expense.pendingConfirmation).toBe(true);
+    const aliceEntry = res.body.data.expense.debtorStates.find(
+      (d: { userId: string }) => d.userId === alice._id.toString()
+    );
+    expect(aliceEntry?.claimedAt).toBeDefined();
   });
 
-  it('POST /:expenseId/confirm-resolution → 200 marks resolved', async () => {
+  it('POST /:expenseId/confirm-payback → 200 marks resolved', async () => {
     const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
     const couple = FIXTURES.household('couple');
-    // `utilities-april` is seeded with paidBy=alice and pendingConfirmation=true (requested by bob).
-    // Alice is the payer → she confirms receipt → expense becomes resolved.
+    // `utilities-april` is seeded with paidBy=alice and Bob's claim already on debtorStates.
+    // Alice is the payer → she confirms Bob's claim → expense becomes resolved.
     const id = FIXTURES.expense('utilities-april');
     const res = await request(app)
-      .post(`/api/households/${couple._id}/expenses/${id}/confirm-resolution`)
-      .set('Authorization', auth(alice._id.toString()));
+      .post(`/api/households/${couple._id}/expenses/${id}/confirm-payback`)
+      .set('Authorization', auth(alice._id.toString()))
+      .send({ debtorUserId: bob._id.toString() });
     expect(res.status).toBe(200);
     expect(res.body.data.expense.isResolved).toBe(true);
   });
 
-  it('POST /:expenseId/dispute-resolution → 200 cancels pending', async () => {
+  it('POST /:expenseId/dispute-payback → 200 clears the pending claim', async () => {
+    const alice = FIXTURES.user('alice');
     const bob = FIXTURES.user('bob');
     const couple = FIXTURES.household('couple');
-    // `dinner-out` was set to pendingConfirmation in the previous request-resolution test
-    // (alice requested resolution on bob's expense). bob (the payer) now disputes → pending cleared.
+    // `dinner-out` had Alice's claim set in the previous test. Bob (the payer) now disputes.
     const id = FIXTURES.expense('dinner-out');
     const res = await request(app)
-      .post(`/api/households/${couple._id}/expenses/${id}/dispute-resolution`)
-      .set('Authorization', auth(bob._id.toString()));
+      .post(`/api/households/${couple._id}/expenses/${id}/dispute-payback`)
+      .set('Authorization', auth(bob._id.toString()))
+      .send({ debtorUserId: alice._id.toString() });
     expect(res.status).toBe(200);
-    expect(res.body.data.expense.pendingConfirmation).toBe(false);
+    const aliceEntry = res.body.data.expense.debtorStates.find(
+      (d: { userId: string }) => d.userId === alice._id.toString()
+    );
+    expect(aliceEntry?.claimedAt).toBeUndefined();
+    expect(aliceEntry?.disputedAt).toBeDefined();
   });
 
   it('POST /:expenseId/claim → first call wins under concurrency, second returns 400', async () => {

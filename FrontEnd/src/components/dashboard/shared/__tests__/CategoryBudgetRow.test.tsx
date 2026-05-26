@@ -222,4 +222,42 @@ describe('CategoryBudgetRow', () => {
       expect(paidLine.textContent).toMatch(/paid:/i);
     });
   });
+
+  describe('myShareLine prop', () => {
+    it('does not render the your-share subline when myShareLine is omitted', () => {
+      render(
+        <CategoryBudgetRow
+          category="groceries"
+          label="Groceries"
+          budgeted={100}
+          spent={60}
+          canEdit={false}
+          isSaving={false}
+          onSave={() => {}}
+          currentCategories={{ groceries: 100 }}
+        />
+      );
+      expect(screen.queryByTestId('budget-myshare-groceries')).not.toBeInTheDocument();
+    });
+
+    it('renders a muted "your share" subline with the provided amount', () => {
+      render(
+        <CategoryBudgetRow
+          category="groceries"
+          label="Groceries"
+          budgeted={300}
+          spent={240}
+          canEdit={false}
+          isSaving={false}
+          onSave={() => {}}
+          currentCategories={{ groceries: 300 }}
+          myShareLine={{ amount: 80 }}
+        />
+      );
+      const line = screen.getByTestId('budget-myshare-groceries');
+      expect(line).toBeInTheDocument();
+      expect(line.textContent ?? '').toMatch(/your share/i);
+      expect(line).toHaveTextContent('80.00');
+    });
+  });
 });

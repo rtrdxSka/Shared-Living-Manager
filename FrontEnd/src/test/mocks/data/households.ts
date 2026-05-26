@@ -79,6 +79,17 @@ export const mockHouseholdSplitUsageBased: HouseholdResponse = {
   settings: { ...mockHousehold.settings, financeMode: 'split', expenseSplitMethod: 'usage_based' },
 };
 
+// Custom split — the stored percentage is the OWNER's (Alice's) share.
+export const mockHouseholdSplitCustom: HouseholdResponse = {
+  ...mockHousehold,
+  settings: {
+    ...mockHousehold.settings,
+    financeMode: 'split',
+    expenseSplitMethod: 'custom',
+    customSplitPercentage: 70,
+  },
+} as unknown as HouseholdResponse;
+
 // ── Task-management × distribution-method variants ────────────────────
 
 export const mockHouseholdTaskFixed: HouseholdResponse = {
@@ -114,3 +125,70 @@ export const mockHouseholdTaskDisabled: HouseholdResponse = {
   ...mockHousehold,
   settings: { ...mockHousehold.settings, taskManagementEnabled: 'disabled' },
 };
+
+// ── Roommate variants (uiMode === 'roommates') ──────────────────────────────
+//
+// 3-member households used by RoommatesStatsRow, AppLayout nav, ExpensesPage,
+// and AccountPage tests. Members are Alice, Bob, Carol — same Alice/Bob ids
+// as the couple fixture so tests can reuse `mockUsers.alice/.bob`, plus a new
+// Carol member.
+
+const carolMemberId = 'mem-carol-001';
+
+const baseRoommatesHousehold: HouseholdResponse = {
+  ...mockHousehold,
+  _id: 'hh-roommates-001',
+  name: 'Apartment 3B',
+  totalMembers: 3,
+  livingArrangement: 'roommates',
+  uiMode: 'roommates',
+  members: [
+    ...mockHousehold.members,
+    {
+      _id: carolMemberId,
+      userId: 'user-carol-001',
+      nickname: 'Carol',
+      role: 'member',
+      ageGroup: 'adult',
+      relationship: 'roommate',
+      isCreator: false,
+      participatesInFinances: true,
+      participatesInTasks: true,
+      monthlyIncome: 2500,
+      joinedAt: '2026-01-03T00:00:00.000Z',
+    },
+  ],
+} as unknown as HouseholdResponse;
+
+export const mockHouseholdRoommatesJoint: HouseholdResponse = {
+  ...baseRoommatesHousehold,
+  settings: {
+    ...baseRoommatesHousehold.settings,
+    financeMode: 'joint',
+    expenseSplitMethod: undefined as never,
+  },
+};
+
+export const mockHouseholdRoommatesSplit: HouseholdResponse = {
+  ...baseRoommatesHousehold,
+  settings: {
+    ...baseRoommatesHousehold.settings,
+    financeMode: 'split',
+    expenseSplitMethod: 'equal',
+  },
+};
+
+// Roommates + custom split with stored per-member shares (Alice 50 / Bob 30 / Carol 20).
+export const mockHouseholdRoommatesSplitCustom: HouseholdResponse = {
+  ...baseRoommatesHousehold,
+  settings: {
+    ...baseRoommatesHousehold.settings,
+    financeMode: 'split',
+    expenseSplitMethod: 'custom',
+    customSplitShares: [
+      { userId: 'user-alice-001', pct: 50 },
+      { userId: 'user-bob-001', pct: 30 },
+      { userId: 'user-carol-001', pct: 20 },
+    ],
+  },
+} as unknown as HouseholdResponse;

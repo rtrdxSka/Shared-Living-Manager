@@ -144,5 +144,30 @@
     "category": "home",
     "createdByUserKey": "maya",
     "contributions": []
+  },
+  {
+    "key": "goal-r3-couch",
+    "householdKey": "roommates-3",
+    "name": "New couch fund",
+    "description": "Replace the sagging living-room couch",
+    "targetAmount": 1200,
+    "deadline": "2026-12-01T00:00:00.000Z",
+    "status": "active",
+    "category": "home",
+    "createdByUserKey": "xavier",
+    "contributions": [
+      {
+        "memberKey": "xavier-m",
+        "amount": 200,
+        "note": "May",
+        "createdAt": "2026-05-05T10:00:00.000Z"
+      },
+      {
+        "memberKey": "yara-m",
+        "amount": 100,
+        "note": "May",
+        "createdAt": "2026-05-08T10:00:00.000Z"
+      }
+    ]
   }
 ]

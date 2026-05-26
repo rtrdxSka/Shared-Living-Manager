@@ -23,34 +23,40 @@ import DashboardHeader from '@/components/layout/DashboardHeader';
 import { HeroNumberCard } from '@/components/ui/hero-number-card';
 import { MoneyAmount } from '@/components/ui/money-amount';
 import { EyebrowLabel } from '@/components/ui/eyebrow-label';
+import { CategoryChip, type Category } from '@/components/ui/category-chip';
 import { fmt, stepMonth, formatMonthLabel, currentMonthString } from '@/utils/dashboardHelpers';
-import type { JointAccountTransactionResponse } from '@/types/joint-account.types';
+import type { ActivityItemResponse } from '@/types/joint-account.types';
 
-// ── Transaction row ───────────────────────────────────────────────────────
+// ── Activity row ──────────────────────────────────────────────────────────
+// Renders one item of the unified feed: a joint-account transaction
+// (deposit/withdrawal, deletable) or an expense (outflow, read-only — expenses
+// are managed on the Expenses tab).
 
-interface TransactionRowProps {
-  tx: JointAccountTransactionResponse;
+interface ActivityRowProps {
+  item: ActivityItemResponse;
   currency: string;
   confirmingDelete: string | null;
   setConfirmingDelete: (id: string | null) => void;
   onDelete: (id: string) => Promise<void>;
 }
 
-function TransactionRow({
-  tx,
+function ActivityRow({
+  item,
   currency,
   confirmingDelete,
   setConfirmingDelete,
   onDelete,
-}: TransactionRowProps) {
+}: ActivityRowProps) {
   const [deletePending, setDeletePending] = useState(false);
-  const isConfirming = confirmingDelete === tx._id;
-  const isInbound = tx.type === 'deposit';
+  const isConfirming = confirmingDelete === item._id;
+  const isInbound = item.type === 'deposit';
+  const isExpense = item.kind === 'expense';
+  const canDelete = item.kind === 'transaction';
 
   async function handleDelete() {
     setDeletePending(true);
     try {
-      await onDelete(tx._id);
+      await onDelete(item._id);
     } finally {
       setDeletePending(false);
       setConfirmingDelete(null);
@@ -75,24 +81,30 @@ function TransactionRow({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-ink truncate">
-          {tx.memberNickname}
-          {tx.note && (
-            <span className="ml-1.5 text-ink-3"> — {tx.note}</span>
+        <p className="text-sm text-ink truncate flex items-center gap-1.5">
+          {isExpense && item.category && (
+            <CategoryChip category={item.category as Category} className="shrink-0" />
           )}
+          <span className="truncate">
+            {item.memberNickname}
+            {item.note && (
+              <span className="ml-1.5 text-ink-3"> — {item.note}</span>
+            )}
+          </span>
         </p>
         <p className="text-[11px] font-mono text-ink-3">
-          {new Date(tx.createdAt).toLocaleDateString('en-US', {
+          {new Date(item.date).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
           })}
+          {isExpense && <span className="ml-1.5 text-ink-4">· expense</span>}
         </p>
       </div>
 
       {/* Amount */}
       <MoneyAmount
-        amount={isInbound ? tx.amount : -tx.amount}
+        amount={isInbound ? item.amount : -item.amount}
         currency={currency}
         signed
         tone={isInbound ? 'pos' : 'neutral'}
@@ -100,51 +112,48 @@ function TransactionRow({
         className="shrink-0"
       />
 
-      {/* Delete */}
-      {!isConfirming ? (
-        <button
-          onClick={() => setConfirmingDelete(tx._id)}
-          className="ml-1 text-ink-3 hover:text-neg transition-colors shrink-0"
-          title="Delete transaction"
-        >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M3 4h10M6 4V3a1 1 0 012 0v1m2 0v9a1 1 0 01-1 1H7a1 1 0 01-1-1V4"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      ) : (
-        <div className="flex items-center gap-1 ml-1 shrink-0">
-          <Button
-            variant="destructive"
-            size="sm"
-            className="h-6 text-xs px-2"
-            onClick={handleDelete}
-            disabled={deletePending}
+      {/* Delete — transactions only; expenses are managed on the Expenses tab */}
+      {canDelete &&
+        (!isConfirming ? (
+          <button
+            onClick={() => setConfirmingDelete(item._id)}
+            className="ml-1 text-ink-3 hover:text-neg transition-colors shrink-0"
+            title="Delete transaction"
           >
-            {deletePending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Delete'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 text-xs px-2"
-            onClick={() => setConfirmingDelete(null)}
-            disabled={deletePending}
-          >
-            Cancel
-          </Button>
-        </div>
-      )}
+            <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M3 4h10M6 4V3a1 1 0 012 0v1m2 0v9a1 1 0 01-1 1H7a1 1 0 01-1-1V4"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        ) : (
+          <div className="flex items-center gap-1 ml-1 shrink-0">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={handleDelete}
+              disabled={deletePending}
+            >
+              {deletePending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Delete'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={() => setConfirmingDelete(null)}
+              disabled={deletePending}
+            >
+              Cancel
+            </Button>
+          </div>
+        ))}
     </div>
   );
 }
-
-// ── Contribution bar colour map (primary vs other) ────────────────────────
-
-const CONTRIB_BAR: [string, string] = ['bg-accent', 'bg-cat-rent'];
 
 // ── Main page ─────────────────────────────────────────────────────────────
 
@@ -197,7 +206,7 @@ export default function AccountPage() {
     );
   }
 
-  const transactions = summary?.transactions ?? [];
+  const activity = summary?.activity ?? [];
   const memberBreakdown = summary?.memberBreakdown ?? [];
 
   // Monthly target progress
@@ -214,6 +223,18 @@ export default function AccountPage() {
   const isProportional = summary?.targetMode === 'proportional';
   const showIncomeCard = isProportional;
   const showIncomeChips = isProportional && totalIncome > 0;
+
+  // Income-based targets need every participating member's income. When any is
+  // unset, the backend falls back to an equal split — surface that here.
+  const missingIncomeMembers = financialMembers.filter(
+    (m) => typeof m.monthlyIncome !== 'number'
+  );
+  const incomeComplete = missingIncomeMembers.length === 0;
+  const missingIncomeNicknames = missingIncomeMembers.map((m) => m.nickname);
+  // Proportional mode that effectively splits equally (incomplete data or all-zero income).
+  const proportionalSplitsEqually = isProportional && (!incomeComplete || totalIncome === 0);
+  const showIncomeFallbackBanner =
+    !!summary && hasTarget && isProportional && !incomeComplete;
 
   return (
     <div className="pb-8">
@@ -243,6 +264,18 @@ export default function AccountPage() {
           </div>
         )}
 
+        {/* ── Income-based fallback rail ── */}
+        {showIncomeFallbackBanner && (
+          <div
+            role="status"
+            className="rounded-md border border-accent/40 bg-accent/[0.08] px-4 py-2 text-sm text-ink-2"
+          >
+            Income-based targets need everyone's income — still waiting on{' '}
+            <span className="text-ink">{missingIncomeNicknames.join(' and ')}</span>.
+            Contributions are split equally for now.
+          </div>
+        )}
+
         {/* ── Hero balance card ── */}
         {isLoading ? (
           <div className="flex justify-center py-10">
@@ -266,15 +299,23 @@ export default function AccountPage() {
                     ? `You've deposited ${fmt(summary.monthlyDeposits)} ${currency} of ${fmt(summary.monthlyTarget!)} ${currency} monthly target`
                     : `${fmt(summary.monthlyDeposits)} ${currency} deposited this month`}
                 </p>
+                {summary.monthlyExpenses > 0 && (
+                  <p className="text-sm text-ink-3">
+                    {fmt(summary.monthlyExpenses)} {currency} spent this month
+                    <span className="text-ink-4">
+                      {' · '}net {fmt(summary.monthlyNet)} {currency}
+                    </span>
+                  </p>
+                )}
                 {hasTarget ? (
-                  <div className="w-full max-w-[480px] h-2 bg-surface-2 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-surface-2 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-accent rounded-full transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                 ) : isAdmin ? (
-                  <div className="space-y-2 max-w-[480px]">
+                  <div className="space-y-2">
                     <div
                       className="h-2 w-full rounded-full border border-dashed border-ink-3/40"
                       aria-hidden
@@ -298,8 +339,8 @@ export default function AccountPage() {
                     )}
                   >
                     {summary.targetMode === 'proportional'
-                      ? totalIncome === 0
-                        ? 'Mode: Income-based · waiting for incomes'
+                      ? proportionalSplitsEqually
+                        ? 'Mode: Income-based · split equally for now'
                         : 'Mode: Income-based'
                       : 'Mode: Equal'}
                   </span>
@@ -354,19 +395,19 @@ export default function AccountPage() {
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-4 w-4 animate-spin text-ink-3" />
                 </div>
-              ) : transactions.length === 0 ? (
+              ) : activity.length === 0 ? (
                 <EmptyState
                   icon={Wallet}
-                  title="No transactions this month"
-                  description="Add a deposit or withdrawal to track your joint account activity."
+                  title="No activity this month"
+                  description="Deposits, withdrawals, and expenses will show up here."
                   action={{ label: 'Add transaction', onClick: () => setAddTransactionOpen(true) }}
                 />
               ) : (
                 <div>
-                  {transactions.map((tx) => (
-                    <TransactionRow
-                      key={tx._id}
-                      tx={tx}
+                  {activity.map((item) => (
+                    <ActivityRow
+                      key={item._id}
+                      item={item}
                       currency={currency}
                       confirmingDelete={confirmingDelete}
                       setConfirmingDelete={setConfirmingDelete}
@@ -380,7 +421,7 @@ export default function AccountPage() {
 
           {/* Right rail */}
           <div className="space-y-4">
-            {uiMode === 'couple' && showIncomeCard && (
+            {(uiMode === 'couple' || uiMode === 'roommates') && showIncomeCard && (
               <IncomeManagementCard
                 household={household}
                 currentUserId={currentUserId}
@@ -392,8 +433,7 @@ export default function AccountPage() {
               <Card className="p-5 space-y-4">
                 <EyebrowLabel as="div">CONTRIBUTIONS THIS MONTH</EyebrowLabel>
                 <div className="space-y-3">
-                  {memberBreakdown.map((m, i) => {
-                    const barClass = CONTRIB_BAR[i % CONTRIB_BAR.length];
+                  {memberBreakdown.map((m) => {
                     const member = financialMembers.find(
                       (fm) => fm._id === m.memberId
                     );
@@ -430,7 +470,8 @@ export default function AccountPage() {
                         </div>
                         <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                           <div
-                            className={cn('h-full rounded-full transition-all', barClass)}
+                            data-testid="contrib-bar"
+                            className="h-full rounded-full transition-all bg-accent"
                             style={{ width: `${barWidthPct}%` }}
                           />
                         </div>
@@ -464,7 +505,7 @@ export default function AccountPage() {
       </div>
 
       {/* Config dialog */}
-      {uiMode === 'couple' && (
+      {(uiMode === 'couple' || uiMode === 'roommates') && (
         <JointAccountConfigDialog
           householdId={household._id}
           open={configOpen}
@@ -472,6 +513,7 @@ export default function AccountPage() {
           currency={currency}
           currentTarget={summary?.monthlyTarget}
           currentMode={summary?.targetMode}
+          membersMissingIncome={missingIncomeNicknames}
         />
       )}
     </div>

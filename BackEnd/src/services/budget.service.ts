@@ -7,6 +7,7 @@ import {
   IBudgetCategories,
   BudgetInsightsResponse,
   BudgetInsightsByMemberEntry,
+  BudgetInsightsScope,
   BudgetMonthlyTrendPoint,
   BudgetUpdateRequest,
 } from '../types/budget.types';
@@ -107,7 +108,8 @@ class BudgetService {
   async getInsights(
     householdId: string,
     userId: string,
-    monthString: string
+    monthString: string,
+    scope: BudgetInsightsScope = 'personal'
   ): Promise<BudgetInsightsResponse> {
     const { household, member } = await getHouseholdForMember(householdId, userId);
     this.validateMonthString(monthString);
@@ -120,19 +122,27 @@ class BudgetService {
       date: { $gte: range.gte, $lt: range.lt },
     });
 
-    const spendByCategory: IBudgetCategories = {};
-    let totalSpent = 0;
-    for (const exp of monthExpenses) {
-      spendByCategory[exp.category] = (spendByCategory[exp.category] ?? 0) + exp.amount;
-      totalSpent += exp.amount;
-    }
-
     // Per-member attribution. Use the split-aware utility to compute
     // share + paid amounts for each expense, then accumulate per member.
     // In joint mode, `share` is undefined on every attribution and we
     // surface that by leaving `totalShare`/`shareByCategory` undefined on
     // the response entries.
     const isJointMode = household.settings.financeMode === 'joint';
+
+    // Joint-mode households have no per-user share, so personal scope is
+    // meaningless there — force household scope regardless of request.
+    const effectiveScope: BudgetInsightsScope = isJointMode ? 'household' : scope;
+    const currentMemberId = member._id.toString();
+
+    // Household-level totals (always computed; used both as the canonical
+    // household view and as a fallback if effectiveScope === 'household').
+    const householdSpendByCategory: IBudgetCategories = {};
+    let householdTotalSpent = 0;
+    for (const exp of monthExpenses) {
+      householdSpendByCategory[exp.category] =
+        (householdSpendByCategory[exp.category] ?? 0) + exp.amount;
+      householdTotalSpent += exp.amount;
+    }
 
     interface PerMemberAccumulator {
       totalShare?: number;
@@ -196,6 +206,20 @@ class BudgetService {
       byMember.push(entry);
     }
 
+    // Resolve the page-level scope-aware totals from the precomputed
+    // per-member accumulator. Personal scope reads the current user's
+    // share/shareByCategory; household scope uses the raw sum.
+    let spendByCategory: IBudgetCategories;
+    let totalSpent: number;
+    if (effectiveScope === 'personal') {
+      const myAcc = perMemberAccumulator.get(currentMemberId);
+      spendByCategory = { ...(myAcc?.shareByCategory ?? {}) };
+      totalSpent = myAcc?.totalShare ?? 0;
+    } else {
+      spendByCategory = householdSpendByCategory;
+      totalSpent = householdTotalSpent;
+    }
+
     const trend: BudgetMonthlyTrendPoint[] = [];
     const [y, m] = monthString.split('-').map(Number);
     const months: string[] = [];
@@ -205,31 +229,56 @@ class BudgetService {
     }
     const trendStart = monthRange(months[0]).gte;
     const trendEnd = monthRange(months[5]).lt;
-    const trendAgg = await Expense.aggregate<{ _id: string; total: number }>([
-      { $match: { householdId: new Types.ObjectId(householdId), date: { $gte: trendStart, $lt: trendEnd } } },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m', date: '$date' },
+
+    if (effectiveScope === 'household') {
+      const trendAgg = await Expense.aggregate<{ _id: string; total: number }>([
+        { $match: { householdId: new Types.ObjectId(householdId), date: { $gte: trendStart, $lt: trendEnd } } },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m', date: '$date' },
+            },
+            total: { $sum: '$amount' },
           },
-          total: { $sum: '$amount' },
         },
-      },
-    ]);
-    const trendMap = new Map<string, number>();
-    for (const row of trendAgg) trendMap.set(row._id, row.total);
-    for (const ms of months) {
-      trend.push({ monthString: ms, totalSpent: trendMap.get(ms) ?? 0 });
+      ]);
+      const trendMap = new Map<string, number>();
+      for (const row of trendAgg) trendMap.set(row._id, row.total);
+      for (const ms of months) {
+        trend.push({ monthString: ms, totalSpent: trendMap.get(ms) ?? 0 });
+      }
+    } else {
+      // Personal scope: sum each expense's per-user share into the matching
+      // month bucket. Cheaper than another aggregation pipeline since the
+      // expense set for 6 months is small.
+      const trendExpenses = await Expense.find({
+        householdId: new Types.ObjectId(householdId),
+        date: { $gte: trendStart, $lt: trendEnd },
+      });
+      const trendMap = new Map<string, number>();
+      for (const exp of trendExpenses) {
+        const expMonth = `${exp.date.getFullYear()}-${String(exp.date.getMonth() + 1).padStart(2, '0')}`;
+        const attributions = computeMemberAttributionsForExpense(exp, household);
+        const myAttribution = attributions.get(currentMemberId);
+        const myShare = myAttribution?.share ?? 0;
+        trendMap.set(expMonth, (trendMap.get(expMonth) ?? 0) + myShare);
+      }
+      for (const ms of months) {
+        trend.push({ monthString: ms, totalSpent: trendMap.get(ms) ?? 0 });
+      }
     }
 
     const totalBudgeted = (Object.values(budgetForMonth.categories) as Array<number | undefined>)
       .filter((v): v is number => typeof v === 'number')
       .reduce((sum, v) => sum + v, 0);
 
+    // Over-budget flag always reflects household spend vs. household budget —
+    // budgets are stored per-household so comparing against the household
+    // totals is the only consistent signal regardless of view scope.
     const overBudgetCategories: ExpenseType[] = [];
     for (const cat of EXPENSE_TYPES) {
       const budgeted = budgetForMonth.categories[cat];
-      const spent = spendByCategory[cat] ?? 0;
+      const spent = householdSpendByCategory[cat] ?? 0;
       if (typeof budgeted === 'number' && spent > budgeted) overBudgetCategories.push(cat);
     }
 
@@ -251,6 +300,8 @@ class BudgetService {
       monthlyIncome,
       overBudgetCategories,
       byMember,
+      requestedScope: scope,
+      effectiveScope,
     };
   }
 

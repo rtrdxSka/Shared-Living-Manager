@@ -59,7 +59,7 @@ const outstandingExpense = {
   category: 'groceries',
   date: '2026-05-10',
   isResolved: false,
-  pendingConfirmation: false,
+  debtorStates: [],
   isFullRepayment: false,
   createdAt: '2026-05-10T00:00:00.000Z',
   updatedAt: '2026-05-10T00:00:00.000Z',
@@ -77,6 +77,7 @@ const debtorExpense = {
   category: 'utilities',
   paidByUserId: mockUsers.bob._id,
   paidByNickname: 'Bob',
+  debtorStates: [{ userId: mockUsers.alice._id, nickname: 'Alice', share: 30 }],
 };
 
 /**
@@ -91,7 +92,14 @@ const pendingAliceCreditor = {
   category: 'internet',
   paidByUserId: mockUsers.alice._id,
   paidByNickname: 'Alice',
-  pendingConfirmation: true,
+  debtorStates: [
+    {
+      userId: mockUsers.bob._id,
+      nickname: 'Bob',
+      share: 30,
+      claimedAt: '2026-05-09T08:00:00.000Z',
+    },
+  ],
 };
 
 /**
@@ -244,17 +252,24 @@ describe('<ExpensesPage /> flows', () => {
   });
 
   /**
-   * I.3 — Request resolution on a claimed expense (Alice is debtor).
-   * "I paid you back" button — fires PATCH /request-resolution.
+   * I.3 — Claim payback on a claimed expense (Alice is debtor).
+   * "I paid you back" button — fires POST /claim-payback.
    */
-  it('I.3 — Request resolution on debtor expense fires PATCH /request-resolution', async () => {
-    let requestCalled = false;
+  it('I.3 — Claim payback on debtor expense fires POST /claim-payback', async () => {
+    let claimCalled = false;
     server.use(
-      http.post('/api/households/:hid/expenses/:eid/request-resolution', () => {
-        requestCalled = true;
+      http.post('/api/households/:hid/expenses/:eid/claim-payback', () => {
+        claimCalled = true;
         return HttpResponse.json({
           status: 'success',
-          data: { expense: { ...debtorExpense, pendingConfirmation: true } },
+          data: {
+            expense: {
+              ...debtorExpense,
+              debtorStates: [
+                { userId: mockUsers.alice._id, nickname: 'Alice', share: 30, claimedAt: '2026-05-10T08:00:00.000Z' },
+              ],
+            },
+          },
         });
       }),
     );
@@ -264,17 +279,17 @@ describe('<ExpensesPage /> flows', () => {
     await user.click(await screen.findByText('Electricity bill'));
     const requestButton = await screen.findByRole('button', { name: /i paid you back/i });
     await user.click(requestButton);
-    await waitFor(() => expect(requestCalled).toBe(true));
+    await waitFor(() => expect(claimCalled).toBe(true));
   });
 
   /**
-   * I.4 — Confirm resolution: Alice is creditor, expense is pending.
-   * "Confirm received" button fires PATCH /confirm-resolution.
+   * I.4 — Confirm payback: Alice is creditor, expense is pending.
+   * "Confirm received" button fires POST /confirm-payback.
    */
-  it('I.4 — Confirm resolution fires PATCH /confirm-resolution', async () => {
+  it('I.4 — Confirm payback fires POST /confirm-payback', async () => {
     let confirmCalled = false;
     server.use(
-      http.post('/api/households/:hid/expenses/:eid/confirm-resolution', () => {
+      http.post('/api/households/:hid/expenses/:eid/confirm-payback', () => {
         confirmCalled = true;
         return HttpResponse.json({
           status: 'success',
@@ -282,7 +297,14 @@ describe('<ExpensesPage /> flows', () => {
             expense: {
               ...pendingAliceCreditor,
               isResolved: true,
-              pendingConfirmation: false,
+              debtorStates: [
+                {
+                  userId: mockUsers.bob._id,
+                  nickname: 'Bob',
+                  share: 30,
+                  confirmedAt: '2026-05-10T09:00:00.000Z',
+                },
+              ],
             },
           },
         });
@@ -298,17 +320,29 @@ describe('<ExpensesPage /> flows', () => {
   });
 
   /**
-   * I.5 — Dispute resolution: Alice is creditor, expense is pending.
-   * "Dispute" button fires PATCH /dispute-resolution.
+   * I.5 — Dispute payback: Alice is creditor, expense is pending.
+   * "Dispute" button fires POST /dispute-payback.
    */
-  it('I.5 — Dispute resolution fires PATCH /dispute-resolution', async () => {
+  it('I.5 — Dispute payback fires POST /dispute-payback', async () => {
     let disputeCalled = false;
     server.use(
-      http.post('/api/households/:hid/expenses/:eid/dispute-resolution', () => {
+      http.post('/api/households/:hid/expenses/:eid/dispute-payback', () => {
         disputeCalled = true;
         return HttpResponse.json({
           status: 'success',
-          data: { expense: { ...pendingAliceCreditor, pendingConfirmation: false } },
+          data: {
+            expense: {
+              ...pendingAliceCreditor,
+              debtorStates: [
+                {
+                  userId: mockUsers.bob._id,
+                  nickname: 'Bob',
+                  share: 30,
+                  disputedAt: '2026-05-10T09:00:00.000Z',
+                },
+              ],
+            },
+          },
         });
       }),
     );

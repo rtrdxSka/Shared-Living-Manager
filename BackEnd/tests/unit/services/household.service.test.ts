@@ -239,6 +239,28 @@ describe('householdService.updateSettings', () => {
       )
     ).rejects.toSatisfy(expectAppError(403));
   });
+
+  it('persists per-member customSplitShares (roommate custom split)', async () => {
+    // flatshare's finance members are carol (owner), eve (admin), frank (member).
+    const flatshare = FIXTURES.household('flatshare');
+    const carol = FIXTURES.user('carol');
+    const shares = [
+      { userId: carol._id.toString(), pct: 50 },
+      { userId: FIXTURES.user('eve')._id.toString(), pct: 30 },
+      { userId: FIXTURES.user('frank')._id.toString(), pct: 20 },
+    ];
+
+    const result = await householdService.updateSettings(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      { expenseSplitMethod: 'custom', customSplitShares: shares }
+    );
+
+    expect(result.settings.customSplitShares).toHaveLength(3);
+    const sum = (result.settings.customSplitShares ?? []).reduce((acc, s) => acc + s.pct, 0);
+    expect(sum).toBe(100);
+    expect(result.settings.customSplitShares?.[0].userId.toString()).toBe(shares[0].userId);
+  });
 });
 
 // ── recordSettlement ─────────────────────────────────────────────────

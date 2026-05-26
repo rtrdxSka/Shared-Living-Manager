@@ -22,6 +22,11 @@ function shortMonth(ym: string): string {
   });
 }
 
+function shortMonthYear(ym: string): string {
+  const [y] = ym.split('-');
+  return `${shortMonth(ym)} ${y}`; // e.g. "Apr 2026"
+}
+
 interface DeltaDisplay {
   text: string;
   tone: 'pos' | 'neg' | 'neutral';
@@ -65,6 +70,11 @@ export default function MonthlyTrendCard({ data, currency }: MonthlyTrendCardPro
   const current = trend[trend.length - 1];
   const prior = trend.length >= 2 ? trend[trend.length - 2] : null;
   const delta = prior ? computeDelta(current.totalSpent, prior.totalSpent, shortMonth(prior.monthString)) : null;
+
+  // Footer: at rest, list every month that has spend; on hover/focus collapse to
+  // the single inspected month. The chart already drives `activeIndex`.
+  const monthsWithSpend = trend.filter((p) => p.totalSpent > 0);
+  const activePoint = activeIndex != null ? trend[activeIndex] : null;
 
   const toneClass =
     delta?.tone === 'neg' ? 'text-neg' : delta?.tone === 'pos' ? 'text-pos' : 'text-ink-3';
@@ -130,10 +140,28 @@ export default function MonthlyTrendCard({ data, currency }: MonthlyTrendCardPro
             </button>
           ))}
         </div>
-        <p className="text-xs text-ink-3 pt-2 border-t border-line mt-1" data-testid="current-month-footer">
-          <span className="text-ink">{formatMonthLabel(current.monthString)}</span>:{' '}
-          <MoneyAmount amount={current.totalSpent} currency={currency} size="sm" />
-        </p>
+        <div
+          className="text-xs text-ink-3 pt-2 border-t border-line mt-1"
+          data-testid="trend-footer"
+        >
+          {activePoint ? (
+            <>
+              <span className="text-ink">{formatMonthLabel(activePoint.monthString)}</span>:{' '}
+              <MoneyAmount amount={activePoint.totalSpent} currency={currency} size="sm" />
+            </>
+          ) : (
+            // Stack months vertically (up to 3 rows), then spill into a second
+            // column once the rows fill up.
+            <div className="grid grid-flow-col grid-rows-[repeat(3,auto)] justify-start gap-x-4 gap-y-1">
+              {monthsWithSpend.map((p) => (
+                <span key={p.monthString} className="inline-flex items-baseline gap-1.5">
+                  <span className="text-ink">{shortMonthYear(p.monthString)}</span>
+                  <MoneyAmount amount={p.totalSpent} currency={currency} size="sm" />
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
