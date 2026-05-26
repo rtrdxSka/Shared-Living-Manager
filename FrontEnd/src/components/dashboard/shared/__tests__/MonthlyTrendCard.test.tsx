@@ -94,7 +94,52 @@ describe('<MonthlyTrendCard />', () => {
     expect(screen.getByTestId('mom-delta')).toHaveTextContent(/new this month/i);
   });
 
-  it('renders current-month footer with full label and amount', () => {
+  it('footer at rest lists every month that has spend, excluding zero months', () => {
+    const data = makeData([
+      ['2025-12', 0],
+      ['2026-01', 0],
+      ['2026-02', 0],
+      ['2026-03', 1300],
+      ['2026-04', 1400],
+      ['2026-05', 1568],
+    ]);
+    render(<MonthlyTrendCard data={data} currency="EUR" />);
+
+    const footer = screen.getByTestId('trend-footer');
+    // Months with spend appear with their short label + amount.
+    expect(footer).toHaveTextContent(/mar 2026/i);
+    expect(footer).toHaveTextContent('1300.00 EUR');
+    expect(footer).toHaveTextContent(/apr 2026/i);
+    expect(footer).toHaveTextContent('1400.00 EUR');
+    expect(footer).toHaveTextContent(/may 2026/i);
+    expect(footer).toHaveTextContent('1568.00 EUR');
+    // Zero-spend months are omitted from the at-rest list.
+    expect(footer).not.toHaveTextContent(/dec 2025/i);
+    expect(footer).not.toHaveTextContent(/jan 2026/i);
+  });
+
+  it('footer collapses to the single hovered month in full form', () => {
+    const data = makeData([
+      ['2025-12', 1000],
+      ['2026-01', 1100],
+      ['2026-02', 1200],
+      ['2026-03', 1300],
+      ['2026-04', 1400],
+      ['2026-05', 1568],
+    ]);
+    const { container } = render(<MonthlyTrendCard data={data} currency="EUR" />);
+
+    fireEvent.mouseEnter(container.querySelector('[data-bar-index="4"]')!);
+
+    const footer = screen.getByTestId('trend-footer');
+    expect(footer).toHaveTextContent('April 2026');
+    expect(footer).toHaveTextContent('1400.00 EUR');
+    // Collapsed: other months are no longer listed.
+    expect(footer).not.toHaveTextContent(/dec 2025/i);
+    expect(footer).not.toHaveTextContent('1568.00 EUR');
+  });
+
+  it('footer restores the multi-month list when the pointer leaves', () => {
     const data = makeData([
       ['2025-12', 1000],
       ['2026-01', 1100],
@@ -104,8 +149,14 @@ describe('<MonthlyTrendCard />', () => {
       ['2026-05', 1568],
     ]);
     render(<MonthlyTrendCard data={data} currency="EUR" />);
+    const aprLabel = screen.getByTestId('month-label-4');
 
-    const footer = screen.getByTestId('current-month-footer');
+    fireEvent.mouseEnter(aprLabel);
+    fireEvent.mouseLeave(aprLabel);
+
+    const footer = screen.getByTestId('trend-footer');
+    // Back to the at-rest list: latest + an earlier month both present.
+    expect(footer).toHaveTextContent(/dec 2025/i);
     expect(footer).toHaveTextContent(/may 2026/i);
     expect(footer).toHaveTextContent('1568.00 EUR');
   });
