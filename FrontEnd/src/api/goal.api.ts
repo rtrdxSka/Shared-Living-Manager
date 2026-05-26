@@ -6,6 +6,7 @@ import type {
   UpdateGoalInput,
   AddContributionInput,
   GoalStatus,
+  GoalPriority,
 } from '@/types/goal.types';
 import type { PaginationMeta } from '@/types/pagination.types';
 
@@ -49,6 +50,18 @@ export const goalApi = {
     const { data } = await api.patch<ApiSuccessResponse<{ goal: GoalResponse }>>(
       `/households/${householdId}/goals/${goalId}`,
       input
+    );
+    return data.data.goal;
+  },
+
+  async setGoalPriority(
+    householdId: string,
+    goalId: string,
+    priority: GoalPriority
+  ): Promise<GoalResponse> {
+    const { data } = await api.patch<ApiSuccessResponse<{ goal: GoalResponse }>>(
+      `/households/${householdId}/goals/${goalId}/priority`,
+      { priority }
     );
     return data.data.goal;
   },

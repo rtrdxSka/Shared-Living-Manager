@@ -42,6 +42,14 @@ export const householdApi = {
     return data.data.household;
   },
 
+  async updateSavingsBudget(householdId: string, monthlySavingsBudget: number): Promise<HouseholdResponse> {
+    const { data } = await api.patch<ApiSuccessResponse<{ household: HouseholdResponse }>>(
+      `/households/${householdId}/savings-budget`,
+      { monthlySavingsBudget }
+    );
+    return data.data.household;
+  },
+
   async recordSettlement(householdId: string, month: string, amount: number): Promise<HouseholdResponse> {
     const { data } = await api.post<ApiSuccessResponse<{ household: HouseholdResponse }>>(
       `/households/${householdId}/settlements`,
