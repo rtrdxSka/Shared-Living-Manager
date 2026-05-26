@@ -38,7 +38,7 @@ import {
   useTasks,
 } from '@/hooks/queries';
 
-import { deriveIncomeSplit, deriveCustomSplit, getDueDateStatus, currentMonthString } from '@/utils/dashboardHelpers';
+import { deriveIncomeSplit, deriveCustomSplit, deriveRoommateCustomShares, getDueDateStatus, currentMonthString } from '@/utils/dashboardHelpers';
 
 import AddExpenseForm from '@/components/dashboard/shared/AddExpenseForm';
 import AddTaskForm from '@/components/dashboard/shared/AddTaskForm';
@@ -82,6 +82,8 @@ export interface DashboardContextValue {
   distribution: TaskDistributionMethod;
   customMyPct: number;
   setCustomMyPct: (v: number) => void;
+  /** Per-member roommate custom split, seeded from settings (even-split fallback). */
+  customShares: { userId: string; nickname: string; pct: number }[];
   incomeSplit: { myPct: number; partnerPct: number } | null;
 
   // Hoisted data (always fetched — needed by sidebar badge + multiple pages)
@@ -133,6 +135,7 @@ export interface DashboardContextValue {
   handleFinanceModeChange: (v: FinanceMode) => Promise<void>;
   handleSplitMethodChange: (v: ExpenseSplitMethod) => Promise<void>;
   handleCustomPctCommit: (v: number) => Promise<void>;
+  handleCustomSharesCommit: (shares: { userId: string; pct: number }[]) => Promise<void>;
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────
@@ -244,6 +247,14 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const incomeSplit =
     splitMethod === 'income_based' ? deriveIncomeSplit(household, currentUserId) : null;
 
+  // Per-member roommate custom split, seeded from settings (even-split fallback
+  // when stale/unset). Drives the household-level editor and pre-fills the
+  // per-expense percentages in AddExpenseForm.
+  const customShares = useMemo(
+    () => deriveRoommateCustomShares(household),
+    [household]
+  );
+
   // ── Derived counts ────────────────────────────────────────────────────
   const overdueCount = tasks.filter(
     (t) => !t.isCompleted && getDueDateStatus(t.dueDate, t.isCompleted) === 'overdue'
@@ -284,6 +295,18 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
       /* ignore */
     }
   }, [isAdmin, myMember?.role, updateSettingsAsync]);
+
+  const handleCustomSharesCommit = useCallback(
+    async (shares: { userId: string; pct: number }[]) => {
+      if (!isAdmin) return;
+      try {
+        await updateSettingsAsync({ customSplitShares: shares });
+      } catch {
+        /* ignore — household query will revert on refetch */
+      }
+    },
+    [isAdmin, updateSettingsAsync]
+  );
 
   // ── Mutation wrappers ─────────────────────────────────────────────────
   const deleteExpenseAsync = deleteExpenseMutation.mutateAsync;
@@ -393,6 +416,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     distribution,
     customMyPct,
     setCustomMyPct,
+    customShares,
     incomeSplit,
     tasks,
     rotationStatus,
@@ -435,6 +459,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     handleFinanceModeChange,
     handleSplitMethodChange,
     handleCustomPctCommit,
+    handleCustomSharesCommit,
   }), [
     household,
     currentUserId,
@@ -456,6 +481,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     taskLevel,
     distribution,
     customMyPct,
+    customShares,
     incomeSplit,
     tasks,
     rotationStatus,
@@ -490,6 +516,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     handleFinanceModeChange,
     handleSplitMethodChange,
     handleCustomPctCommit,
+    handleCustomSharesCommit,
   ]);
 
   return (
