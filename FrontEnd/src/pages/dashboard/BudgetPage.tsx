@@ -326,7 +326,7 @@ export default function BudgetPage() {
         <SpendingBreakdownCard
           data={data}
           currency={currency}
-          byMember={isCoupleView ? data.byMember : undefined}
+          byMember={data.byMember.length >= 2 ? data.byMember : undefined}
         />
         <MonthlyTrendCard data={data} currency={currency} />
       </div>
