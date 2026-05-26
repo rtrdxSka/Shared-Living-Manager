@@ -82,6 +82,10 @@ class ExpenseService {
         splitMethod,
         customSplitOverrides: subgroup?.customSplitOverrides,
         customSplitPercentage: household.settings?.customSplitPercentage,
+        customSplitShares: household.settings?.customSplitShares?.map((s) => ({
+          userId: new Types.ObjectId(s.userId),
+          pct: s.pct,
+        })),
         isFullRepayment: input.isFullRepayment,
       });
 
@@ -400,6 +404,10 @@ class ExpenseService {
         pct: o.pct,
       })),
       customSplitPercentage: household.settings?.customSplitPercentage,
+      customSplitShares: household.settings?.customSplitShares?.map((s) => ({
+        userId: new Types.ObjectId(s.userId),
+        pct: s.pct,
+      })),
       isFullRepayment: expense.isFullRepayment,
     });
 

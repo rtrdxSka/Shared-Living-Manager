@@ -15,6 +15,12 @@ export interface ComputeDebtorSharesInput {
   splitMethod: SplitMethod;
   customSplitOverrides?: { userId: Types.ObjectId; pct: number }[];
   customSplitPercentage?: number;
+  /**
+   * Household-level per-member custom percentages (roommate-style). Covers every
+   * finance member and sums to 100. Applied only when `splitMethod === 'custom'`
+   * and no per-expense `customSplitOverrides` are present.
+   */
+  customSplitShares?: { userId: Types.ObjectId; pct: number }[];
   isFullRepayment?: boolean;
 }
 
@@ -31,9 +37,13 @@ export interface DebtorShare {
  *   1. `isFullRepayment` → every non-payer owes the full amount each
  *   2. per-expense `customSplitOverrides` → use as authoritative percentages
  *   3. `splitMethod === 'income_based'` with usable income data → income-weighted
- *   4. `splitMethod === 'custom'` with a valid `customSplitPercentage` and an
- *      identifiable owner among participants → owner pays X%, non-owners share
- *      the rest equally (couple-style)
+ *   4. `splitMethod === 'custom'`:
+ *      a. household `customSplitShares` that cover every participant and sum to
+ *         100 → per-member percentages (roommate-style)
+ *      b. else a valid `customSplitPercentage` and an identifiable owner among
+ *         participants → owner pays X%, non-owners share the rest equally
+ *         (couple-style)
+ *      c. else equal
  *   5. fallback → equal split
  */
 export function computeDebtorShares(input: ComputeDebtorSharesInput): DebtorShare[] {
@@ -77,8 +87,28 @@ export function computeDebtorShares(input: ComputeDebtorSharesInput): DebtorShar
     }));
   }
 
-  // Branch 4 — custom (couple-style with single pct on settings).
+  // Branch 4 — custom.
   if (input.splitMethod === 'custom') {
+    // 4a — household per-member shares (roommate-style). Apply only when they
+    // cover every participant and sum to 100 over the participant set; otherwise
+    // fall through (handles membership changes and subgroup expenses).
+    if (input.customSplitShares && input.customSplitShares.length > 0) {
+      const pctByUser = new Map<string, number>();
+      for (const s of input.customSplitShares) pctByUser.set(s.userId.toString(), s.pct);
+      const coversAll = input.participants.every((p) => pctByUser.has(p.userId.toString()));
+      const sumOverParticipants = input.participants.reduce(
+        (acc, p) => acc + (pctByUser.get(p.userId.toString()) ?? 0),
+        0
+      );
+      if (coversAll && sumOverParticipants === 100) {
+        return debtors.map((d) => ({
+          userId: d.userId,
+          share: (input.amount * (pctByUser.get(d.userId.toString()) ?? 0)) / 100,
+        }));
+      }
+    }
+
+    // 4b — couple-style single owner pct on settings.
     const owner = input.participants.find((p) => p.role === 'owner');
     const pctValid =
       typeof input.customSplitPercentage === 'number' &&

@@ -242,6 +242,7 @@ class HouseholdService {
     if (input.financeMode !== undefined) household.settings.financeMode = input.financeMode;
     if (input.expenseSplitMethod !== undefined) household.settings.expenseSplitMethod = input.expenseSplitMethod;
     if (input.customSplitPercentage !== undefined) household.settings.customSplitPercentage = input.customSplitPercentage;
+    if (input.customSplitShares !== undefined) household.settings.customSplitShares = input.customSplitShares;
 
     await household.save();
     return this.formatHouseholdResponse(household);
