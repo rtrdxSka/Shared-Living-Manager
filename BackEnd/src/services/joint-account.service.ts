@@ -361,13 +361,20 @@ class JointAccountService {
     if (!monthlyTarget || financialMembers.length === 0) return targets;
 
     if (targetMode === 'proportional') {
+      // Income data is "complete" only when every participating member has an
+      // income on file (default is undefined, so unset is distinct from a real 0).
+      const incomeComplete = financialMembers.every(
+        (m) => typeof m.monthlyIncome === 'number'
+      );
       const totalIncome = financialMembers.reduce(
         (sum, m) => sum + (m.monthlyIncome ?? 0),
         0
       );
 
-      // Fall back to equal split if no income data
-      if (totalIncome === 0) {
+      // Fall back to equal split when income data is incomplete (any member
+      // unset) or everyone is on 0 — proportional has no meaningful basis.
+      // The Account page surfaces this fallback with a banner.
+      if (!incomeComplete || totalIncome === 0) {
         const perPerson = monthlyTarget / financialMembers.length;
         for (const m of financialMembers) {
           targets.set(m._id.toString(), Math.round(perPerson * 100) / 100);
