@@ -370,6 +370,18 @@ export const updateMemberIncomeValidation: ValidationChain[] = [
     .withMessage('Income must be between 0 and 1,000,000'),
 ];
 
+// ── Update Savings Budget Validation ──────────────────────────────────
+
+export const updateSavingsBudgetValidation: ValidationChain[] = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid household ID'),
+
+  body('monthlySavingsBudget')
+    .isFloat({ min: 0, max: 100_000_000 })
+    .withMessage('Monthly savings budget must be a non-negative number'),
+];
+
 // ── Regenerate Invite Code Validation ────────────────────────────────
 
 export const regenerateInviteCodeValidation: ValidationChain[] = [

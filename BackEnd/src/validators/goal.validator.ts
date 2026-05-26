@@ -1,5 +1,5 @@
 import { body, param, query, ValidationChain } from 'express-validator';
-import { GOAL_CATEGORIES } from '../types/goal.types';
+import { GOAL_CATEGORIES, GOAL_PRIORITIES } from '../types/goal.types';
 import { paginationValidation } from './pagination.validator';
 
 const householdIdParam: ValidationChain = param('id')
@@ -90,6 +90,15 @@ export const updateGoalValidation: ValidationChain[] = [
     .optional()
     .isIn(['completed', 'abandoned'])
     .withMessage('Status must be one of: completed, abandoned'),
+];
+
+export const setGoalPriorityValidation: ValidationChain[] = [
+  householdIdParam,
+  goalIdParam,
+
+  body('priority')
+    .isIn(GOAL_PRIORITIES)
+    .withMessage(`Priority must be one of: ${GOAL_PRIORITIES.join(', ')}`),
 ];
 
 export const addContributionValidation: ValidationChain[] = [
