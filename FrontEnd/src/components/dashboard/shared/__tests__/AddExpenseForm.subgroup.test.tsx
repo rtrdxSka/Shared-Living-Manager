@@ -12,6 +12,8 @@ const dashboardMock = {
   uiMode: 'roommates' as 'couple' | 'solo' | 'roommates',
   financeMode: 'split' as 'split' | 'joint',
   splitMethod: 'equal' as 'equal' | 'income_based' | 'custom',
+  // Empty → AddExpenseForm's custom-pct seeding falls back to an even split.
+  customShares: [] as { userId: string; nickname: string; pct: number }[],
 };
 
 vi.mock('@/contexts/useDashboard', () => ({
@@ -22,6 +24,7 @@ beforeEach(() => {
   dashboardMock.uiMode = 'roommates';
   dashboardMock.financeMode = 'split';
   dashboardMock.splitMethod = 'equal';
+  dashboardMock.customShares = [];
   vi.clearAllMocks();
 });
 
@@ -193,5 +196,35 @@ describe('AddExpenseForm — custom split overrides', () => {
     expect(screen.getByLabelText(/Alice %/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Bob %/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Carol %/i)).toBeNull();
+  });
+
+  it('seeds from the household default and reseeds on reopen after the split changes (regression)', () => {
+    dashboardMock.uiMode = 'roommates';
+    dashboardMock.splitMethod = 'custom';
+    dashboardMock.customShares = [
+      { userId: 'user-alice-001', nickname: 'Alice', pct: 50 },
+      { userId: 'user-bob-001', nickname: 'Bob', pct: 30 },
+      { userId: 'user-carol-001', nickname: 'Carol', pct: 20 },
+    ];
+
+    const { rerender } = renderWithProviders(<AddExpenseForm {...baseProps} open />);
+    expect((screen.getByLabelText(/Alice %/i) as HTMLInputElement).value).toBe('50');
+    expect((screen.getByLabelText(/Bob %/i) as HTMLInputElement).value).toBe('30');
+    expect((screen.getByLabelText(/Carol %/i) as HTMLInputElement).value).toBe('20');
+
+    // Close the sheet, then the admin saves a new household split.
+    rerender(<AddExpenseForm {...baseProps} open={false} />);
+    dashboardMock.customShares = [
+      { userId: 'user-alice-001', nickname: 'Alice', pct: 60 },
+      { userId: 'user-bob-001', nickname: 'Bob', pct: 30 },
+      { userId: 'user-carol-001', nickname: 'Carol', pct: 10 },
+    ];
+
+    // Reopen — the form must reflect the NEW split, not the stale one (the bug
+    // showed the old values until a full page refresh remounted the form).
+    rerender(<AddExpenseForm {...baseProps} open />);
+    expect((screen.getByLabelText(/Alice %/i) as HTMLInputElement).value).toBe('60');
+    expect((screen.getByLabelText(/Bob %/i) as HTMLInputElement).value).toBe('30');
+    expect((screen.getByLabelText(/Carol %/i) as HTMLInputElement).value).toBe('10');
   });
 });
