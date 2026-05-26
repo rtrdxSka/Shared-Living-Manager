@@ -1,5 +1,6 @@
 export type GoalCategory = 'savings' | 'travel' | 'home' | 'emergency' | 'other';
 export type GoalStatus = 'active' | 'completed' | 'abandoned';
+export type GoalPriority = 'low' | 'normal' | 'high';
 
 export const GOAL_CATEGORIES: { value: GoalCategory; label: string }[] = [
   { value: 'savings', label: 'Savings' },
@@ -28,6 +29,7 @@ export interface GoalResponse {
   deadline?: string;
   status: GoalStatus;
   category?: GoalCategory;
+  priority: GoalPriority;
   createdByUserId: string;
   completedAt?: string;
   contributions: GoalContributionResponse[];

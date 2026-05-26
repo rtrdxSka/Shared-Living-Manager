@@ -41,6 +41,8 @@ export interface HouseholdSettings {
   customSplitPercentage?: number;
   /** Per-member custom percentages (roommate-style); sums to 100. */
   customSplitShares?: { userId: string; pct: number }[];
+  /** Couple "Together Fund" monthly savings budget; allocated across goals client-side. */
+  monthlySavingsBudget?: number;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
   taskManagementEnabled: TaskManagementLevel;
