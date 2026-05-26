@@ -273,6 +273,39 @@ describe('PATCH /api/households/:id/settings', () => {
       .send({ financeMode: 'split' });
     expect(res.status).toBe(403);
   });
+
+  it('rejects customSplitShares that do not sum to 100 (400)', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/settings`)
+      .set('Authorization', auth(alice._id.toString(), alice.email))
+      .send({
+        expenseSplitMethod: 'custom',
+        customSplitShares: [
+          { userId: alice._id.toString(), pct: 50 },
+          { userId: FIXTURES.user('bob')._id.toString(), pct: 30 },
+        ],
+      });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts customSplitShares that sum to 100 (200)', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/settings`)
+      .set('Authorization', auth(alice._id.toString(), alice.email))
+      .send({
+        expenseSplitMethod: 'custom',
+        customSplitShares: [
+          { userId: alice._id.toString(), pct: 60 },
+          { userId: FIXTURES.user('bob')._id.toString(), pct: 40 },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.data.household.settings.customSplitShares).toHaveLength(2);
+  });
 });
 
 describe('PATCH /api/households/:id/members/me/income', () => {
