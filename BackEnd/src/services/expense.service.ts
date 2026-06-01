@@ -92,7 +92,6 @@ class ExpenseService {
       debtorStates = shares.map((s) => ({
         userId: s.userId,
         share: Math.round(s.share * 100) / 100,
-        ...(input.isFullRepayment ? { confirmedAt: now } : {}),
       })) as IExpenseDebtorState[];
     }
 
@@ -415,14 +414,11 @@ class ExpenseService {
     expense.debtorStates = shares.map((s) => ({
       userId: s.userId,
       share: Math.round(s.share * 100) / 100,
-      ...(expense.isFullRepayment ? { confirmedAt: now } : {}),
     })) as typeof expense.debtorStates;
 
-    // Full-repayment expense with every debtor pre-confirmed → resolved.
-    // Same rule as addExpense's isResolved condition.
-    const allConfirmed =
-      expense.debtorStates.length > 0 && expense.debtorStates.every((d) => d.confirmedAt);
-    if (expense.debtorStates.length === 0 || allConfirmed) {
+    // No debtors (e.g. payer is the only financial participant) → nothing
+    // to settle, mark resolved. Otherwise the normal claim/confirm flow runs.
+    if (expense.debtorStates.length === 0) {
       expense.isResolved = true;
       expense.resolvedAt = now;
     }
