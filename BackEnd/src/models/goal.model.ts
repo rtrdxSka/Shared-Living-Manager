@@ -28,6 +28,7 @@ const goalSchema = new Schema<IGoal>(
   },
   {
     timestamps: true,
+    optimisticConcurrency: true,
     toJSON: {
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.__v;
