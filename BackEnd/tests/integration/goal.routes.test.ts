@@ -239,4 +239,36 @@ describe('Goal routes', () => {
 
     expect(res.status).toBe(403);
   });
+
+  // Regression guard for atomic $push refactor — both concurrent contributions must land.
+  it('addContribution — concurrent calls both persist (no lost write)', async () => {
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+
+    // Create a fresh goal because the 'vacation' fixture may have been deleted
+    // by earlier tests in this file (shared per-file seed state).
+    const created = await request(app)
+      .post(`/api/households/${couple._id}/goals`)
+      .set('Authorization', auth(alice._id.toString()))
+      .send({ name: 'Concurrent contributions', targetAmount: 1000 });
+    const goalId = created.body.data.goal._id;
+
+    const [r1, r2] = await Promise.all([
+      request(app)
+        .post(`/api/households/${couple._id}/goals/${goalId}/contributions`)
+        .set('Authorization', auth(alice._id.toString()))
+        .send({ amount: 10 }),
+      request(app)
+        .post(`/api/households/${couple._id}/goals/${goalId}/contributions`)
+        .set('Authorization', auth(bob._id.toString()))
+        .send({ amount: 20 }),
+    ]);
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+
+    const reloaded = await Goal.findById(goalId);
+    const newOnes = reloaded!.contributions.filter((c) => c.amount === 10 || c.amount === 20);
+    expect(newOnes.length).toBe(2);
+  });
 });
