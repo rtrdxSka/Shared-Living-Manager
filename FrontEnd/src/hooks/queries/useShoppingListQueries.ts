@@ -103,9 +103,14 @@ export function useToggleShoppingItemBought(householdId: string) {
               ...old,
               pages: old.pages.map((page) => ({
                 ...page,
-                items: page.items.map((i) =>
-                  i._id === itemId ? { ...i, isBought: !i.isBought } : i
-                ),
+                // Re-sort by isBought ASC to match the server sort, so the
+                // layout animation fires once on toggle instead of twice
+                // (toggle in place, then again after refetch reorders).
+                items: page.items
+                  .map((i) =>
+                    i._id === itemId ? { ...i, isBought: !i.isBought } : i
+                  )
+                  .sort((a, b) => Number(a.isBought) - Number(b.isBought)),
               })),
             }
           : old

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pencil, Archive, Trash2 } from 'lucide-react';
+import { LayoutGroup, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import ConfirmDeleteDialog from '@/components/dashboard/shared/ConfirmDeleteDialog';
 import {
@@ -42,60 +43,69 @@ export default function ShoppingListView({
 
   return (
     <div className="space-y-2">
-      <ul className="divide-y rounded-md border">
-        {items.map((item) => (
-          <li key={item._id} className="flex items-center gap-3 p-3">
-            <input
-              type="checkbox"
-              checked={item.isBought}
-              onChange={() => toggle.mutate(item._id)}
-              className="h-4 w-4 cursor-pointer"
-              aria-label={`Mark ${item.name} as bought`}
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className={`text-sm ${item.isBought ? 'line-through text-muted-foreground' : ''}`}>
-                  {item.quantity ? `${item.quantity} ` : ''}
-                  {item.name}
-                </p>
-                <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {EXPENSE_TYPE_LABELS[item.category]}
-                </span>
+      <LayoutGroup>
+        <motion.ul layout className="divide-y rounded-md border">
+          {items.map((item) => (
+            <motion.li
+              key={item._id}
+              layout
+              transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+              className={`flex items-center gap-3 p-3 transition-colors duration-200 ${
+                item.isBought ? 'opacity-60' : ''
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={item.isBought}
+                onChange={() => toggle.mutate(item._id)}
+                className="h-4 w-4 cursor-pointer"
+                aria-label={`Mark ${item.name} as bought`}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className={`text-sm ${item.isBought ? 'line-through text-muted-foreground' : ''}`}>
+                    {item.quantity ? `${item.quantity} ` : ''}
+                    {item.name}
+                  </p>
+                  <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {EXPENSE_TYPE_LABELS[item.category]}
+                  </span>
+                </div>
+                {item.notes && (
+                  <p className="text-xs text-muted-foreground truncate">{item.notes}</p>
+                )}
               </div>
-              {item.notes && (
-                <p className="text-xs text-muted-foreground truncate">{item.notes}</p>
-              )}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => onEditItem(item)}
-              aria-label={`Edit ${item.name}`}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => archive.mutate(item._id)}
-              aria-label={`Archive ${item.name}`}
-            >
-              <Archive className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setPendingDeleteItem(item)}
-              aria-label={`Delete ${item.name}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </li>
-        ))}
-      </ul>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onEditItem(item)}
+                aria-label={`Edit ${item.name}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => archive.mutate(item._id)}
+                aria-label={`Archive ${item.name}`}
+              >
+                <Archive className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setPendingDeleteItem(item)}
+                aria-label={`Delete ${item.name}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </motion.li>
+          ))}
+        </motion.ul>
+      </LayoutGroup>
       {hasNextPage && (
         <div className="flex justify-center py-2">
           <Button
