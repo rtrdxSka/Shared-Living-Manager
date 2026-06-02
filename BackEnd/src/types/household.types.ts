@@ -162,6 +162,12 @@ export interface IHouseholdSettings {
    * 'custom' and no per-expense override is set.
    */
   customSplitShares?: { userId: string; pct: number }[];
+  /**
+   * Couple "Together Fund" monthly savings budget — the amount the couple plans
+   * to set aside each month, allocated across goals by the frontend planner.
+   * Editable by any member (it's a shared plan). Unset/undefined for other modes.
+   */
+  monthlySavingsBudget?: number;
   trackedExpenseTypes: ExpenseType[];
   currency: Currency;
   taskManagementEnabled: TaskManagementLevel;
@@ -179,6 +185,10 @@ export interface IUpdateHouseholdSettingsInput {
   expenseSplitMethod?: ExpenseSplitMethod;
   customSplitPercentage?: number;
   customSplitShares?: { userId: string; pct: number }[];
+}
+
+export interface IUpdateSavingsBudgetInput {
+  monthlySavingsBudget: number;
 }
 
 // ── Household Document ────────────────────────────────────────────────

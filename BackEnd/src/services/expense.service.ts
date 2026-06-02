@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Household } from '../models/household.model';
 import { Expense } from '../models/expense.model';
 import {
@@ -92,15 +92,13 @@ class ExpenseService {
       debtorStates = shares.map((s) => ({
         userId: s.userId,
         share: Math.round(s.share * 100) / 100,
-        ...(input.isFullRepayment ? { confirmedAt: now } : {}),
       })) as IExpenseDebtorState[];
     }
 
-    const allConfirmed = debtorStates.length > 0 && debtorStates.every((d) => d.confirmedAt);
     const hasPayer = !!input.paidByUserId;
     const isResolved =
       autoResolveByMode ||
-      (hasPayer && (debtorStates.length === 0 || allConfirmed));
+      (hasPayer && debtorStates.length === 0);
 
     const expense = await Expense.create({
       householdId: household._id,
@@ -355,82 +353,96 @@ class ExpenseService {
       throw ForbiddenError('You must be a financial member to claim an expense');
     }
 
-    // Atomically claim the expense by setting paidByUserId only if no payer
-    // is set yet. This keeps the race-condition semantics: under concurrent
-    // claims, exactly one caller wins and the other gets BadRequest below.
-    const expense = await Expense.findOneAndUpdate(
-      {
-        _id: expenseId,
-        householdId: household._id,
-        $or: [{ paidByUserId: { $exists: false } }, { paidByUserId: null }],
-      },
-      { $set: { paidByUserId: requesterMember.userId } },
-      { new: true },
-    );
+    const session = await mongoose.startSession();
+    let expense: mongoose.HydratedDocument<IExpense> | null = null;
+    try {
+      // `withTransaction` retries the body on TransientTransactionError /
+      // UnknownTransactionCommitResult (e.g. MongoDB WriteConflict between
+      // two parallel claimExpense calls touching the same document). The
+      // body must therefore be idempotent: on retry the loser will see the
+      // winning payer already set and fall through to the BadRequest branch.
+      await session.withTransaction(async () => {
+        // Atomically claim the expense by setting paidByUserId only if no payer
+        // is set yet. Under concurrent claims, exactly one caller wins and the
+        // other gets BadRequest below.
+        expense = await Expense.findOneAndUpdate(
+          {
+            _id: expenseId,
+            householdId: household._id,
+            $or: [{ paidByUserId: { $exists: false } }, { paidByUserId: null }],
+          },
+          { $set: { paidByUserId: requesterMember.userId } },
+          { new: true, session },
+        );
 
-    if (!expense) {
-      const exists = await Expense.exists({ _id: expenseId, householdId: household._id });
-      if (!exists) throw NotFoundError('Expense not found');
-      throw BadRequestError('This expense has already been claimed');
+        if (!expense) {
+          // Determine 404 vs 400 BEFORE the throw aborts the transaction.
+          const exists = await Expense.exists({ _id: expenseId, householdId: household._id }).session(session);
+          if (!exists) throw NotFoundError('Expense not found');
+          throw BadRequestError('This expense has already been claimed');
+        }
+
+        // Capture into a non-null local so TS narrows correctly across nested closures.
+        const claimed = expense;
+
+        // We won the claim — compute debtorStates now that we know the payer.
+        // Mirrors addExpense (lines 59-93) so debtors get the same per-share
+        // entries they would have had if the expense had been created with a
+        // payer from the start.
+        const splitMethod = (household.settings?.expenseSplitMethod ?? 'equal') as SplitMethod;
+        const allFinancialParticipants: ComputeDebtorSharesParticipant[] = household.members
+          .filter((m) => m.participatesInFinances && m.userId)
+          .map((m) => ({
+            userId: m.userId as Types.ObjectId,
+            monthlyIncome: m.monthlyIncome ?? undefined,
+            role: m.role,
+          }));
+
+        const participantUserIdSet = claimed.participantUserIds?.length
+          ? new Set(claimed.participantUserIds.map((id) => id.toString()))
+          : null;
+        const participants = participantUserIdSet
+          ? allFinancialParticipants.filter((p) => participantUserIdSet.has(p.userId.toString()))
+          : allFinancialParticipants;
+
+        const shares = computeDebtorShares({
+          amount: claimed.amount,
+          payerUserId: requesterMember.userId as Types.ObjectId,
+          participants,
+          splitMethod,
+          customSplitOverrides: claimed.customSplitOverrides?.map((o) => ({
+            userId: o.userId as Types.ObjectId,
+            pct: o.pct,
+          })),
+          customSplitPercentage: household.settings?.customSplitPercentage,
+          customSplitShares: household.settings?.customSplitShares?.map((s) => ({
+            userId: new Types.ObjectId(s.userId),
+            pct: s.pct,
+          })),
+          isFullRepayment: claimed.isFullRepayment,
+        });
+
+        const now = new Date();
+        claimed.debtorStates = shares.map((s) => ({
+          userId: s.userId,
+          share: Math.round(s.share * 100) / 100,
+        })) as typeof claimed.debtorStates;
+
+        // No debtors (e.g. solo household) → nothing to settle, mark resolved.
+        // Same rule as addExpense's isResolved condition.
+        if (claimed.debtorStates.length === 0) {
+          claimed.isResolved = true;
+          claimed.resolvedAt = now;
+        }
+
+        await claimed.save({ session });
+      });
+    } finally {
+      await session.endSession();
     }
-
-    // We won the claim — compute debtorStates now that we know the payer.
-    // Mirrors addExpense (lines 59-93) so debtors get the same per-share
-    // entries they would have had if the expense had been created with a
-    // payer from the start.
-    const splitMethod = (household.settings?.expenseSplitMethod ?? 'equal') as SplitMethod;
-    const allFinancialParticipants: ComputeDebtorSharesParticipant[] = household.members
-      .filter((m) => m.participatesInFinances && m.userId)
-      .map((m) => ({
-        userId: m.userId as Types.ObjectId,
-        monthlyIncome: m.monthlyIncome ?? undefined,
-        role: m.role,
-      }));
-
-    const participantUserIdSet = expense.participantUserIds?.length
-      ? new Set(expense.participantUserIds.map((id) => id.toString()))
-      : null;
-    const participants = participantUserIdSet
-      ? allFinancialParticipants.filter((p) => participantUserIdSet.has(p.userId.toString()))
-      : allFinancialParticipants;
-
-    const shares = computeDebtorShares({
-      amount: expense.amount,
-      payerUserId: requesterMember.userId as Types.ObjectId,
-      participants,
-      splitMethod,
-      customSplitOverrides: expense.customSplitOverrides?.map((o) => ({
-        userId: o.userId as Types.ObjectId,
-        pct: o.pct,
-      })),
-      customSplitPercentage: household.settings?.customSplitPercentage,
-      customSplitShares: household.settings?.customSplitShares?.map((s) => ({
-        userId: new Types.ObjectId(s.userId),
-        pct: s.pct,
-      })),
-      isFullRepayment: expense.isFullRepayment,
-    });
-
-    const now = new Date();
-    expense.debtorStates = shares.map((s) => ({
-      userId: s.userId,
-      share: Math.round(s.share * 100) / 100,
-      ...(expense.isFullRepayment ? { confirmedAt: now } : {}),
-    })) as typeof expense.debtorStates;
-
-    // Full-repayment expense with every debtor pre-confirmed → resolved.
-    // Same rule as addExpense's isResolved condition.
-    const allConfirmed =
-      expense.debtorStates.length > 0 && expense.debtorStates.every((d) => d.confirmedAt);
-    if (expense.debtorStates.length === 0 || allConfirmed) {
-      expense.isResolved = true;
-      expense.resolvedAt = now;
-    }
-
-    await expense.save();
 
     const nicknameMap = this.buildNicknameMap(household.members);
-    return this.formatExpenseResponse(expense, nicknameMap);
+    return this.formatExpenseResponse(expense!, nicknameMap);
   }
 
   async claimPayback(
@@ -444,18 +456,39 @@ class ExpenseService {
       throw BadRequestError('Joint accounts do not use the payback flow');
     }
 
-    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
-    if (!expense) throw NotFoundError('Expense not found');
-    if (expense.isResolved) throw BadRequestError('This expense is already resolved');
-
-    const entry = expense.debtorStates.find((d) => d.userId.toString() === requestingUserId);
-    if (!entry) throw ForbiddenError('Only debtors on this expense can claim payback');
-    if (entry.confirmedAt) throw BadRequestError('Your share is already settled');
-
-    entry.claimedAt = new Date();
-    entry.disputedAt = undefined;
-    expense.markModified('debtorStates');
-    await expense.save();
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    let expense;
+    try {
+      expense = await Expense.findOne({ _id: expenseId, householdId: household._id }).session(session);
+      if (!expense) {
+        await session.abortTransaction();
+        throw NotFoundError('Expense not found');
+      }
+      if (expense.isResolved) {
+        await session.abortTransaction();
+        throw BadRequestError('This expense is already resolved');
+      }
+      const entry = expense.debtorStates.find((d) => d.userId.toString() === requestingUserId);
+      if (!entry) {
+        await session.abortTransaction();
+        throw ForbiddenError('Only debtors on this expense can claim payback');
+      }
+      if (entry.confirmedAt) {
+        await session.abortTransaction();
+        throw BadRequestError('Your share is already settled');
+      }
+      entry.claimedAt = new Date();
+      entry.disputedAt = undefined;
+      expense.markModified('debtorStates');
+      await expense.save({ session });
+      await session.commitTransaction();
+    } catch (err) {
+      if (session.inTransaction()) await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
 
     const nicknameMap = this.buildNicknameMap(household.members);
     return this.formatExpenseResponse(expense, nicknameMap);
@@ -473,32 +506,60 @@ class ExpenseService {
       throw BadRequestError('Joint accounts do not use the payback flow');
     }
 
-    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
-    if (!expense) throw NotFoundError('Expense not found');
-    if (!expense.paidByUserId) throw BadRequestError('Expense has no payer');
-    if (expense.paidByUserId.toString() !== requestingUserId) {
-      throw ForbiddenError('Only the payer can confirm payback');
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    let expense;
+    try {
+      expense = await Expense.findOne({ _id: expenseId, householdId: household._id }).session(session);
+      if (!expense) {
+        await session.abortTransaction();
+        throw NotFoundError('Expense not found');
+      }
+      if (!expense.paidByUserId) {
+        await session.abortTransaction();
+        throw BadRequestError('Expense has no payer');
+      }
+      if (expense.paidByUserId.toString() !== requestingUserId) {
+        await session.abortTransaction();
+        throw ForbiddenError('Only the payer can confirm payback');
+      }
+
+      const entry = expense.debtorStates.find((d) => d.userId.toString() === input.debtorUserId);
+      if (!entry) {
+        await session.abortTransaction();
+        throw BadRequestError('Not a debtor on this expense');
+      }
+      if (entry.confirmedAt) {
+        await session.abortTransaction();
+        throw BadRequestError('This debtor is already settled');
+      }
+      if (!entry.claimedAt) {
+        await session.abortTransaction();
+        throw BadRequestError('No pending claim from this debtor');
+      }
+
+      const now = new Date();
+      entry.confirmedAt = now;
+
+      if (expense.debtorStates.every((d) => d.confirmedAt)) {
+        expense.isResolved = true;
+        const maxConfirmed = expense.debtorStates.reduce<Date | null>((max, d) => {
+          const ts = d.confirmedAt as Date;
+          return !max || ts > max ? ts : max;
+        }, null);
+        if (maxConfirmed) expense.resolvedAt = maxConfirmed;
+      }
+
+      expense.markModified('debtorStates');
+      await expense.save({ session });
+      await session.commitTransaction();
+    } catch (err) {
+      if (session.inTransaction()) await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
     }
 
-    const entry = expense.debtorStates.find((d) => d.userId.toString() === input.debtorUserId);
-    if (!entry) throw BadRequestError('Not a debtor on this expense');
-    if (entry.confirmedAt) throw BadRequestError('This debtor is already settled');
-    if (!entry.claimedAt) throw BadRequestError('No pending claim from this debtor');
-
-    const now = new Date();
-    entry.confirmedAt = now;
-
-    if (expense.debtorStates.every((d) => d.confirmedAt)) {
-      expense.isResolved = true;
-      const maxConfirmed = expense.debtorStates.reduce<Date | null>((max, d) => {
-        const ts = d.confirmedAt as Date;
-        return !max || ts > max ? ts : max;
-      }, null);
-      if (maxConfirmed) expense.resolvedAt = maxConfirmed;
-    }
-
-    expense.markModified('debtorStates');
-    await expense.save();
     const nicknameMap = this.buildNicknameMap(household.members);
     return this.formatExpenseResponse(expense, nicknameMap);
   }
@@ -515,21 +576,45 @@ class ExpenseService {
       throw BadRequestError('Joint accounts do not use the payback flow');
     }
 
-    const expense = await Expense.findOne({ _id: expenseId, householdId: household._id });
-    if (!expense) throw NotFoundError('Expense not found');
-    if (!expense.paidByUserId) throw BadRequestError('Expense has no payer');
-    if (expense.paidByUserId.toString() !== requestingUserId) {
-      throw ForbiddenError('Only the payer can dispute a payback claim');
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    let expense;
+    try {
+      expense = await Expense.findOne({ _id: expenseId, householdId: household._id }).session(session);
+      if (!expense) {
+        await session.abortTransaction();
+        throw NotFoundError('Expense not found');
+      }
+      if (!expense.paidByUserId) {
+        await session.abortTransaction();
+        throw BadRequestError('Expense has no payer');
+      }
+      if (expense.paidByUserId.toString() !== requestingUserId) {
+        await session.abortTransaction();
+        throw ForbiddenError('Only the payer can dispute a payback claim');
+      }
+
+      const entry = expense.debtorStates.find((d) => d.userId.toString() === input.debtorUserId);
+      if (!entry) {
+        await session.abortTransaction();
+        throw BadRequestError('Not a debtor on this expense');
+      }
+      if (!entry.claimedAt) {
+        await session.abortTransaction();
+        throw BadRequestError('No pending claim to dispute from this debtor');
+      }
+
+      entry.claimedAt = undefined;
+      entry.disputedAt = new Date();
+      expense.markModified('debtorStates');
+      await expense.save({ session });
+      await session.commitTransaction();
+    } catch (err) {
+      if (session.inTransaction()) await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
     }
-
-    const entry = expense.debtorStates.find((d) => d.userId.toString() === input.debtorUserId);
-    if (!entry) throw BadRequestError('Not a debtor on this expense');
-    if (!entry.claimedAt) throw BadRequestError('No pending claim to dispute from this debtor');
-
-    entry.claimedAt = undefined;
-    entry.disputedAt = new Date();
-    expense.markModified('debtorStates');
-    await expense.save();
 
     const nicknameMap = this.buildNicknameMap(household.members);
     return this.formatExpenseResponse(expense, nicknameMap);
@@ -542,46 +627,39 @@ class ExpenseService {
 
   async autoConfirmExpiredPending(): Promise<number> {
     const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const now = new Date();
 
-    const expenses = await Expense.find({
-      isResolved: false,
-      debtorStates: {
-        $elemMatch: {
-          claimedAt: { $lt: cutoff },
-          confirmedAt: { $exists: false },
+    // Pass 1 — confirm every expired-pending entry in-place via arrayFilters.
+    // Targets only unresolved expenses that contain at least one entry whose
+    // claimedAt is past the cutoff and which has no confirmedAt yet.
+    const pass1 = await Expense.updateMany(
+      {
+        isResolved: false,
+        debtorStates: {
+          $elemMatch: { claimedAt: { $lt: cutoff }, confirmedAt: { $exists: false } },
         },
       },
-    });
-
-    if (expenses.length === 0) return 0;
-
-    const now = new Date();
-    let confirmedEntryCount = 0;
-
-    for (const expense of expenses) {
-      let touched = false;
-      for (const entry of expense.debtorStates) {
-        if (!entry.confirmedAt && entry.claimedAt && entry.claimedAt < cutoff) {
-          entry.confirmedAt = now;
-          touched = true;
-          confirmedEntryCount += 1;
-        }
+      { $set: { 'debtorStates.$[entry].confirmedAt': now } },
+      {
+        arrayFilters: [
+          { 'entry.claimedAt': { $lt: cutoff }, 'entry.confirmedAt': { $exists: false } },
+        ],
       }
-      if (touched && expense.debtorStates.every((d) => d.confirmedAt)) {
-        expense.isResolved = true;
-        const maxConfirmed = expense.debtorStates.reduce<Date | null>((max, d) => {
-          const ts = d.confirmedAt as Date;
-          return !max || ts > max ? ts : max;
-        }, null);
-        if (maxConfirmed) expense.resolvedAt = maxConfirmed;
-      }
-      if (touched) {
-        expense.markModified('debtorStates');
-        await expense.save();
-      }
-    }
+    );
 
-    return confirmedEntryCount;
+    // Pass 2 — flip isResolved=true on every expense whose every entry now has
+    // a confirmedAt. resolvedAt = max(confirmedAt) computed in-pipeline.
+    const pass2 = await Expense.updateMany(
+      {
+        isResolved: false,
+        'debtorStates.0': { $exists: true },
+        debtorStates: { $not: { $elemMatch: { confirmedAt: { $exists: false } } } },
+      },
+      [{ $set: { isResolved: true, resolvedAt: { $max: '$debtorStates.confirmedAt' } } }],
+      { updatePipeline: true }
+    );
+
+    return (pass1.modifiedCount ?? 0) + (pass2.modifiedCount ?? 0);
   }
 
   private buildNicknameMap(members: Array<{ userId?: { toString(): string } | null; nickname: string }>): Map<string, string> {

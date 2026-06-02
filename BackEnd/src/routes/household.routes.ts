@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { householdController } from '../controllers/household.controller';
-import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, recordSettlementValidation, regenerateInviteCodeValidation, sendInviteEmailValidation } from '../validators/household.validator';
+import { createHouseholdValidation, joinHouseholdValidation, getHouseholdByIdValidation, updateSettingsValidation, updateMemberIncomeValidation, updateSavingsBudgetValidation, recordSettlementValidation, regenerateInviteCodeValidation, sendInviteEmailValidation } from '../validators/household.validator';
 import { handleValidationErrors } from '../middleware/validate';
 import { authMiddleware, emailVerifiedMiddleware } from '../middleware/auth';
 import expenseRouter from './expense.routes';
@@ -83,6 +83,16 @@ router.patch(
   updateMemberIncomeValidation,
   handleValidationErrors,
   householdController.updateMemberIncome.bind(householdController)
+);
+
+// PATCH /api/households/:id/savings-budget — Set the couple savings budget (any member)
+router.patch(
+  '/:id/savings-budget',
+  authMiddleware,
+  emailVerifiedMiddleware,
+  updateSavingsBudgetValidation,
+  handleValidationErrors,
+  householdController.updateSavingsBudget.bind(householdController)
 );
 
 // POST /api/households/:id/settlements

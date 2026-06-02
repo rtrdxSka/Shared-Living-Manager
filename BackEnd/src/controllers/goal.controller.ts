@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { goalService } from '../services/goal.service';
-import { IAddGoalInput, IUpdateGoalInput, IAddContributionInput, GoalStatus, IListGoalsInput } from '../types/goal.types';
+import { IAddGoalInput, IUpdateGoalInput, IAddContributionInput, GoalStatus, IListGoalsInput, ISetGoalPriorityInput } from '../types/goal.types';
 
 class GoalController {
   // POST /api/households/:id/goals
@@ -86,6 +86,26 @@ class GoalController {
       const input = req.body as IUpdateGoalInput;
 
       const goal = await goalService.updateGoal(householdId, req.user.userId, goalId, input);
+
+      res.status(200).json({ status: 'success', data: { goal } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // PATCH /api/households/:id/goals/:goalId/priority
+  async setGoalPriority(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
+
+      const householdId = req.params.id as string;
+      const goalId = req.params.goalId as string;
+      const { priority } = req.body as ISetGoalPriorityInput;
+
+      const goal = await goalService.setGoalPriority(householdId, req.user.userId, goalId, priority);
 
       res.status(200).json({ status: 'success', data: { goal } });
     } catch (error) {

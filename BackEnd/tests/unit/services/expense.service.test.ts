@@ -942,9 +942,10 @@ describe('addExpense debtorStates population', () => {
     expect(result.isResolved).toBe(false);
   });
 
-  it('isFullRepayment → each debtor confirmedAt at creation and isResolved: true', async () => {
+  it('isFullRepayment → debtor owes full amount, stays unresolved pending claim/confirm', async () => {
     const couple = FIXTURES.household('couple');
     const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
 
     const result = await expenseService.addExpense(
       couple._id.toString(),
@@ -960,7 +961,52 @@ describe('addExpense debtorStates population', () => {
     );
 
     expect(result.debtorStates).toHaveLength(1);
-    expect(result.debtorStates[0].confirmedAt).toBeDefined();
-    expect(result.isResolved).toBe(true);
+    expect(result.debtorStates[0].userId).toBe(bob._id.toString());
+    expect(result.debtorStates[0].share).toBe(200);
+    expect(result.debtorStates[0].claimedAt).toBeUndefined();
+    expect(result.debtorStates[0].confirmedAt).toBeUndefined();
+    expect(result.isFullRepayment).toBe(true);
+    expect(result.isResolved).toBe(false);
+    expect(result.resolvedAt).toBeUndefined();
+  });
+
+  it('isFullRepayment → debtor claims, payer confirms → resolved', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+
+    const created = await expenseService.addExpense(
+      couple._id.toString(),
+      alice._id.toString(),
+      baseAddInput({
+        description: 'Full repayment end-to-end',
+        amount: 200,
+        category: 'rent',
+        date: '2026-05-22',
+        paidByUserId: alice._id.toString(),
+        isFullRepayment: true,
+      })
+    );
+    expect(created.isResolved).toBe(false);
+    expect(created.debtorStates[0].share).toBe(200);
+
+    const claimed = await expenseService.claimPayback(
+      couple._id.toString(),
+      bob._id.toString(),
+      created._id
+    );
+    expect(claimed.debtorStates[0].claimedAt).toBeDefined();
+    expect(claimed.debtorStates[0].confirmedAt).toBeUndefined();
+    expect(claimed.isResolved).toBe(false);
+
+    const confirmed = await expenseService.confirmPayback(
+      couple._id.toString(),
+      alice._id.toString(),
+      created._id,
+      { debtorUserId: bob._id.toString() }
+    );
+    expect(confirmed.debtorStates[0].confirmedAt).toBeDefined();
+    expect(confirmed.isResolved).toBe(true);
+    expect(confirmed.resolvedAt).toBeDefined();
   });
 });

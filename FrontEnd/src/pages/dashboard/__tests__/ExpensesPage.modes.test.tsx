@@ -48,6 +48,7 @@ import {
   mockHouseholdSplitUsageBased,
   mockHouseholdSplitCustom,
   mockHouseholdJoint,
+  mockHouseholdSolo,
   mockHouseholdRoommatesSplit,
   mockHouseholdRoommatesSplitCustom,
   mockHouseholdRoommatesJoint,
@@ -306,6 +307,18 @@ describe('<ExpensesPage /> joint-mode settled-UI cleanup', () => {
     expect(await screen.findByText(/^SETTLED$/)).toBeInTheDocument();
     await user.click(await screen.findByText('Joint groceries'));
     expect(await screen.findByText(/share settled/i)).toBeInTheDocument();
+  });
+
+  it('solo shows a single flat list — no SETTLED dropdown, no "Share settled" text', async () => {
+    const user = userEvent.setup();
+    renderWithMode(mockHouseholdSolo);
+
+    expect(await screen.findByText(/^ALL EXPENSES$/)).toBeInTheDocument();
+    const row = await screen.findByText('Joint groceries');
+    expect(screen.queryByText(/^SETTLED$/)).not.toBeInTheDocument();
+
+    await user.click(row);
+    expect(screen.queryByText(/share settled/i)).not.toBeInTheDocument();
   });
 });
 

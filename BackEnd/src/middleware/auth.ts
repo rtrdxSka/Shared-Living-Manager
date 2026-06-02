@@ -4,6 +4,7 @@ import { LRUCache } from 'lru-cache';
 import { IJwtPayload } from '../types/user.types';
 import { ForbiddenError, UnauthorizedError } from '../utils/error';
 import { User } from '../models/user.model';
+import { env } from '../config/env';
 
 
 // ── Extend Express Request ────────────────────────────────────────────
@@ -39,12 +40,7 @@ export const authMiddleware = (
       throw UnauthorizedError('Access token is required');
     }
 
-    const secret = process.env.JWT_ACCESS_SECRET;
-    if (!secret) {
-      throw new Error('JWT_ACCESS_SECRET is not defined');
-    }
-
-    const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as IJwtPayload;
+    const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] }) as IJwtPayload;
 
     req.user = {
       userId: decoded.userId,

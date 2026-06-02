@@ -209,6 +209,32 @@ describe('householdService.updateMemberIncome', () => {
   });
 });
 
+// ── updateSavingsBudget ──────────────────────────────────────────────
+
+describe('householdService.updateSavingsBudget', () => {
+  it('lets a non-owner member (bob) set the shared monthly budget', async () => {
+    const couple = FIXTURES.household('couple');
+    const bob = FIXTURES.user('bob'); // member, not owner
+
+    const result = await householdService.updateSavingsBudget(
+      couple._id.toString(),
+      bob._id.toString(),
+      850
+    );
+
+    expect(result.settings.monthlySavingsBudget).toBe(850);
+  });
+
+  it('rejects a non-member with 403', async () => {
+    const couple = FIXTURES.household('couple');
+    const dave = FIXTURES.user('dave'); // owns solo, not in the couple
+
+    await expect(
+      householdService.updateSavingsBudget(couple._id.toString(), dave._id.toString(), 500)
+    ).rejects.toSatisfy((err: unknown) => err instanceof AppError && err.statusCode === 403);
+  });
+});
+
 // ── updateSettings ───────────────────────────────────────────────────
 
 describe('householdService.updateSettings', () => {

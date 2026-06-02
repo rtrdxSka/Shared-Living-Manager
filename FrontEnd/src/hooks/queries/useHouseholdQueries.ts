@@ -25,6 +25,18 @@ export function useUpdateSettings(householdId: string) {
   });
 }
 
+export function useUpdateSavingsBudget(householdId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (monthlySavingsBudget: number) =>
+      householdApi.updateSavingsBudget(householdId, monthlySavingsBudget),
+    onSuccess: (updated: HouseholdResponse) => {
+      queryClient.setQueryData(queryKeys.household.detail(householdId), updated);
+    },
+  });
+}
+
 export function useUpdateIncome(householdId: string) {
   const queryClient = useQueryClient();
 

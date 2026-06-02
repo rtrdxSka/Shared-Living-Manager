@@ -341,11 +341,10 @@ export default function ExpensesPage() {
               />
             ) : (
               <>
-                {/* All-expenses flat list — any joint household (couple or roommates).
-                    Joint mode has no per-person debt and auto-resolves expenses, so we
-                    skip the Outstanding/Settled split and render every expense
-                    chronologically in a single section. */}
-                {financeMode === 'joint' && (
+                {/* All-expenses flat list — any joint household OR a solo household.
+                    Neither has per-person debt, so we skip the Outstanding/Settled split
+                    and render every expense chronologically in a single section. */}
+                {(financeMode === 'joint' || uiMode === 'solo') && (
                   <section>
                     <div className="rounded-xl border border-line bg-surface-2 px-4 py-3 mb-3 flex items-center gap-3">
                       <EyebrowLabel className="text-ink-2">ALL EXPENSES</EyebrowLabel>
@@ -464,10 +463,10 @@ export default function ExpensesPage() {
                 </section>
                 )}
 
-                {/* Settled section — split mode only. Joint auto-resolves every
-                    expense, so the flat list above already shows them; a separate
-                    "Settled" collapsible would just duplicate it. */}
-                {settledExpenses.length > 0 && financeMode !== 'joint' && (
+                {/* Settled section — split-mode couple/roommates only. Joint auto-resolves
+                    every expense and solo has no one to settle with, so a separate
+                    "Settled" collapsible would just duplicate the flat list above. */}
+                {settledExpenses.length > 0 && financeMode !== 'joint' && uiMode !== 'solo' && (
                   <section className="mt-2">
                     <div className="rounded-xl border border-pos/30 bg-pos/10 px-4 py-3 mb-3 flex items-center gap-3">
                       <EyebrowLabel className="text-pos">SETTLED</EyebrowLabel>
@@ -974,7 +973,7 @@ const ExpenseRow = React.memo(function ExpenseRow({
           </div>
 
           {/* Status hints */}
-          {expense.isResolved && financeMode !== 'joint' && (
+          {expense.isResolved && financeMode !== 'joint' && uiMode !== 'solo' && (
             <p className="text-xs text-pos">✓ Share settled</p>
           )}
           {uiMode === 'couple' && isUnpaid && (

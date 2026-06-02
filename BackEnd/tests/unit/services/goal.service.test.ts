@@ -396,3 +396,73 @@ describe('goalService.removeContribution', () => {
     expect(reverted.completedAt).toBeUndefined();
   });
 });
+
+// ── setGoalPriority ──────────────────────────────────────────────────
+
+describe('goalService.setGoalPriority', () => {
+  it('defaults to "normal" for goals created without a priority', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const vacation = FIXTURES.goal('vacation');
+
+    const result = await goalService.getGoal(
+      couple._id.toString(),
+      alice._id.toString(),
+      vacation.toString()
+    );
+    expect(result.priority).toBe('normal');
+  });
+
+  it('lets a non-owner member (bob) set a goal priority — it is a shared plan', async () => {
+    const couple = FIXTURES.household('couple');
+    const bob = FIXTURES.user('bob');
+
+    const created = await goalService.addGoal(
+      couple._id.toString(),
+      bob._id.toString(),
+      { name: 'Priority target', targetAmount: 500 }
+    );
+
+    const updated = await goalService.setGoalPriority(
+      couple._id.toString(),
+      bob._id.toString(),
+      created._id,
+      'high'
+    );
+    expect(updated.priority).toBe('high');
+
+    // Persisted on the document.
+    const reread = await Goal.findById(created._id);
+    expect(reread?.priority).toBe('high');
+  });
+
+  it('rejects a non-member with 403', async () => {
+    const couple = FIXTURES.household('couple');
+    const carol = FIXTURES.user('carol'); // member of flatshare, not the couple
+    const vacation = FIXTURES.goal('vacation');
+
+    await expect(
+      goalService.setGoalPriority(
+        couple._id.toString(),
+        carol._id.toString(),
+        vacation.toString(),
+        'low'
+      )
+    ).rejects.toSatisfy(expectAppError(403));
+  });
+
+  it('throws 404 for a goal that does not belong to the household', async () => {
+    const couple = FIXTURES.household('couple');
+    const alice = FIXTURES.user('alice');
+    const missingGoalId = new Types.ObjectId().toString();
+
+    await expect(
+      goalService.setGoalPriority(
+        couple._id.toString(),
+        alice._id.toString(),
+        missingGoalId,
+        'high'
+      )
+    ).rejects.toSatisfy(expectAppError(404));
+  });
+});

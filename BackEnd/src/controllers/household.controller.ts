@@ -189,6 +189,36 @@ class HouseholdController {
       next(error);
     }
   }
+
+  // PATCH /api/households/:id/savings-budget
+  async updateSavingsBudget(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
+
+      const householdId = req.params.id as string;
+      const { monthlySavingsBudget } = req.body as { monthlySavingsBudget: number };
+
+      const household = await householdService.updateSavingsBudget(
+        householdId,
+        req.user.userId,
+        monthlySavingsBudget
+      );
+
+      res.status(200).json({
+        status: 'success',
+        data: { household },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const householdController = new HouseholdController();

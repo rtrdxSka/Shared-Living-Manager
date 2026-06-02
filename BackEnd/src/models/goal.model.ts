@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { IGoal, GOAL_CATEGORIES } from '../types/goal.types';
+import { IGoal, GOAL_CATEGORIES, GOAL_PRIORITIES } from '../types/goal.types';
 
 const contributionSchema = new Schema(
   {
@@ -21,12 +21,14 @@ const goalSchema = new Schema<IGoal>(
     deadline: { type: Date, default: undefined },
     status: { type: String, enum: ['active', 'completed', 'abandoned'], default: 'active' },
     category: { type: String, enum: GOAL_CATEGORIES, default: undefined },
+    priority: { type: String, enum: GOAL_PRIORITIES, default: 'normal' },
     createdByUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     completedAt: { type: Date, default: undefined },
     contributions: [contributionSchema],
   },
   {
     timestamps: true,
+    optimisticConcurrency: true,
     toJSON: {
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.__v;

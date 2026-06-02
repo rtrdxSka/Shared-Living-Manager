@@ -52,6 +52,22 @@ export const mockHousehold: HouseholdResponse = {
   },
 } as unknown as HouseholdResponse;
 
+// Variant: solo household — single member, no partner debt.
+export const mockHouseholdSolo: HouseholdResponse = {
+  ...mockHousehold,
+  _id: 'hh-solo-001',
+  name: 'Alice (solo)',
+  totalMembers: 1,
+  livingArrangement: 'alone',
+  uiMode: 'solo',
+  members: [mockHousehold.members[0]],
+  settings: {
+    ...mockHousehold.settings,
+    financeMode: 'split',
+    expenseSplitMethod: undefined as never,
+  },
+} as unknown as HouseholdResponse;
+
 // Variant: joint finance mode (used by ExpensesPage.test 'joint' variant)
 export const mockHouseholdJoint: HouseholdResponse = {
   ...mockHousehold,

@@ -5,7 +5,7 @@ import { DashboardContext } from './useDashboard';
 
 import type { HouseholdResponse, HouseholdMemberResponse } from '@/types/household.types';
 import type { ExpenseResponse } from '@/types/expense.types';
-import type { GoalResponse } from '@/types/goal.types';
+import type { GoalResponse, GoalPriority } from '@/types/goal.types';
 import type { TaskResponse, RotationStatus } from '@/types/task.types';
 import type { TransactionType } from '@/types/joint-account.types';
 import type {
@@ -30,9 +30,11 @@ import {
   useDeactivateRecurringTask,
   useGoals,
   useUpdateGoal,
+  useSetGoalPriority,
   useDeleteGoal,
   useRemoveContribution,
   useUpdateSettings,
+  useUpdateSavingsBudget,
   useDeleteJointTransaction,
   useJointAccountSummary,
   useTasks,
@@ -94,6 +96,9 @@ export interface DashboardContextValue {
   goalsLoading: boolean;
   overdueCount: number;
 
+  /** Couple "Together Fund" monthly savings budget (0 when unset). */
+  savingsBudget: number;
+
   // Sheet open/close state
   addExpenseOpen: boolean;
   setAddExpenseOpen: (o: boolean) => void;
@@ -129,8 +134,11 @@ export interface DashboardContextValue {
   setRotation: (startMemberId: string) => Promise<void>;
   deactivateRecurringTask: (id: string) => Promise<void>;
   updateGoal: (goalId: string, input: { status: 'completed' | 'abandoned' }) => Promise<void>;
+  setGoalPriority: (goalId: string, priority: GoalPriority) => Promise<void>;
   deleteGoal: (goalId: string) => Promise<void>;
   removeContribution: (goalId: string, contributionId: string) => Promise<void>;
+  /** Persist the couple savings budget (any member). */
+  commitSavingsBudget: (monthlySavingsBudget: number) => Promise<void>;
   deleteJointTransaction: (txId: string) => Promise<void>;
   handleFinanceModeChange: (v: FinanceMode) => Promise<void>;
   handleSplitMethodChange: (v: ExpenseSplitMethod) => Promise<void>;
@@ -208,9 +216,11 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const setRotationMutation = useSetRotation(household._id);
   const deactivateRecurringTaskMutation = useDeactivateRecurringTask(household._id);
   const updateGoalMutation = useUpdateGoal(household._id);
+  const setGoalPriorityMutation = useSetGoalPriority(household._id);
   const deleteGoalMutation = useDeleteGoal(household._id);
   const removeContributionMutation = useRemoveContribution(household._id);
   const updateSettingsMutation = useUpdateSettings(household._id);
+  const updateSavingsBudgetMutation = useUpdateSavingsBudget(household._id);
   const deleteJointTxMutation = useDeleteJointTransaction(household._id);
 
   // ── Derived member data ───────────────────────────────────────────────
@@ -254,6 +264,9 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     () => deriveRoommateCustomShares(household),
     [household]
   );
+
+  // Couple "Together Fund" savings budget (0 when unset).
+  const savingsBudget = household.settings.monthlySavingsBudget ?? 0;
 
   // ── Derived counts ────────────────────────────────────────────────────
   const overdueCount = tasks.filter(
@@ -321,8 +334,10 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
   const setRotationAsync = setRotationMutation.mutateAsync;
   const deactivateRecurringTaskAsync = deactivateRecurringTaskMutation.mutateAsync;
   const updateGoalAsync = updateGoalMutation.mutateAsync;
+  const setGoalPriorityAsync = setGoalPriorityMutation.mutateAsync;
   const deleteGoalAsync = deleteGoalMutation.mutateAsync;
   const removeContributionAsync = removeContributionMutation.mutateAsync;
+  const updateSavingsBudgetAsync = updateSavingsBudgetMutation.mutateAsync;
   const deleteJointTxAsync = deleteJointTxMutation.mutateAsync;
 
   const deleteExpense = useCallback(
@@ -377,9 +392,25 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     },
     [updateGoalAsync]
   );
+  const setGoalPriority = useCallback(
+    async (goalId: string, priority: GoalPriority) => {
+      await setGoalPriorityAsync({ goalId, priority });
+    },
+    [setGoalPriorityAsync]
+  );
   const deleteGoal = useCallback(
     async (goalId: string) => { await deleteGoalAsync(goalId); },
     [deleteGoalAsync]
+  );
+  const commitSavingsBudget = useCallback(
+    async (monthlySavingsBudget: number) => {
+      try {
+        await updateSavingsBudgetAsync(monthlySavingsBudget);
+      } catch {
+        /* ignore — household query will revert on refetch */
+      }
+    },
+    [updateSavingsBudgetAsync]
   );
   const removeContribution = useCallback(
     async (goalId: string, contributionId: string) => {
@@ -424,6 +455,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     goals,
     goalsLoading,
     overdueCount,
+    savingsBudget,
     addExpenseOpen,
     setAddExpenseOpen,
     editingExpense,
@@ -453,8 +485,10 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     setRotation,
     deactivateRecurringTask,
     updateGoal,
+    setGoalPriority,
     deleteGoal,
     removeContribution,
+    commitSavingsBudget,
     deleteJointTransaction,
     handleFinanceModeChange,
     handleSplitMethodChange,
@@ -489,6 +523,7 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     goals,
     goalsLoading,
     overdueCount,
+    savingsBudget,
     addExpenseOpen,
     editingExpense,
     addTaskOpen,
@@ -510,8 +545,10 @@ export function DashboardProvider({ household, currentUserId, children }: Dashbo
     setRotation,
     deactivateRecurringTask,
     updateGoal,
+    setGoalPriority,
     deleteGoal,
     removeContribution,
+    commitSavingsBudget,
     deleteJointTransaction,
     handleFinanceModeChange,
     handleSplitMethodChange,

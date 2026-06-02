@@ -16,6 +16,7 @@ const mockGoals: GoalResponse[] = [
     currentAmount: 500,
     status: 'active',
     category: 'travel',
+    priority: 'normal',
     createdByUserId: 'user-alice-001',
     contributions: [],
     createdAt: new Date().toISOString(),

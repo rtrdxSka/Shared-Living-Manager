@@ -102,7 +102,7 @@ const taskRotationConfigSchema = new Schema(
   {
     orderedMemberIds: [{ type: Schema.Types.ObjectId, required: true }],
     startedAt: { type: Date, required: true },
-    periodDays: { type: Number, required: true, default: 7 },
+    periodDays: { type: Number, required: true, default: 7, min: [1, 'periodDays must be at least 1'] },
   },
   { _id: false }
 );
@@ -148,6 +148,11 @@ const settingsSchema = new Schema(
           { _id: false }
         ),
       ],
+      default: undefined,
+    },
+    monthlySavingsBudget: {
+      type: Number,
+      min: [0, 'Monthly savings budget cannot be negative'],
       default: undefined,
     },
     trackedExpenseTypes: [

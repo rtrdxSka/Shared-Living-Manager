@@ -8,6 +8,7 @@ import {
   IGoalResponse,
   IGoalContributionResponse,
   IListGoalsInput,
+  GoalPriority,
 } from '../types/goal.types';
 import { IHouseholdMember } from '../types/household.types';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
@@ -66,6 +67,29 @@ class GoalService {
     const { household } = await getHouseholdForMember(householdId, userId);
 
     const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
+    if (!goal) throw NotFoundError('Goal not found');
+
+    return this.formatGoalResponse(goal, household.members);
+  }
+
+  /**
+   * Set a goal's funding priority. Any household member may do this — the
+   * savings plan is shared (couple feature), so it isn't gated to the goal's
+   * creator the way name/target/status edits are.
+   */
+  async setGoalPriority(
+    householdId: string,
+    userId: string,
+    goalId: string,
+    priority: GoalPriority
+  ): Promise<IGoalResponse> {
+    const { household } = await getHouseholdForMember(householdId, userId);
+
+    const goal = await Goal.findOneAndUpdate(
+      { _id: goalId, householdId: household._id },
+      { $set: { priority } },
+      { new: true }
+    );
     if (!goal) throw NotFoundError('Goal not found');
 
     return this.formatGoalResponse(goal, household.members);
@@ -143,29 +167,43 @@ class GoalService {
   ): Promise<IGoalResponse> {
     const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
-    const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
-    if (!goal) throw NotFoundError('Goal not found');
+    // Pre-check the goal exists, is active, and is in this household.
+    const goalCheck = await Goal.findOne(
+      { _id: goalId, householdId: household._id },
+      { status: 1, targetAmount: 1 }
+    ).lean();
+    if (!goalCheck) throw NotFoundError('Goal not found');
+    if (goalCheck.status !== 'active') throw BadRequestError('Cannot contribute to a non-active goal');
 
-    if (goal.status !== 'active') {
-      throw BadRequestError('Cannot contribute to a non-active goal');
+    // Atomic $push — never lost-write.
+    const pushed = await Goal.findOneAndUpdate(
+      { _id: goalId, householdId: household._id, status: 'active' },
+      {
+        $push: {
+          contributions: {
+            memberId: requesterMember._id,
+            amount: input.amount,
+            ...(input.note?.trim() && { note: input.note.trim() }),
+          },
+        },
+      },
+      { new: true }
+    );
+    if (!pushed) throw BadRequestError('Cannot contribute to a non-active goal');
+
+    // Conditional status flip — only succeeds if status is still active and total now ≥ target.
+    const currentAmount = pushed.contributions.reduce((sum, c) => sum + c.amount, 0);
+    let final = pushed;
+    if (currentAmount >= pushed.targetAmount) {
+      const flipped = await Goal.findOneAndUpdate(
+        { _id: goalId, status: 'active' },
+        { $set: { status: 'completed', completedAt: new Date() } },
+        { new: true }
+      );
+      if (flipped) final = flipped;
     }
 
-    goal.contributions.push({
-      memberId: requesterMember._id as unknown as Types.ObjectId,
-      amount: input.amount,
-      ...(input.note?.trim() && { note: input.note.trim() }),
-    } as IGoal['contributions'][0]);
-
-    // Auto-complete if target reached
-    const currentAmount = this.computeCurrentAmount(goal);
-    if (currentAmount >= goal.targetAmount) {
-      goal.status = 'completed';
-      goal.completedAt = new Date();
-    }
-
-    await goal.save();
-
-    return this.formatGoalResponse(goal, household.members);
+    return this.formatGoalResponse(final, household.members);
   }
 
   async removeContribution(
@@ -176,12 +214,14 @@ class GoalService {
   ): Promise<IGoalResponse> {
     const { household, member: requesterMember } = await getHouseholdForMember(householdId, userId);
 
-    const goal = await Goal.findOne({ _id: goalId, householdId: household._id });
+    // Load only the contribution-relevant fields to authorize the action.
+    const goal = await Goal.findOne(
+      { _id: goalId, householdId: household._id },
+      { contributions: 1, status: 1, targetAmount: 1 }
+    ).lean();
     if (!goal) throw NotFoundError('Goal not found');
 
-    const contribution = goal.contributions.find(
-      (c) => c._id.toString() === contributionId
-    );
+    const contribution = goal.contributions.find((c) => c._id.toString() === contributionId);
     if (!contribution) throw NotFoundError('Contribution not found');
 
     const isAdminOrOwner = requesterMember.role === 'owner' || requesterMember.role === 'admin';
@@ -192,22 +232,29 @@ class GoalService {
 
     const wasAutoCompleted = goal.status === 'completed';
 
-    goal.contributions = goal.contributions.filter(
-      (c) => c._id.toString() !== contributionId
-    ) as typeof goal.contributions;
+    // Atomic $pull — never collides with concurrent removals of different contribs.
+    const pulled = await Goal.findOneAndUpdate(
+      { _id: goalId, householdId: household._id, 'contributions._id': new Types.ObjectId(contributionId) },
+      { $pull: { contributions: { _id: new Types.ObjectId(contributionId) } } },
+      { new: true }
+    );
+    if (!pulled) throw NotFoundError('Contribution not found');
 
-    // Revert status if was auto-completed and now below target
+    // Conditional status revert — only flip if it was auto-completed and now below target.
+    let final = pulled;
     if (wasAutoCompleted) {
-      const currentAmount = this.computeCurrentAmount(goal);
-      if (currentAmount < goal.targetAmount) {
-        goal.status = 'active';
-        goal.completedAt = undefined;
+      const newTotal = pulled.contributions.reduce((sum, c) => sum + c.amount, 0);
+      if (newTotal < pulled.targetAmount) {
+        const reverted = await Goal.findOneAndUpdate(
+          { _id: goalId, status: 'completed' },
+          { $set: { status: 'active' }, $unset: { completedAt: 1 } },
+          { new: true }
+        );
+        if (reverted) final = reverted;
       }
     }
 
-    await goal.save();
-
-    return this.formatGoalResponse(goal, household.members);
+    return this.formatGoalResponse(final, household.members);
   }
 
   // ── Private helpers ─────────────────────────────────────────────────
@@ -244,6 +291,7 @@ class GoalService {
       ...(goal.deadline && { deadline: goal.deadline.toISOString() }),
       status: goal.status,
       ...(goal.category && { category: goal.category }),
+      priority: goal.priority ?? 'normal',
       createdByUserId: goal.createdByUserId.toString(),
       ...(goal.completedAt && { completedAt: goal.completedAt.toISOString() }),
       contributions,

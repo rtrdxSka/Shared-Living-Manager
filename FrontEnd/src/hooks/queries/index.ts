@@ -1,6 +1,7 @@
 export {
   useHousehold,
   useUpdateSettings,
+  useUpdateSavingsBudget,
   useUpdateIncome,
   useRecordSettlement,
   useRegenerateInviteCode,
@@ -43,6 +44,7 @@ export {
   useGoals,
   useAddGoal,
   useUpdateGoal,
+  useSetGoalPriority,
   useDeleteGoal,
   useAddContribution,
   useRemoveContribution,

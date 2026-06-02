@@ -335,6 +335,39 @@ describe('PATCH /api/households/:id/members/me/income', () => {
   });
 });
 
+describe('PATCH /api/households/:id/savings-budget', () => {
+  it('returns 200 and persists the budget for any member (non-owner bob)', async () => {
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/savings-budget`)
+      .set('Authorization', auth(bob._id.toString(), bob.email))
+      .send({ monthlySavingsBudget: 720 });
+    expect(res.status).toBe(200);
+    expect(res.body.data.household.settings.monthlySavingsBudget).toBe(720);
+  });
+
+  it('returns 400 for a negative budget', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/savings-budget`)
+      .set('Authorization', auth(alice._id.toString(), alice.email))
+      .send({ monthlySavingsBudget: -10 });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 when caller is not a household member', async () => {
+    const carol = FIXTURES.user('carol');
+    const couple = FIXTURES.household('couple');
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/savings-budget`)
+      .set('Authorization', auth(carol._id.toString(), carol.email))
+      .send({ monthlySavingsBudget: 300 });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('POST /api/households/:id/settlements', () => {
   it('admin can record settlement (201)', async () => {
     const alice = FIXTURES.user('alice');
@@ -371,6 +404,28 @@ describe('POST /api/households/:id/settlements', () => {
       .set('Authorization', auth(alice._id.toString(), alice.email))
       .send({ month, amount: 100 });
     expect(dup.status).toBe(400);
+  });
+
+  it('recordSettlement — concurrent calls for same month: one wins, the other 400s', async () => {
+    // Regression guard for Task 13 atomic $push + $ne race fix.
+    // Use a fresh month not touched by any other test in this file.
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    const authHeader = `Bearer ${signTestJwt(alice._id.toString(), alice.email)}`;
+    const month = '2099-12';
+
+    const [r1, r2] = await Promise.all([
+      request(app)
+        .post(`/api/households/${couple._id}/settlements`)
+        .set('Authorization', authHeader)
+        .send({ month, amount: 100 }),
+      request(app)
+        .post(`/api/households/${couple._id}/settlements`)
+        .set('Authorization', authHeader)
+        .send({ month, amount: 100 }),
+    ]);
+    const statuses = [r1.status, r2.status].sort();
+    expect(statuses).toEqual([201, 400]);
   });
 });
 

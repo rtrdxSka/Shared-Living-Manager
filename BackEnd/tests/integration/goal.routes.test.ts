@@ -188,4 +188,87 @@ describe('Goal routes', () => {
       .send({ amount: 25 });
     expect(res.status).toBe(400);
   });
+
+  // ── PATCH /:goalId/priority ────────────────────────────────────────
+
+  it('PATCH /:goalId/priority → 200, any member can set it', async () => {
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob'); // non-owner member
+    const couple = FIXTURES.household('couple');
+
+    // Self-contained: the seeded 'vacation' goal is removed by the DELETE test
+    // above (shared per-file state), so create a fresh goal here.
+    const created = await request(app)
+      .post(`/api/households/${couple._id}/goals`)
+      .set('Authorization', auth(alice._id.toString()))
+      .send({ name: 'Priority route goal', targetAmount: 500 });
+    const goalId = created.body.data.goal._id;
+    expect(created.body.data.goal.priority).toBe('normal'); // default
+
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/goals/${goalId}/priority`)
+      .set('Authorization', auth(bob._id.toString()))
+      .send({ priority: 'high' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.goal.priority).toBe('high');
+  });
+
+  it('PATCH /:goalId/priority → 400 on invalid value', async () => {
+    const alice = FIXTURES.user('alice');
+    const couple = FIXTURES.household('couple');
+    const vacation = FIXTURES.goal('vacation');
+
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/goals/${vacation}/priority`)
+      .set('Authorization', auth(alice._id.toString()))
+      .send({ priority: 'urgent' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('PATCH /:goalId/priority → 403 for a non-member', async () => {
+    const carol = FIXTURES.user('carol'); // not in the couple
+    const couple = FIXTURES.household('couple');
+    const vacation = FIXTURES.goal('vacation');
+
+    const res = await request(app)
+      .patch(`/api/households/${couple._id}/goals/${vacation}/priority`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ priority: 'low' });
+
+    expect(res.status).toBe(403);
+  });
+
+  // Regression guard for atomic $push refactor — both concurrent contributions must land.
+  it('addContribution — concurrent calls both persist (no lost write)', async () => {
+    const alice = FIXTURES.user('alice');
+    const bob = FIXTURES.user('bob');
+    const couple = FIXTURES.household('couple');
+
+    // Create a fresh goal because the 'vacation' fixture may have been deleted
+    // by earlier tests in this file (shared per-file seed state).
+    const created = await request(app)
+      .post(`/api/households/${couple._id}/goals`)
+      .set('Authorization', auth(alice._id.toString()))
+      .send({ name: 'Concurrent contributions', targetAmount: 1000 });
+    const goalId = created.body.data.goal._id;
+
+    const [r1, r2] = await Promise.all([
+      request(app)
+        .post(`/api/households/${couple._id}/goals/${goalId}/contributions`)
+        .set('Authorization', auth(alice._id.toString()))
+        .send({ amount: 10 }),
+      request(app)
+        .post(`/api/households/${couple._id}/goals/${goalId}/contributions`)
+        .set('Authorization', auth(bob._id.toString()))
+        .send({ amount: 20 }),
+    ]);
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+
+    const reloaded = await Goal.findById(goalId);
+    const newOnes = reloaded!.contributions.filter((c) => c.amount === 10 || c.amount === 20);
+    expect(newOnes.length).toBe(2);
+  });
 });

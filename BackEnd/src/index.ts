@@ -4,7 +4,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import compression from 'compression';
 import timeout from 'connect-timeout';
@@ -23,11 +22,11 @@ import { startPendingExpenseScheduler } from './scheduler/pendingExpenses';
 import { startRecurringShoppingItemScheduler } from './scheduler/recurringShoppingItems';
 import { startAutoCloseVotesScheduler } from './scheduler/autoCloseVotes';
 import { logger } from './utils/logger';
+// Load + validate environment variables (side-effect import:
+// throws at boot if any required secret is missing).
+import './config/env';
 
 type RequestWithId = Request & { requestId?: string };
-
-// Load environment variables
-dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
@@ -83,7 +82,7 @@ app.use(haltOnTimedout);
 // ── Rate limiting ─────────────────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200000, // 20 requests per window per IP
+  max: 10000, // 20 requests per window per IP
   message: {
     status: 'error',
     message: 'Too many requests, please try again later',
@@ -104,7 +103,7 @@ app.get('/health', (_req, res) => {
 // ── Rate limiting (general API) ───────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000000, // 100 requests per window per IP
+  max: 10000, // 100 requests per window per IP
   message: {
     status: 'error',
     message: 'Too many requests, please try again later',

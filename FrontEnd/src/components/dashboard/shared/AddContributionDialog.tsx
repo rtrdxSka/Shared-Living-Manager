@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   Sheet,
@@ -9,6 +9,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAddContribution } from '@/hooks/queries';
+import { DashboardContext } from '@/contexts/useDashboard';
+import {
+  crossedMilestone,
+  requiredMonthlyContribution,
+  splitContribution,
+  type Milestone,
+} from '@/utils/goalPlanner';
+import { fmt } from '@/utils/dashboardHelpers';
+import GoalMilestoneCelebration from '@/components/dashboard/couple/GoalMilestoneCelebration';
 
 interface AddContributionDialogProps {
   householdId: string;
@@ -30,8 +39,28 @@ export default function AddContributionDialog({
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<{ milestone: Milestone; goalName: string } | null>(null);
 
   const addContributionMutation = useAddContribution(householdId);
+
+  // Read dashboard context directly (not via the throwing hook) so the dialog
+  // still works if rendered without a provider — the couple extras are additive.
+  const dashboard = useContext(DashboardContext);
+  const isCouple = dashboard?.uiMode === 'couple';
+  const contributionTarget = dashboard?.contributionTarget ?? null;
+  const splitMethod = dashboard?.splitMethod ?? 'equal';
+  const incomeSplit = dashboard?.incomeSplit ?? null;
+  const customMyPct = dashboard?.customMyPct ?? 50;
+
+  // Couple mode: suggest this user's proportional share of the goal's required
+  // monthly contribution (only for goals with a deadline that aren't funded yet).
+  const suggestedMine = useMemo(() => {
+    if (!isCouple || !contributionTarget) return null;
+    const remaining = Math.max(0, contributionTarget.targetAmount - contributionTarget.currentAmount);
+    const required = requiredMonthlyContribution(remaining, contributionTarget.deadline, new Date());
+    if (required === null || required <= 0) return null;
+    return splitContribution(required, { splitMethod, incomeSplit, customMyPct }).mine;
+  }, [isCouple, contributionTarget, splitMethod, incomeSplit, customMyPct]);
 
   const [prevOpen, setPrevOpen] = useState(open);
   if (prevOpen !== open) {
@@ -40,20 +69,33 @@ export default function AddContributionDialog({
       setAmount('');
       setNote('');
       setError(null);
+    } else {
+      // Opening: pre-fill the suggested share when we have one.
+      setAmount(suggestedMine !== null ? String(suggestedMine) : '');
     }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const amt = parseFloat(amount);
     try {
       await addContributionMutation.mutateAsync({
         goalId,
         input: {
-          amount: parseFloat(amount),
+          amount: amt,
           ...(note.trim() && { note: note.trim() }),
         },
       });
+      // Couple mode: celebrate if this contribution crossed a milestone.
+      if (isCouple && contributionTarget && contributionTarget.targetAmount > 0) {
+        const { targetAmount, currentAmount } = contributionTarget;
+        const milestone = crossedMilestone(
+          (currentAmount / targetAmount) * 100,
+          ((currentAmount + amt) / targetAmount) * 100
+        );
+        if (milestone) setCelebration({ milestone, goalName });
+      }
       onOpenChange(false);
     } catch {
       setError('Failed to add contribution. Please try again.');
@@ -63,6 +105,7 @@ export default function AddContributionDialog({
   const canSubmit = parseFloat(amount) > 0 && !addContributionMutation.isPending;
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex flex-col gap-0 overflow-y-auto">
         <SheetHeader className="mb-4">
@@ -84,6 +127,11 @@ export default function AddContributionDialog({
               required
               disabled={addContributionMutation.isPending}
             />
+            {suggestedMine !== null && (
+              <p className="text-xs text-ink-3" data-testid="contribution-suggestion">
+                Suggested: your {fmt(suggestedMine)} {currency} share this month.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -107,5 +155,11 @@ export default function AddContributionDialog({
         </form>
       </SheetContent>
     </Sheet>
+    <GoalMilestoneCelebration
+      milestone={celebration?.milestone ?? null}
+      goalName={celebration?.goalName ?? ''}
+      onDone={() => setCelebration(null)}
+    />
+    </>
   );
 }

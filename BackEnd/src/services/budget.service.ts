@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { Budget } from '../models/budget.model';
 import { BudgetSnapshot } from '../models/budget-snapshot.model';
 import { Expense } from '../models/expense.model';
@@ -55,25 +55,41 @@ class BudgetService {
     this.validateCategories(input.categories);
 
     const prev = previousMonthString();
-    const existing = await Budget.findOne({ householdId });
-    if (existing) {
-      const snap = await BudgetSnapshot.findOne({ householdId, monthString: prev });
-      if (!snap) {
-        await BudgetSnapshot.create({
-          householdId,
-          monthString: prev,
-          categories: existing.categories,
-          frozenAt: new Date(),
-        });
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    let updated;
+    try {
+      const existing = await Budget.findOne({ householdId }).session(session);
+      if (existing) {
+        const snap = await BudgetSnapshot.findOne({ householdId, monthString: prev }).session(session);
+        if (!snap) {
+          await BudgetSnapshot.create(
+            [{
+              householdId,
+              monthString: prev,
+              categories: existing.categories,
+              frozenAt: new Date(),
+            }],
+            { session }
+          );
+        }
       }
+      updated = await Budget.findOneAndUpdate(
+        { householdId },
+        { householdId, categories: input.categories },
+        { upsert: true, new: true, session }
+      );
+      if (!updated) {
+        await session.abortTransaction();
+        throw NotFoundError('Budget not found after update');
+      }
+      await session.commitTransaction();
+    } catch (err) {
+      if (session.inTransaction()) await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
     }
-
-    const updated = await Budget.findOneAndUpdate(
-      { householdId },
-      { householdId, categories: input.categories },
-      { upsert: true, new: true }
-    );
-    if (!updated) throw NotFoundError('Budget not found after update');
     return updated;
   }
 
@@ -120,7 +136,7 @@ class BudgetService {
     const monthExpenses = await Expense.find({
       householdId: new Types.ObjectId(householdId),
       date: { $gte: range.gte, $lt: range.lt },
-    });
+    }).lean();
 
     // Per-member attribution. Use the split-aware utility to compute
     // share + paid amounts for each expense, then accumulate per member.
@@ -254,7 +270,7 @@ class BudgetService {
       const trendExpenses = await Expense.find({
         householdId: new Types.ObjectId(householdId),
         date: { $gte: trendStart, $lt: trendEnd },
-      });
+      }).lean();
       const trendMap = new Map<string, number>();
       for (const exp of trendExpenses) {
         const expMonth = `${exp.date.getFullYear()}-${String(exp.date.getMonth() + 1).padStart(2, '0')}`;
