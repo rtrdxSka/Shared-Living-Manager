@@ -8,7 +8,6 @@ import {
   IHouseholdMemberResponse,
   IHouseholdMember,
   IHousehold,
-  ISettlement,
   IUpdateHouseholdSettingsInput,
   determineUIMode,
 } from '../types/household.types';
@@ -204,22 +203,18 @@ class HouseholdService {
     userId: string,
     income: number
   ): Promise<IHouseholdResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) {
-      throw NotFoundError('Household not found');
-    }
-
-    const member = household.members.find(
-      (m) => m.userId?.toString() === userId
+    const updated = await Household.findOneAndUpdate(
+      { _id: householdId, 'members.userId': new Types.ObjectId(userId) },
+      { $set: { 'members.$.monthlyIncome': income } },
+      { new: true }
     );
-    if (!member) {
+    if (!updated) {
+      // Distinguish 404 vs 403 via a follow-up existence check.
+      const exists = await Household.exists({ _id: householdId });
+      if (!exists) throw NotFoundError('Household not found');
       throw ForbiddenError('You are not a member of this household');
     }
-
-    member.monthlyIncome = income;
-    await household.save();
-
-    return this.formatHouseholdResponse(household);
+    return this.formatHouseholdResponse(updated);
   }
 
   // ── Update Savings Budget ────────────────────────────────────────────
@@ -234,22 +229,17 @@ class HouseholdService {
     requestingUserId: string,
     monthlySavingsBudget: number
   ): Promise<IHouseholdResponse> {
-    const household = await Household.findById(householdId);
-    if (!household) {
-      throw NotFoundError('Household not found');
-    }
-
-    const member = household.members.find(
-      (m) => m.userId?.toString() === requestingUserId
+    const updated = await Household.findOneAndUpdate(
+      { _id: householdId, 'members.userId': new Types.ObjectId(requestingUserId) },
+      { $set: { 'settings.monthlySavingsBudget': monthlySavingsBudget } },
+      { new: true }
     );
-    if (!member) {
+    if (!updated) {
+      const exists = await Household.exists({ _id: householdId });
+      if (!exists) throw NotFoundError('Household not found');
       throw ForbiddenError('You are not a member of this household');
     }
-
-    household.settings.monthlySavingsBudget = monthlySavingsBudget;
-    await household.save();
-
-    return this.formatHouseholdResponse(household);
+    return this.formatHouseholdResponse(updated);
   }
 
   // ── Update Settings ──────────────────────────────────────────────────
@@ -259,23 +249,32 @@ class HouseholdService {
     requestingUserId: string,
     input: IUpdateHouseholdSettingsInput
   ): Promise<IHouseholdResponse> {
-    const household = await Household.findById(householdId);
+    // Admin pre-check (mirrors existing semantics).
+    const household = await Household.findById(householdId, { members: 1 });
     if (!household) throw NotFoundError('Household not found');
-
-    const member = household.members.find(
-      (m) => m.userId?.toString() === requestingUserId
-    );
+    const member = household.members.find((m) => m.userId?.toString() === requestingUserId);
     if (!member) throw ForbiddenError('You are not a member of this household');
-    if (member.role !== 'owner' && member.role !== 'admin')
+    if (member.role !== 'owner' && member.role !== 'admin') {
       throw ForbiddenError('Only admins can update household settings');
+    }
 
-    if (input.financeMode !== undefined) household.settings.financeMode = input.financeMode;
-    if (input.expenseSplitMethod !== undefined) household.settings.expenseSplitMethod = input.expenseSplitMethod;
-    if (input.customSplitPercentage !== undefined) household.settings.customSplitPercentage = input.customSplitPercentage;
-    if (input.customSplitShares !== undefined) household.settings.customSplitShares = input.customSplitShares;
+    const setFields: Record<string, unknown> = {};
+    if (input.financeMode !== undefined) setFields['settings.financeMode'] = input.financeMode;
+    if (input.expenseSplitMethod !== undefined) setFields['settings.expenseSplitMethod'] = input.expenseSplitMethod;
+    if (input.customSplitPercentage !== undefined) setFields['settings.customSplitPercentage'] = input.customSplitPercentage;
+    if (input.customSplitShares !== undefined) setFields['settings.customSplitShares'] = input.customSplitShares;
 
-    await household.save();
-    return this.formatHouseholdResponse(household);
+    if (Object.keys(setFields).length === 0) {
+      return this.formatHouseholdResponse(household);
+    }
+
+    const updated = await Household.findOneAndUpdate(
+      { _id: householdId },
+      { $set: setFields },
+      { new: true }
+    );
+    if (!updated) throw NotFoundError('Household not found');
+    return this.formatHouseholdResponse(updated);
   }
 
   // ── Record Settlement ─────────────────────────────────────────────────
@@ -286,9 +285,9 @@ class HouseholdService {
     month: string,
     amount: number
   ): Promise<IHouseholdResponse> {
-    const household = await Household.findById(householdId);
+    // Role + finance-participation pre-check.
+    const household = await Household.findById(householdId, { members: 1 });
     if (!household) throw NotFoundError('Household not found');
-
     const member = household.members.find((m) => m.userId?.toString() === userId);
     if (!member) throw ForbiddenError('You are not a member of this household');
     if (!member.participatesInFinances) {
@@ -298,12 +297,22 @@ class HouseholdService {
       throw ForbiddenError('Only admins can record settlements');
     }
 
-    if (household.settlements.find((s) => s.month === month))
-      throw BadRequestError('Balance for this month is already marked as settled');
-
-    household.settlements.push({ month, amount, settledByUserId: userId, settledAt: new Date() } as unknown as ISettlement);
-    await household.save();
-    return this.formatHouseholdResponse(household);
+    const updated = await Household.findOneAndUpdate(
+      { _id: householdId, 'settlements.month': { $ne: month } },
+      {
+        $push: {
+          settlements: {
+            month,
+            amount,
+            settledByUserId: new Types.ObjectId(userId),
+            settledAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
+    if (!updated) throw BadRequestError('Balance for this month is already marked as settled');
+    return this.formatHouseholdResponse(updated);
   }
 
   // ── Get by ID ────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { getHouseholdForMember } from '../utils/household.helpers';
+import { SCHEDULER_BATCH_SIZE } from '../scheduler/constants';
 
 class RecurringTaskService {
   private formatResponse(
@@ -155,7 +156,9 @@ class RecurringTaskService {
   }
 
   async generateInstances(interval: RecurrenceInterval): Promise<void> {
-    const templates = await RecurringTask.find({ interval, isActive: true });
+    const templates = await RecurringTask.find({ interval, isActive: true })
+      .sort({ updatedAt: 1 })
+      .limit(SCHEDULER_BATCH_SIZE);
     if (templates.length === 0) return;
 
     // Compute period start once — same for all templates of the same interval
@@ -245,6 +248,16 @@ class RecurringTaskService {
       const batch = templates.slice(i, i + BATCH_SIZE);
       await Promise.allSettled(batch.map(processOne));
     }
+
+    logger.info(
+      {
+        interval,
+        processed: templates.length,
+        batchSize: SCHEDULER_BATCH_SIZE,
+        hasMore: templates.length === SCHEDULER_BATCH_SIZE,
+      },
+      'recurring-task generateInstances complete'
+    );
   }
 }
 
