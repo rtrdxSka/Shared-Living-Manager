@@ -69,6 +69,21 @@ export const errorHandler = (
     return;
   }
 
+  // Handle Mongoose CastError (e.g. malformed ObjectId in a route param
+  // reaching findById without an upstream validator). Reply 400 so clients
+  // get a clear "bad input" signal instead of an opaque 500.
+  if (err instanceof mongoose.Error.CastError) {
+    const response: ErrorResponse = {
+      status: 'error',
+      message: `Invalid ${err.path}`,
+    };
+    if (process.env.NODE_ENV === 'development') {
+      response.stack = err.stack;
+    }
+    res.status(400).json(response);
+    return;
+  }
+
   // Unexpected errors — log and return generic 500
   logger.error({ err }, 'Unexpected error');
 
