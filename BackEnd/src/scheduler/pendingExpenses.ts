@@ -11,7 +11,7 @@ export function startPendingExpenseScheduler(): void {
       logger.info('[Scheduler] Auto-confirming expired pending expense resolutions...');
       const count = await expenseService.autoConfirmExpiredPending();
       if (count > 0) {
-        logger.info(`[Scheduler] Auto-confirmed ${count} pending expense(s)`);
+        logger.info(`[Scheduler] Auto-confirm modified ${count} expense(s)`);
       }
     }
   );

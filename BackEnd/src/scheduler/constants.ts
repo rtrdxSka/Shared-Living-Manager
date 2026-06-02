@@ -1,0 +1,1 @@
+export const SCHEDULER_BATCH_SIZE = 500;
