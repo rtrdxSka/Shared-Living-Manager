@@ -71,6 +71,36 @@ describe('errorHandler middleware', () => {
     });
   });
 
+  it('handles Mongoose CastError (e.g. malformed ObjectId) as 400', async () => {
+    const castErr = new mongoose.Error.CastError(
+      'ObjectId',
+      'not-an-object-id',
+      'expenseId'
+    );
+
+    const res = await request(buildApp(castErr)).get('/throw');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ status: 'error', message: 'Invalid expenseId' });
+    expect(res.body.stack).toBeUndefined();
+  });
+
+  it('includes stack trace for Mongoose CastError in development mode', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const castErr = new mongoose.Error.CastError(
+      'ObjectId',
+      'not-an-object-id',
+      'expenseId'
+    );
+
+    const res = await request(buildApp(castErr)).get('/throw');
+
+    expect(res.status).toBe(400);
+    expect(res.body.stack).toBeDefined();
+    expect(typeof res.body.stack).toBe('string');
+    expect(res.body.stack.length).toBeGreaterThan(0);
+  });
+
   it('falls back to generic 500 for unexpected errors', async () => {
     const res = await request(buildApp(new Error('boom'))).get('/throw');
 
