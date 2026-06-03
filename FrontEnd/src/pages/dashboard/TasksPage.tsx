@@ -157,6 +157,7 @@ const TaskRow = React.memo(function TaskRow({
     myNickname,
     currentUserId,
     distribution,
+    taskLevel,
     taskMembers,
     rotationStatus,
     deleteTask,
@@ -302,8 +303,8 @@ const TaskRow = React.memo(function TaskRow({
           </span>
         )}
 
-        {/* Assignee avatar or "Up for grabs" pill */}
-        {!task.isCompleted && (
+        {/* Assignee avatar or "Up for grabs" pill — only with full task management */}
+        {!task.isCompleted && taskLevel === 'full' && (
           task.assignedToNickname ? (
             <Avatar name={task.assignedToNickname} size={24} />
           ) : (
@@ -371,8 +372,8 @@ const TaskRow = React.memo(function TaskRow({
             </div>
           )}
 
-          {/* Assignment section */}
-          {!task.isCompleted && (
+          {/* Assignment section — only with full task management */}
+          {!task.isCompleted && taskLevel === 'full' && (
             <div>
               <p className="text-xs font-medium text-ink-3 mb-1.5">Assignment</p>
               {distribution === 'rotation' ? (
@@ -812,8 +813,8 @@ export default function TasksPage() {
           </Button>
         </div>
 
-        {/* Rotation banner (only when distribution === 'rotation') */}
-        {uiMode === 'couple' && distribution === 'rotation' && <RotationBanner />}
+        {/* Rotation banner (only for full task management with rotation) */}
+        {uiMode === 'couple' && taskLevel === 'full' && distribution === 'rotation' && <RotationBanner />}
 
         {/* Inline alert for assign/claim conflicts (no toast library installed) */}
         {actionError && (
@@ -964,8 +965,7 @@ export default function TasksPage() {
           {/* Right rail */}
           <div className="space-y-4">
             <FairnessCard />
-            <DistributionCard />
-            
+            {taskLevel === 'full' && <DistributionCard />}
           </div>
         </div>
       </div>
