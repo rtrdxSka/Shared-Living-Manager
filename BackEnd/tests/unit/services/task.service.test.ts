@@ -390,6 +390,20 @@ describe('taskService.setRotation', () => {
     ).rejects.toSatisfy(expectAppError(403));
   });
 
+  it('throws 400 when task management is not full (e.g. basic)', async () => {
+    const { household, owner, ownerMemberId } = await buildFreshTaskHousehold('basic-level');
+    household.settings.taskManagementEnabled = 'basic';
+    await household.save();
+
+    await expect(
+      taskService.setRotation(
+        household._id.toString(),
+        owner._id.toString(),
+        { startMemberId: ownerMemberId.toString() }
+      )
+    ).rejects.toSatisfy(expectAppError(400));
+  });
+
   // F4.7: task.service.ts setRotation (lines 325-327) throws 400 when the
   // provided startMemberId does not match a task-participating member.
   // Frank is a flatshare member with participatesInTasks: false, so passing
