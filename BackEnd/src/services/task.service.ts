@@ -343,6 +343,10 @@ class TaskService {
       throw ForbiddenError('Only admins can configure task rotation');
     }
 
+    if (household.settings.taskManagementEnabled !== 'full') {
+      throw BadRequestError('Task rotation is only available with full task management');
+    }
+
     const taskMembers = household.members.filter((m) => m.participatesInTasks);
     if (taskMembers.length === 0) {
       throw BadRequestError('No members participate in tasks');
