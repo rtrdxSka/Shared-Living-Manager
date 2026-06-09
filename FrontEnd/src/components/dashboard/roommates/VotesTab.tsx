@@ -33,10 +33,11 @@ function deadlineLabel(deadline: string): string {
 
 function TallyBar({ tally }: { tally: VoteTally }) {
   const total = tally.yes + tally.no + tally.abstain;
+  const needed = `${tally.yes}/${tally.requiredYes} yes needed to pass`;
   if (total === 0) {
     return (
       <p className="text-xs text-ink-3">
-        No ballots cast yet ({tally.eligibleVoters} eligible)
+        No ballots cast yet · {needed} ({tally.eligibleVoters} members)
       </p>
     );
   }
@@ -52,7 +53,7 @@ function TallyBar({ tally }: { tally: VoteTally }) {
       </div>
       <p className="text-xs text-ink-3">
         {tally.yes} yes · {tally.no} no · {tally.abstain} abstain ·{' '}
-        {total}/{tally.eligibleVoters} cast
+        {total}/{tally.eligibleVoters} cast · {needed}
       </p>
     </div>
   );

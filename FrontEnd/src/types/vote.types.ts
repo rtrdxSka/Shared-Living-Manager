@@ -22,6 +22,8 @@ export interface VoteTally {
   abstain: number;
   total: number;
   eligibleVoters: number;
+  /** YES ballots required to pass, as a fraction of all eligible members. */
+  requiredYes: number;
 }
 
 export interface VoteResponse {

@@ -24,9 +24,9 @@ interface VoteProposalFormProps {
 }
 
 const THRESHOLD_LABELS: Record<VoteThreshold, string> = {
-  simple_majority: 'Simple majority (>50% of yes/no)',
-  supermajority: 'Supermajority (≥66.7%)',
-  unanimous: 'Unanimous (100%)',
+  simple_majority: 'Simple majority (>50% of members)',
+  supermajority: 'Supermajority (≥⅔ of members)',
+  unanimous: 'Unanimous (all members)',
 };
 
 const MIN_DEADLINE_DAYS = 1;
