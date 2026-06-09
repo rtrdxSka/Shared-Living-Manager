@@ -177,6 +177,9 @@ class IssueService {
     )?.role;
     const isAdmin = role === 'owner' || role === 'admin';
     if (!isAuthor && !isAdmin) throw ForbiddenError('Not allowed');
+    // Only open issues are mutable. A non-open issue is frozen — deleting an
+    // escalated one would orphan the vote that links back via sourceIssueId.
+    if (issue.status !== 'open') throw BadRequestError('Issue is not open');
 
     await IssueComment.deleteMany({ issueId: issue._id });
     await Issue.deleteOne({ _id: issue._id });
@@ -194,6 +197,9 @@ class IssueService {
       householdId: new Types.ObjectId(householdId),
     });
     if (!issue) throw NotFoundError('Issue not found');
+    // Comments are only allowed while the issue is open; once escalated or
+    // archived the discussion is frozen.
+    if (issue.status !== 'open') throw BadRequestError('Issue is not open');
 
     const c = await IssueComment.create({
       issueId: issue._id,
