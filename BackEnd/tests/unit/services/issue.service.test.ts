@@ -171,6 +171,71 @@ describe('issueService', () => {
       const remaining = await IssueComment.countDocuments({ issueId: i._id });
       expect(remaining).toBe(0);
     });
+
+    it('rejects deleting an escalated issue (author)', async () => {
+      const i = await issueService.createIssue(hid, alice._id.toString(), {
+        title: 'X',
+        body: 'y',
+        category: 'cleaning',
+      });
+      await issueService.escalateToVote(hid, alice._id.toString(), i._id, {
+        proposedRuleTitle: 'R',
+        proposedRuleText: 'T',
+      });
+      await expect(
+        issueService.deleteIssue(hid, alice._id.toString(), i._id)
+      ).rejects.toThrow(/not open/i);
+      // Issue and its vote linkage survive.
+      expect(await Issue.findById(i._id)).not.toBeNull();
+    });
+
+    it('rejects deleting an escalated issue (admin)', async () => {
+      const i = await issueService.createIssue(hid, bob._id.toString(), {
+        title: 'X',
+        body: 'y',
+        category: 'cleaning',
+      });
+      await issueService.escalateToVote(hid, bob._id.toString(), i._id, {
+        proposedRuleTitle: 'R',
+        proposedRuleText: 'T',
+      });
+      await expect(
+        issueService.deleteIssue(hid, alice._id.toString(), i._id)
+      ).rejects.toThrow(/not open/i);
+      expect(await Issue.findById(i._id)).not.toBeNull();
+    });
+  });
+
+  describe('addComment', () => {
+    it('allows commenting on an open issue', async () => {
+      const i = await issueService.createIssue(hid, alice._id.toString(), {
+        title: 'X',
+        body: 'y',
+        category: 'cleaning',
+      });
+      const c = await issueService.addComment(
+        hid,
+        bob._id.toString(),
+        i._id,
+        'reply'
+      );
+      expect(c.body).toBe('reply');
+    });
+
+    it('rejects commenting on an escalated issue', async () => {
+      const i = await issueService.createIssue(hid, alice._id.toString(), {
+        title: 'X',
+        body: 'y',
+        category: 'cleaning',
+      });
+      await issueService.escalateToVote(hid, alice._id.toString(), i._id, {
+        proposedRuleTitle: 'R',
+        proposedRuleText: 'T',
+      });
+      await expect(
+        issueService.addComment(hid, bob._id.toString(), i._id, 'late reply')
+      ).rejects.toThrow(/not open/i);
+    });
   });
 
   describe('escalateToVote', () => {

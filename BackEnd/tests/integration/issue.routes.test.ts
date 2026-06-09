@@ -204,6 +204,41 @@ describe('Issue routes', () => {
     );
   });
 
+  it('escalated issue is frozen: POST /comments → 400 and DELETE → 400', async () => {
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+    const flatshare = FIXTURES.household('flatshare');
+
+    const created = await request(app)
+      .post(`/api/households/${flatshare._id}/issues`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ title: 'Freeze me', body: 'soon a rule', category: 'other' });
+    const issueId = created.body.data.issue._id;
+
+    const escalated = await request(app)
+      .post(`/api/households/${flatshare._id}/issues/${issueId}/escalate`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({
+        proposedRuleTitle: 'A rule',
+        proposedRuleText: 'The rule body.',
+        deadlineDays: 7,
+      });
+    expect(escalated.status).toBe(200);
+
+    // Commenting on an escalated issue is rejected.
+    const comment = await request(app)
+      .post(`/api/households/${flatshare._id}/issues/${issueId}/comments`)
+      .set('Authorization', auth(eve._id.toString()))
+      .send({ body: 'too late' });
+    expect(comment.status).toBe(400);
+
+    // Deleting an escalated issue is rejected (would orphan the vote).
+    const del = await request(app)
+      .delete(`/api/households/${flatshare._id}/issues/${issueId}`)
+      .set('Authorization', auth(carol._id.toString()));
+    expect(del.status).toBe(400);
+  });
+
   it('POST /escalate → 400 on invalid deadlineDays', async () => {
     const carol = FIXTURES.user('carol');
     const flatshare = FIXTURES.household('flatshare');
