@@ -11,12 +11,15 @@ interface EscalateIssueDialogProps {
   issueId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called once the issue has been successfully escalated to a vote. */
+  onEscalated?: () => void;
 }
 
 export function EscalateIssueDialog({
   issueId,
   open,
   onOpenChange,
+  onEscalated,
 }: EscalateIssueDialogProps) {
   const { household } = useDashboard();
   const escalate = useEscalateIssue(household._id);
@@ -95,6 +98,9 @@ export function EscalateIssueDialog({
             setError(null);
             try {
               await escalate.mutateAsync({ issueId, input });
+              // Signal the parent deterministically so it can close the detail
+              // modal, rather than relying on a not-yet-refetched issue field.
+              onEscalated?.();
               handleClose();
             } catch (err) {
               setError(extractApiError(err, 'Failed to open vote.'));

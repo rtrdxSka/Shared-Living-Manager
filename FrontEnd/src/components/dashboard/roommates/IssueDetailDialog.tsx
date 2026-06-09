@@ -185,7 +185,7 @@ export function IssueDetailDialog({
                       className="text-sm flex justify-between gap-2 border-l-2 border-line pl-3 py-1"
                     >
                       <p className="whitespace-pre-wrap flex-1">{c.body}</p>
-                      {c.isMine && (
+                      {c.isMine && issue.status === 'open' && (
                         <Button
                           type="button"
                           variant="ghost"
@@ -200,69 +200,79 @@ export function IssueDetailDialog({
                   ))}
                 </ul>
 
-                <form onSubmit={submitComment} className="space-y-2">
-                  <textarea
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    rows={2}
-                    maxLength={1000}
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Add a comment (anonymous)…"
-                  />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={
-                      !commentText.trim() || addComment.isPending
-                    }
-                  >
-                    {addComment.isPending && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    Comment
-                  </Button>
-                </form>
+                {issue.status === 'open' && (
+                  <form onSubmit={submitComment} className="space-y-2">
+                    <textarea
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      rows={2}
+                      maxLength={1000}
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder="Add a comment (anonymous)…"
+                    />
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={
+                        !commentText.trim() || addComment.isPending
+                      }
+                    >
+                      {addComment.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Comment
+                    </Button>
+                  </form>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-                {issue.status === 'open' && (
-                  <Button onClick={() => setEscalateOpen(true)}>
-                    Escalate to vote
-                  </Button>
-                )}
-                {issue.isMine && !confirmDelete && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    Delete issue
-                  </Button>
-                )}
-                {issue.isMine && confirmDelete && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-ink-2">
-                      Delete this issue?
-                    </span>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleDeleteIssue}
-                      disabled={deleteIssue.isPending}
-                    >
-                      {deleteIssue.isPending && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Confirm delete
+                {issue.status === 'open' ? (
+                  <>
+                    <Button onClick={() => setEscalateOpen(true)}>
+                      Escalate to vote
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setConfirmDelete(false)}
-                      disabled={deleteIssue.isPending}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
+                    {issue.isMine && !confirmDelete && (
+                      <Button
+                        variant="destructive"
+                        onClick={() => setConfirmDelete(true)}
+                      >
+                        Delete issue
+                      </Button>
+                    )}
+                    {issue.isMine && confirmDelete && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-ink-2">
+                          Delete this issue?
+                        </span>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleDeleteIssue}
+                          disabled={deleteIssue.isPending}
+                        >
+                          {deleteIssue.isPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
+                          Confirm delete
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setConfirmDelete(false)}
+                          disabled={deleteIssue.isPending}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-ink-3">
+                    {issue.status === 'escalated'
+                      ? 'This issue has been escalated to a vote and can no longer be changed.'
+                      : 'This issue is archived and can no longer be changed.'}
+                  </p>
                 )}
               </div>
             </div>
@@ -273,15 +283,10 @@ export function IssueDetailDialog({
       <EscalateIssueDialog
         issueId={issueId}
         open={escalateOpen}
-        onOpenChange={(nextOpen) => {
-          setEscalateOpen(nextOpen);
-          // When the escalate dialog closes and the underlying issue has been
-          // moved to a vote, close the detail too so the user lands back in
-          // the list (Task 25 will drive this from inside EscalateIssueDialog).
-          if (!nextOpen && issue?.escalatedToVoteId) {
-            handleClose();
-          }
-        }}
+        onOpenChange={setEscalateOpen}
+        // On a successful escalation the issue is no longer open, so close the
+        // detail modal and drop the user back in the list.
+        onEscalated={handleClose}
       />
     </>
   );
