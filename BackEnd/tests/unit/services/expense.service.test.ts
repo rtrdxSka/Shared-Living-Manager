@@ -545,6 +545,139 @@ describe('expenseService.claimExpense', () => {
     const danEntry = afterPayback.debtorStates.find((d) => d.userId === dan._id.toString());
     expect(danEntry?.claimedAt).toBeDefined();
   });
+
+  it('claimer outside the participant subgroup joins the split and re-seeds from household %', async () => {
+    // Custom-% household. An unpaid expense targets a 2-person subgroup (Alice +
+    // Bob) with per-expense overrides. A third member (Carol) claims it: she must
+    // join the subgroup, the stale overrides are discarded, and the split is
+    // re-derived from the household percentages over all three.
+    const alice = await makeUser({ firstName: 'Alice' });
+    const bob = await makeUser({ firstName: 'Bob' });
+    const carol = await makeUser({ firstName: 'Carol' });
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const household = await new Household({
+      name: `claim-join-${suffix}`,
+      livingArrangement: 'roommates',
+      totalMembers: 3,
+      uiMode: 'roommates',
+      createdBy: alice._id,
+      inviteCode: `claim-join-${suffix}`,
+      members: [
+        { userId: alice._id, nickname: 'Alice', ageGroup: 'adult', role: 'owner',  isCreator: true,  participatesInFinances: true, participatesInTasks: true },
+        { userId: bob._id,   nickname: 'Bob',   ageGroup: 'adult', role: 'member', isCreator: false, participatesInFinances: true, participatesInTasks: true },
+        { userId: carol._id, nickname: 'Carol', ageGroup: 'adult', role: 'member', isCreator: false, participatesInFinances: true, participatesInTasks: true },
+      ],
+      settings: {
+        currency: 'EUR',
+        taskManagementEnabled: 'disabled',
+        trackedExpenseTypes: ['groceries'],
+        financeMode: 'split',
+        expenseSplitMethod: 'custom',
+        customSplitShares: [
+          { userId: alice._id.toString(), pct: 20 },
+          { userId: bob._id.toString(), pct: 30 },
+          { userId: carol._id.toString(), pct: 50 },
+        ],
+      },
+    }).save();
+
+    const created = await expenseService.addExpense(
+      household._id.toString(),
+      alice._id.toString(),
+      baseAddInput({
+        description: 'Groceries',
+        amount: 100,
+        category: 'groceries',
+        date: '2026-05-20',
+        // unpaid — Carol will claim it
+        participantUserIds: [alice._id.toString(), bob._id.toString()],
+        customSplitOverrides: [
+          { userId: alice._id.toString(), pct: 40 },
+          { userId: bob._id.toString(), pct: 60 },
+        ],
+      })
+    );
+    expect(created.debtorStates).toEqual([]);
+
+    const claimed = await expenseService.claimExpense(
+      household._id.toString(),
+      carol._id.toString(),
+      created._id
+    );
+
+    expect(claimed.paidByUserId).toBe(carol._id.toString());
+    // Carol joined the subgroup; the stale per-expense overrides were dropped.
+    expect(claimed.participantUserIds).toEqual(
+      expect.arrayContaining([alice._id.toString(), bob._id.toString(), carol._id.toString()])
+    );
+    expect(claimed.participantUserIds).toHaveLength(3);
+    expect(claimed.customSplitOverrides).toBeUndefined();
+    // Split re-seeded from household % over all three (20/30/50); Carol pays, so
+    // only Alice and Bob owe their household shares.
+    expect(claimed.debtorStates).toHaveLength(2);
+    const byUser = new Map(claimed.debtorStates.map((d) => [d.userId, d.share]));
+    expect(byUser.get(alice._id.toString())).toBeCloseTo(20, 5);
+    expect(byUser.get(bob._id.toString())).toBeCloseTo(30, 5);
+  });
+
+  it('claimer already in the subgroup keeps the existing per-expense overrides', async () => {
+    // Control for the case above: when the claimer is already a participant, the
+    // subgroup and its per-expense percentages are left untouched.
+    const alice = await makeUser({ firstName: 'Alice' });
+    const bob = await makeUser({ firstName: 'Bob' });
+    const carol = await makeUser({ firstName: 'Carol' });
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const household = await new Household({
+      name: `claim-keep-${suffix}`,
+      livingArrangement: 'roommates',
+      totalMembers: 3,
+      uiMode: 'roommates',
+      createdBy: alice._id,
+      inviteCode: `claim-keep-${suffix}`,
+      members: [
+        { userId: alice._id, nickname: 'Alice', ageGroup: 'adult', role: 'owner',  isCreator: true,  participatesInFinances: true, participatesInTasks: true },
+        { userId: bob._id,   nickname: 'Bob',   ageGroup: 'adult', role: 'member', isCreator: false, participatesInFinances: true, participatesInTasks: true },
+        { userId: carol._id, nickname: 'Carol', ageGroup: 'adult', role: 'member', isCreator: false, participatesInFinances: true, participatesInTasks: true },
+      ],
+      settings: {
+        currency: 'EUR',
+        taskManagementEnabled: 'disabled',
+        trackedExpenseTypes: ['groceries'],
+        financeMode: 'split',
+        expenseSplitMethod: 'custom',
+      },
+    }).save();
+
+    const created = await expenseService.addExpense(
+      household._id.toString(),
+      alice._id.toString(),
+      baseAddInput({
+        description: 'Groceries',
+        amount: 100,
+        category: 'groceries',
+        date: '2026-05-21',
+        participantUserIds: [alice._id.toString(), bob._id.toString()],
+        customSplitOverrides: [
+          { userId: alice._id.toString(), pct: 40 },
+          { userId: bob._id.toString(), pct: 60 },
+        ],
+      })
+    );
+
+    const claimed = await expenseService.claimExpense(
+      household._id.toString(),
+      bob._id.toString(), // Bob is already in the subgroup
+      created._id
+    );
+
+    expect(claimed.paidByUserId).toBe(bob._id.toString());
+    expect(claimed.participantUserIds).toHaveLength(2);
+    expect(claimed.customSplitOverrides).toHaveLength(2);
+    // Overrides preserved: Bob pays, so Alice owes her 40%.
+    expect(claimed.debtorStates).toHaveLength(1);
+    expect(claimed.debtorStates[0].userId).toBe(alice._id.toString());
+    expect(claimed.debtorStates[0].share).toBeCloseTo(40, 5);
+  });
 });
 
 // ── claimPayback / confirmPayback / disputePayback ────────
