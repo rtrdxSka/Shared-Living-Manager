@@ -182,25 +182,53 @@ describe('computeDebtorShares', () => {
     expect(result.map((r) => r.share)).toEqual([300, 300]);
   });
 
-  it('falls back to equal when customSplitShares over the participant set do not sum to 100 (subgroup)', () => {
+  it('rescales household customSplitShares proportionally over a subgroup (sum < 100)', () => {
     const a = p();
     const b = p();
     const c = p();
     // Household shares cover everyone, but this expense is a subgroup of a + b
-    // whose stored shares sum to 70, not 100 → equal between the subgroup.
+    // whose stored shares sum to 80, not 100. They are rescaled to keep their
+    // relative weight (a 60 : b 20 → a 75% : b 25%) instead of falling back to
+    // equal. a is the payer, so only b owes: 100 * 20/80 = 25.
     const result = computeDebtorShares({
       amount: 100,
       payerUserId: a.userId,
       participants: [a, b],
       splitMethod: 'custom',
       customSplitShares: [
-        { userId: a.userId, pct: 40 },
-        { userId: b.userId, pct: 30 },
-        { userId: c.userId, pct: 30 },
+        { userId: a.userId, pct: 60 },
+        { userId: b.userId, pct: 20 },
+        { userId: c.userId, pct: 20 },
       ],
     });
     expect(result).toHaveLength(1);
-    expect(result[0].share).toBe(50);
+    expect(result[0].userId).toEqual(b.userId);
+    expect(result[0].share).toBe(25);
+  });
+
+  it('rescales household customSplitShares over a subgroup with multiple debtors', () => {
+    const a = p();
+    const b = p();
+    const c = p();
+    const d = p();
+    // Subgroup a + b + c (d excluded); their shares 30/30/20 sum to 80 and are
+    // rescaled to sum to 100. a pays, so b and c owe their rescaled shares.
+    const result = computeDebtorShares({
+      amount: 800,
+      payerUserId: a.userId,
+      participants: [a, b, c],
+      splitMethod: 'custom',
+      customSplitShares: [
+        { userId: a.userId, pct: 30 },
+        { userId: b.userId, pct: 30 },
+        { userId: c.userId, pct: 20 },
+        { userId: d.userId, pct: 20 },
+      ],
+    });
+    expect(result).toHaveLength(2);
+    const byUser = new Map(result.map((r) => [r.userId.toString(), r.share]));
+    expect(byUser.get(b.userId.toString())).toBeCloseTo(300, 5); // 800 * 30/80
+    expect(byUser.get(c.userId.toString())).toBeCloseTo(200, 5); // 800 * 20/80
   });
 
   it('per-expense customSplitOverrides win over household customSplitShares', () => {
