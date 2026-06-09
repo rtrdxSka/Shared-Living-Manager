@@ -385,6 +385,22 @@ class ExpenseService {
         // Capture into a non-null local so TS narrows correctly across nested closures.
         const claimed = expense;
 
+        // If the expense targets an explicit subgroup that excludes the claimer,
+        // the claimer joins the split (they pay AND share). Add them to the
+        // subgroup and discard the stale per-expense percentage overrides — those
+        // were defined for the old group and no longer cover everyone. The
+        // recompute below then re-seeds from the household split method (custom %
+        // rescaled over the new group, or equal/income), matching what the form
+        // would have produced had the claimer been selected from the start.
+        const claimerKey = (requesterMember.userId as Types.ObjectId).toString();
+        if (
+          claimed.participantUserIds?.length &&
+          !claimed.participantUserIds.some((id) => id.toString() === claimerKey)
+        ) {
+          claimed.participantUserIds.push(requesterMember.userId as Types.ObjectId);
+          claimed.customSplitOverrides = undefined;
+        }
+
         // We won the claim — compute debtorStates now that we know the payer.
         // Mirrors addExpense (lines 59-93) so debtors get the same per-share
         // entries they would have had if the expense had been created with a
