@@ -8,6 +8,7 @@ import {
   ForbiddenError,
   BadRequestError,
 } from '../utils/error';
+import { decideVote, requiredYes } from '../utils/decideVote';
 import type { IHousehold } from '../types/household.types';
 import type {
   ICreateVoteInput,
@@ -102,9 +103,13 @@ class VoteService {
     });
     if (!vote) throw NotFoundError('Vote not found');
     if (vote.status !== 'open') throw BadRequestError('Vote is not open');
+    const eligibleVoters = this.countEligibleVoters(household);
     if (vote.deadline.getTime() <= Date.now()) {
       // Close inline as expired (rejected/passed per tally; not closed_early).
-      await this.tallyAndClose(vote, { allowEarly: false });
+      await this.tallyAndMaybeClose(vote, eligibleVoters, {
+        final: true,
+        allowEarly: false,
+      });
       throw BadRequestError('Vote deadline has passed');
     }
 
@@ -118,6 +123,13 @@ class VoteService {
       },
       { upsert: true, new: true }
     );
+
+    // Auto-close the moment the outcome is locked — pass once enough YES votes
+    // exist, reject once YES can no longer reach the bar. Otherwise stays open.
+    await this.tallyAndMaybeClose(vote, eligibleVoters, {
+      final: false,
+      allowEarly: false,
+    });
 
     const refreshed = await Vote.findById(vote._id).lean();
     if (!refreshed) throw NotFoundError('Vote not found');
@@ -142,7 +154,10 @@ class VoteService {
       status: 'open',
     });
     if (!vote) throw BadRequestError('Vote is not open');
-    return this.tallyAndClose(vote, { allowEarly: true });
+    return this.tallyAndMaybeClose(vote, this.countEligibleVoters(household), {
+      final: true,
+      allowEarly: true,
+    });
   }
 
   async autoCloseExpiredVotes(): Promise<void> {
@@ -150,25 +165,46 @@ class VoteService {
       status: 'open',
       deadline: { $lte: new Date() },
     });
+    // Cache households so multiple expired votes in the same household don't
+    // re-query. The eligible-voter count comes from current membership.
+    const householdCache = new Map<string, IHousehold | null>();
     for (const v of expired) {
-      await this.tallyAndClose(v, { allowEarly: false });
+      const key = v.householdId.toString();
+      let household = householdCache.get(key);
+      if (household === undefined) {
+        const fetched = await Household.findById(v.householdId);
+        householdCache.set(key, fetched);
+        household = fetched;
+      }
+      if (!household) continue;
+      await this.tallyAndMaybeClose(v, this.countEligibleVoters(household), {
+        final: true,
+        allowEarly: false,
+      });
     }
   }
 
   // ── Private helpers ──────────────────────────────────────────────────
 
-  private thresholdRatio(t: VoteThreshold): number {
-    if (t === 'simple_majority') return 0.5;
-    if (t === 'supermajority') return 2 / 3;
-    if (t === 'unanimous') return 1.0;
-    // Defensive: enum is constrained at the schema level. Treat unknown as
-    // unanimous so accidental new values never auto-pass.
-    return 1.0;
+  private countEligibleVoters(household: IHousehold): number {
+    return household.members.filter((m) => m.userId).length;
   }
 
-  private async tallyAndClose(
+  /**
+   * Tally the current ballots and close the vote if the outcome is determined.
+   *
+   *   - `final: true`  → deadline reached or admin close; the vote always
+   *     resolves (pass, or reject/closed_early).
+   *   - `final: false` → a ballot was just cast; close only if the result is
+   *     already locked, otherwise leave the vote open.
+   *
+   * A rejection resolves to `closed_early` when `allowEarly` (manual admin
+   * close), otherwise `rejected`. Passing always creates the HouseRule.
+   */
+  private async tallyAndMaybeClose(
     vote: IVote,
-    options: { allowEarly: boolean }
+    eligibleVoters: number,
+    options: { final: boolean; allowEarly: boolean }
   ): Promise<IVote> {
     const ballots = await VoteBallot.find({ voteId: vote._id });
     let yes = 0;
@@ -179,12 +215,20 @@ class VoteService {
       else if (b.choice === 'no') no++;
       else abstain++;
     }
-    const decided = yes + no;
-    const passes =
-      decided > 0 && yes / decided > this.thresholdRatio(vote.threshold);
+
+    const outcome = decideVote({
+      yes,
+      no,
+      abstain,
+      eligibleVoters,
+      threshold: vote.threshold,
+      final: options.final,
+    });
+
+    if (outcome === 'undecided') return vote;
 
     vote.closedAt = new Date();
-    if (passes) {
+    if (outcome === 'pass') {
       vote.status = 'passed';
       await vote.save();
       await HouseRule.create({
@@ -242,13 +286,14 @@ class VoteService {
       else abstain++;
       if (b.userId.toString() === requestingUserId) myBallot = b.choice;
     }
-    const eligibleVoters = household.members.filter((m) => m.userId).length;
+    const eligibleVoters = this.countEligibleVoters(household);
     const tally: IVoteTally = {
       yes,
       no,
       abstain,
       total: yes + no + abstain,
       eligibleVoters,
+      requiredYes: requiredYes(vote.threshold, eligibleVoters),
     };
     return {
       _id: vote._id.toString(),
