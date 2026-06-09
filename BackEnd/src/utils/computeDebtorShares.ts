@@ -38,8 +38,9 @@ export interface DebtorShare {
  *   2. per-expense `customSplitOverrides` → use as authoritative percentages
  *   3. `splitMethod === 'income_based'` with usable income data → income-weighted
  *   4. `splitMethod === 'custom'`:
- *      a. household `customSplitShares` that cover every participant and sum to
- *         100 → per-member percentages (roommate-style)
+ *      a. household `customSplitShares` that cover every participant → per-member
+ *         percentages rescaled proportionally to sum to 100 over the participant
+ *         set (roommate-style; a no-op for the full household)
  *      b. else a valid `customSplitPercentage` and an identifiable owner among
  *         participants → owner pays X%, non-owners share the rest equally
  *         (couple-style)
@@ -89,21 +90,24 @@ export function computeDebtorShares(input: ComputeDebtorSharesInput): DebtorShar
 
   // Branch 4 — custom.
   if (input.splitMethod === 'custom') {
-    // 4a — household per-member shares (roommate-style). Apply only when they
-    // cover every participant and sum to 100 over the participant set; otherwise
-    // fall through (handles membership changes and subgroup expenses).
+    // 4a — household per-member shares (roommate-style). Apply when they cover
+    // every participant, rescaling proportionally over the participant set so the
+    // shares sum to 100 (mirrors the form's seedCustomPcts). For the full
+    // household rawSum is already 100, so this is a no-op; for a subgroup it
+    // preserves each member's relative weight instead of falling back to equal.
+    // If a participant has no stored share, fall through (→ couple-style / equal).
     if (input.customSplitShares && input.customSplitShares.length > 0) {
       const pctByUser = new Map<string, number>();
       for (const s of input.customSplitShares) pctByUser.set(s.userId.toString(), s.pct);
       const coversAll = input.participants.every((p) => pctByUser.has(p.userId.toString()));
-      const sumOverParticipants = input.participants.reduce(
+      const rawSum = input.participants.reduce(
         (acc, p) => acc + (pctByUser.get(p.userId.toString()) ?? 0),
         0
       );
-      if (coversAll && sumOverParticipants === 100) {
+      if (coversAll && rawSum > 0) {
         return debtors.map((d) => ({
           userId: d.userId,
-          share: (input.amount * (pctByUser.get(d.userId.toString()) ?? 0)) / 100,
+          share: input.amount * ((pctByUser.get(d.userId.toString()) ?? 0) / rawSum),
         }));
       }
     }
