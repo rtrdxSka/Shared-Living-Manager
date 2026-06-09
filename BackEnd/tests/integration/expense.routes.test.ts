@@ -188,6 +188,46 @@ describe('Expense routes', () => {
     expect(res.body.data.expense.paidByUserId).toBe(bob._id.toString());
   });
 
+  it('POST /:expenseId/claim → claimer outside the subgroup joins the split', async () => {
+    // flatshare = roommates/split with carol, eve, frank. Seed an unpaid expense
+    // for a 2-person subgroup (carol + eve), then have frank — who is NOT in the
+    // subgroup — claim it. Frank should join and the split recompute over all 3.
+    const flatshare = FIXTURES.household('flatshare');
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+    const frank = FIXTURES.user('frank');
+
+    const created = await expenseService.addExpense(
+      flatshare._id.toString(),
+      carol._id.toString(),
+      {
+        description: 'Subgroup groceries',
+        amount: 90,
+        category: 'groceries',
+        date: new Date().toISOString(),
+        participantUserIds: [carol._id.toString(), eve._id.toString()],
+        // unpaid — frank will claim it
+      }
+    );
+
+    const res = await request(app)
+      .post(`/api/households/${flatshare._id}/expenses/${created._id}/claim`)
+      .set('Authorization', auth(frank._id.toString()));
+
+    expect(res.status).toBe(200);
+    const expense = res.body.data.expense;
+    expect(expense.paidByUserId).toBe(frank._id.toString());
+    expect(expense.participantUserIds).toEqual(
+      expect.arrayContaining([carol._id.toString(), eve._id.toString(), frank._id.toString()])
+    );
+    expect(expense.participantUserIds).toHaveLength(3);
+    // Equal split over the new group of 3: carol and eve each owe 30, frank pays.
+    expect(expense.debtorStates).toHaveLength(2);
+    for (const d of expense.debtorStates) {
+      expect(d.share).toBeCloseTo(30, 5);
+    }
+  });
+
   it('POST /:expenseId/claim-payback → 200', async () => {
     const alice = FIXTURES.user('alice');
     const couple = FIXTURES.household('couple');
