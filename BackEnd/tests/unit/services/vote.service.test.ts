@@ -140,22 +140,18 @@ describe('voteService — tally math', () => {
     );
   }
 
-  it('simple_majority passes at 3 yes / 2 no (> 0.5 strict)', async () => {
+  it('simple_majority auto-passes the moment YES reaches the bar (3 of 5)', async () => {
     const v = await createOpenVote('simple_majority');
-    await cast(v, m1, 'yes');
-    await cast(v, m2, 'yes');
-    await cast(v, m3, 'yes');
-    await cast(v, m4, 'no');
-    await cast(v, m5, 'no');
-    const closed = await voteService.closeVoteEarly(
-      hid,
-      m1._id.toString(),
-      v._id.toString()
-    );
-    expect(closed.status).toBe('passed');
+    expect((await cast(v, m1, 'yes')).status).toBe('open');
+    expect((await cast(v, m2, 'yes')).status).toBe('open');
+    // 3rd yes hits >50% of the 5 members → vote auto-passes, no admin needed.
+    const r3 = await cast(v, m3, 'yes');
+    expect(r3.status).toBe('passed');
     const rule = await HouseRule.findOne({ sourceVoteId: v._id });
     expect(rule).not.toBeNull();
     expect(rule?.title).toBe('Test Rule');
+    // The vote is closed now — further ballots are rejected.
+    await expect(cast(v, m4, 'no')).rejects.toThrow(/not open/i);
   });
 
   it('simple_majority does NOT pass at 2 yes / 2 no (0.5 not strictly >)', async () => {
@@ -174,34 +170,26 @@ describe('voteService — tally math', () => {
     expect(rule).toBeNull();
   });
 
-  it('supermajority passes at 4 yes / 1 no (0.8 > 0.667)', async () => {
+  it('supermajority auto-passes at 4 of 5 (≥⅔ of members)', async () => {
     const v = await createOpenVote('supermajority');
     await cast(v, m1, 'yes');
     await cast(v, m2, 'yes');
-    await cast(v, m3, 'yes');
-    await cast(v, m4, 'yes');
-    await cast(v, m5, 'no');
-    const closed = await voteService.closeVoteEarly(
-      hid,
-      m1._id.toString(),
-      v._id.toString()
-    );
-    expect(closed.status).toBe('passed');
+    // 3 of 5 is not yet ⅔ → still open.
+    expect((await cast(v, m3, 'yes')).status).toBe('open');
+    // 4th yes reaches the bar → auto-passes.
+    expect((await cast(v, m4, 'yes')).status).toBe('passed');
   });
 
-  it('unanimous fails if any "no" ballot cast', async () => {
+  it('unanimous auto-rejects as soon as a "no" makes unanimity impossible', async () => {
     const v = await createOpenVote('unanimous');
     await cast(v, m1, 'yes');
     await cast(v, m2, 'yes');
     await cast(v, m3, 'yes');
-    await cast(v, m4, 'yes');
-    await cast(v, m5, 'no');
-    const closed = await voteService.closeVoteEarly(
-      hid,
-      m1._id.toString(),
-      v._id.toString()
-    );
-    expect(closed.status).toBe('closed_early');
+    expect((await cast(v, m4, 'yes')).status).toBe('open');
+    // m5 votes no → 5/5 yes is now impossible → vote auto-rejects.
+    const r = await cast(v, m5, 'no');
+    expect(r.status).toBe('rejected');
+    expect(await HouseRule.findOne({ sourceVoteId: v._id })).toBeNull();
   });
 
   it('all-abstain → closed_early, no rule created', async () => {
@@ -235,11 +223,15 @@ describe('voteService — tally math', () => {
     await expect(cast(v, m1, 'yes')).rejects.toThrow();
   });
 
-  it('autoCloseExpiredVotes — passing vote → status=passed + HouseRule created', async () => {
+  it('autoCloseExpiredVotes — vote at/above the bar at deadline → passed + HouseRule', async () => {
     const v = await createOpenVote('simple_majority');
-    await cast(v, m1, 'yes');
-    await cast(v, m2, 'yes');
-    await cast(v, m3, 'yes');
+    // Insert ballots directly so they don't trigger the cast-time auto-close —
+    // simulates a vote that only becomes decisive at the deadline. N=5 → needs 3.
+    await VoteBallot.create([
+      { voteId: v._id, userId: m1._id, choice: 'yes', castAt: new Date() },
+      { voteId: v._id, userId: m2._id, choice: 'yes', castAt: new Date() },
+      { voteId: v._id, userId: m3._id, choice: 'yes', castAt: new Date() },
+    ]);
     await Vote.updateOne(
       { _id: v._id },
       { deadline: new Date(Date.now() - 1000) }

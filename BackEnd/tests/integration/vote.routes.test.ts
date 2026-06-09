@@ -39,6 +39,7 @@ describe('Vote routes', () => {
       abstain: 0,
       total: 0,
       eligibleVoters: 3,
+      requiredYes: 2, // simple majority of 3 members
     });
   });
 
@@ -163,16 +164,19 @@ describe('Vote routes', () => {
     const frank = FIXTURES.user('frank');
     const flatshare = FIXTURES.household('flatshare');
 
+    // Use a unanimous vote so all three ballots are recorded — a simple-majority
+    // vote would auto-pass on the 2nd yes before Frank's ballot lands.
     const created = await request(app)
       .post(`/api/households/${flatshare._id}/votes`)
       .set('Authorization', auth(carol._id.toString()))
       .send({
         proposedRuleTitle: 'Tally check',
         proposedRuleText: 'Confirm tally + myBallot.',
+        threshold: 'unanimous',
       });
     const voteId = created.body.data.vote._id;
 
-    // Carol: yes, Eve: yes, Frank: no.
+    // Carol: yes, Eve: yes, Frank: no (the no auto-rejects but is still recorded).
     await request(app)
       .post(`/api/households/${flatshare._id}/votes/${voteId}/ballot`)
       .set('Authorization', auth(carol._id.toString()))
@@ -228,10 +232,10 @@ describe('Vote routes', () => {
     expect(res.status).toBe(403);
   });
 
-  it('POST /close → 200 owner closes; majority yes → passes and creates HouseRule', async () => {
+  it('POST /ballot → majority yes auto-passes the vote and creates a HouseRule', async () => {
     const carol = FIXTURES.user('carol');
     const eve = FIXTURES.user('eve');
-    const flatshare = FIXTURES.household('flatshare');
+    const flatshare = FIXTURES.household('flatshare'); // 3 members → needs 2 yes
 
     const created = await request(app)
       .post(`/api/households/${flatshare._id}/votes`)
@@ -242,27 +246,58 @@ describe('Vote routes', () => {
       });
     const voteId = created.body.data.vote._id;
 
-    // 2 yes / 0 no → strict majority (2/2 > 0.5) → passes.
-    await request(app)
+    // 1st yes: still open (1 of 3, majority needs 2).
+    const first = await request(app)
       .post(`/api/households/${flatshare._id}/votes/${voteId}/ballot`)
       .set('Authorization', auth(carol._id.toString()))
       .send({ choice: 'yes' });
-    await request(app)
+    expect(first.body.data.vote.status).toBe('open');
+
+    // 2nd yes reaches >50% of the household → vote auto-passes, no admin close.
+    const second = await request(app)
       .post(`/api/households/${flatshare._id}/votes/${voteId}/ballot`)
       .set('Authorization', auth(eve._id.toString()))
       .send({ choice: 'yes' });
+    expect(second.body.data.vote.status).toBe('passed');
+    expect(typeof second.body.data.vote.closedAt).toBe('string');
 
-    const res = await request(app)
-      .post(`/api/households/${flatshare._id}/votes/${voteId}/close`)
-      .set('Authorization', auth(carol._id.toString()));
-    expect(res.status).toBe(200);
-    expect(res.body.data.vote.status).toBe('passed');
-    expect(typeof res.body.data.vote.closedAt).toBe('string');
-
-    // A matching HouseRule should now exist.
+    // The HouseRule exists immediately, before any /close call.
     const rules = await HouseRule.find({ sourceVoteId: voteId });
     expect(rules.length).toBe(1);
     expect(rules[0].title).toBe('Quiet hours rule');
+
+    // The vote is already closed — a follow-up /close is a 400.
+    const closeRes = await request(app)
+      .post(`/api/households/${flatshare._id}/votes/${voteId}/close`)
+      .set('Authorization', auth(carol._id.toString()));
+    expect(closeRes.status).toBe(400);
+  });
+
+  it('POST /ballot → majority no auto-rejects the vote', async () => {
+    const carol = FIXTURES.user('carol');
+    const eve = FIXTURES.user('eve');
+    const flatshare = FIXTURES.household('flatshare'); // 3 members
+
+    const created = await request(app)
+      .post(`/api/households/${flatshare._id}/votes`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({
+        proposedRuleTitle: 'No pets',
+        proposedRuleText: 'No pets allowed.',
+      });
+    const voteId = created.body.data.vote._id;
+
+    await request(app)
+      .post(`/api/households/${flatshare._id}/votes/${voteId}/ballot`)
+      .set('Authorization', auth(carol._id.toString()))
+      .send({ choice: 'no' });
+    // 2 of 3 no → a yes-majority (2) is no longer reachable → auto-reject.
+    const second = await request(app)
+      .post(`/api/households/${flatshare._id}/votes/${voteId}/ballot`)
+      .set('Authorization', auth(eve._id.toString()))
+      .send({ choice: 'no' });
+    expect(second.body.data.vote.status).toBe('rejected');
+    expect(await HouseRule.find({ sourceVoteId: voteId })).toHaveLength(0);
   });
 
   it('GET /votes → 401 when not authenticated', async () => {
